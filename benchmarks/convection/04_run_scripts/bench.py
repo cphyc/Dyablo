@@ -45,7 +45,7 @@ elif target == 'AA_mi250':
     machine_threads_per_node=64
     machine_gpus_per_nodes=8
     executable_path='./dyablo_mi250'
-    account='aim1623'
+    account='cin4545'
 
 template_dir=os.path.dirname(os.path.realpath(__file__))
 

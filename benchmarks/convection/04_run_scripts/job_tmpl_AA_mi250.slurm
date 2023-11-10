@@ -10,11 +10,12 @@
 #SBATCH --exclusive
 #SBATCH -o log.out
 
-modulr purge
+module purge
 module load PrgEnv-amd 
 module load amd/5.5.1 cray-mpich cray-hdf5-parallel
 
 export OMP_NUM_THREADS=<nb_threads>
 export OMP_PROC_BIND=true 
+export MPICH_GPU_SUPPORT_ENABLED=1
 
-srun ./dyablo_genoa restart.ini
+srun ./dyablo_mi250 restart.ini
