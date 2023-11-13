@@ -18,7 +18,7 @@ export OMP_PROC_BIND=true
 
 cd 1_run_prep
 rm *.h5
-srun ../dyablo_v100 initial.ini
+srun ../dyablo_v100 run_prep.ini
 
 cd ../2_refine_1
 rm *.h5
