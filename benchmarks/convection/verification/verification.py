@@ -8,6 +8,8 @@ import subprocess
 to_parse = ['JZ_v100', 'JZ_a100', 'JZ_csl', 'AA_genoa', 'AA_mi250']
 to_really_parse = []
 
+verification_py_dir = os.path.abspath(os.path.dirname(__file__))
+
 for p in to_parse:
     try:
         os.listdir(p)
@@ -28,7 +30,7 @@ for p in to_really_parse:
     os.mkdir('logs')
     try:
         print(os.getcwd())
-        subprocess.run(['../dump_logs.sh'])
+        subprocess.run([f'{verification_py_dir}/dump_logs.sh'])
     except:
         print('Something wrong happened when trying to read the logs ! Investigate further !')
         exit(1)
