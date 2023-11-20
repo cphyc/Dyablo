@@ -63,6 +63,7 @@ set( mpi_src
 set( hdf5_src
     ${CMAKE_CURRENT_SOURCE_DIR}/io/IOManager_hdf5.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/io/IOManager_checkpoint.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/io/IOManager_diagnostics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_restart.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_tiled_restart.cpp
 )
