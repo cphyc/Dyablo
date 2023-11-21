@@ -54,6 +54,7 @@ for p in to_really_parse:
             f_in = open(f, 'r')
             time = []
             dt  = []
+            mass_max_diff = 1e-999
             for line in f_in:
                 if 'Negative density detected' in line or 'Negative pressure detected' in line:
                     run_list['invalid'].append((rname, 'Negative density or pressure'))
@@ -73,16 +74,40 @@ for p in to_really_parse:
                         exit(1)
 
                     # TODO -> Invalidate run if dt is too small wrt to criterion
+                if 'Mass' in line:
+                    matching = re.match('.*Mass  , (.+) : (.+), (.+), (.+), (.+)', line)
+                    try:
+                        iter = float(matching.group(1))
+                        m = float(matching.group(2))
+                        dm_abs = float(matching.group(3))
+                        dm_rel = float(matching.group(4))
+                        dm_total_abs = float(matching.group(5))
+                    except:
+                        print(f' . Problem with line {line} in file {f}')
+                        exit(1)
+
+                    mass_max_diff = max( mass_max_diff, dm_rel )
+
+                    epsilon_mass = 1e-13
+                    if( abs(dm_rel) > epsilon_mass):
+                        run_list['invalid'].append((rname, f'Mass not conserved : rel diff {dm_rel} > {epsilon_mass} at iteration {iter}'))
+                        break
+
                     
             f_in.close()
 
+            max_diff_print = mass_max_diff if (mass_max_diff!=1e-999) else "err"
             # Valid run we store the times and dts
             if rname not in (x[0] for x in run_list['invalid']):
                 run_list[rname] = (time, dt)
+                print( f"Run {rname} is valid : mass deviation = {max_diff_print}" )
+            else:
+                print( f"Error during Run {rname} mass deviation = {max_diff_print}" )
     
     # We have finished parsing the files, now we display the results
+    N_valid = len( run_list ) - 1
     N_invalid = len(run_list['invalid'])
-    print(f' . Number of invalid runs : {N_invalid}')
+    print(f' . Number of invalid runs : {N_invalid}/{N_invalid+N_valid}')
     for inv_run in run_list['invalid']:
         run, reason = inv_run
         print(f'   -> {run} is invalid for reason {reason}')
