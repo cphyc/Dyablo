@@ -63,6 +63,15 @@ def replace_in_file(src_filename, dst_filename, params):
     f_out.write(data)
     f_out.close()
 
+def safe_symlink(filename, dst_dir):
+  # Safely create a symlink to local file
+  try:
+    os.unlink(os.path.join(dst_dir, filename))
+  except FileNotFoundError:
+    pass  
+  if not os.path.isfile( os.path.realpath(filename) ):
+     raise FileNotFoundError(f"Could not find file {filename}")     
+  os.symlink(os.path.realpath(filename), os.path.join(dst_dir, filename))
 
 def run_testcase( nb_nodes, mpi_per_node, nrep_x, nrep_y ):
   if( mpi_per_node*nb_nodes != nrep_x*nrep_y ):
@@ -104,17 +113,9 @@ def run_testcase( nb_nodes, mpi_per_node, nrep_x, nrep_y ):
 
   replace_in_file(slurm_src, slurm_dst, slurm_params)
 
-  # Safely create a simlink to executable in bench dir
-  try:
-    os.unlink(os.path.join(dst_dir, executable_path))
-  except FileNotFoundError:
-    pass
-
-  os.symlink(os.path.realpath(executable_path), os.path.join(dst_dir, executable_path))
-
-  # Copying h5 file to destination folder
-  shutil.copy('restart.h5', dst_dir)
-
+  # Make symlinks to executable and restart.ini
+  safe_symlink(executable_path, dst_dir)
+  safe_symlink('restart.h5', dst_dir)
   
   cmd = ["sbatch", job_tmpl]
   p = subprocess.Popen(cmd, cwd=dst_dir)
