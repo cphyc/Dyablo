@@ -8,10 +8,12 @@ import subprocess
 
 available_targets = ('JZ_v100', 'JZ_a100', 'JZ_csl', 'AA_genoa', 'AA_mi250')
 def usage():
-    print(f'Usage : python3 {sys.argv[0]} TARGET')
+    print(f'Usage : python3 {sys.argv[0]} TARGET [--run]')
     print('With target in the following : ' + ' '.join(available_targets))
     exit(1)
 
+execute_sbatch = "--run" in sys.argv
+    
 if len(sys.argv) < 2:
     usage()
     
@@ -25,17 +27,17 @@ if target == 'JZ_v100':
     machine_threads_per_node=40
     machine_gpus_per_nodes=4
     executable_path='./dyablo_v100'
-    account='yhq'
+    account='jza'
 elif target == 'JZ_a100':
     machine_threads_per_node=64
     machine_gpus_per_nodes=8
     executable_path='./dyablo_a100'
-    account='yhq'
+    account='jza'
 elif target == 'JZ_csl':
     machine_threads_per_node=80 # 80 with multithreading; 40 otherwise
     machine_gpus_per_nodes=0
     executable_path='./dyablo_csl'
-    account='yhq'
+    account='zah'
 elif target == 'AA_genoa':
     machine_threads_per_node=192
     machine_gpus_per_nodes=0
@@ -116,10 +118,11 @@ def run_testcase( nb_nodes, mpi_per_node, nrep_x, nrep_y ):
   # Make symlinks to executable and restart.ini
   safe_symlink(executable_path, dst_dir)
   safe_symlink('restart.h5', dst_dir)
-  
-  cmd = ["sbatch", job_tmpl]
-  p = subprocess.Popen(cmd, cwd=dst_dir)
-  p.wait()
+
+  if execute_sbatch :
+      cmd = ["sbatch", job_tmpl]
+      p = subprocess.Popen(cmd, cwd=dst_dir)
+      p.wait()
 
 if target == 'JZ_v100':
     run_testcase( nb_nodes=1, mpi_per_node=1, nrep_x=1, nrep_y=1 )

@@ -12,7 +12,7 @@
 
 
 module purge
-module load cmake/ gcc/8.5.0 cuda/12.1.0 openmpi/4.0.5-cuda hdf5/1.12.0-mpi-cuda
+module load cmake gcc/12.2.0 cuda/12.1.0 openmpi/4.1.5-cuda hdf5/1.12.0-mpi-cuda
 
 export OMP_NUM_THREADS=<nb_threads>
 export OMP_PROC_BIND=true
