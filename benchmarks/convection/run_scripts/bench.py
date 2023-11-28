@@ -6,7 +6,7 @@ import os
 import sys
 import subprocess
 
-available_targets = ('JZ_v100', 'JZ_a100', 'JZ_csl', 'AA_genoa', 'AA_mi250')
+available_targets = ('JZ_v100', 'JZ_a100', 'JZ_csl', 'AA_genoa_sockets','AA_genoa_CCDs', 'AA_mi250')
 def usage():
     print(f'Usage : python3 {sys.argv[0]} TARGET [--run]')
     print('With target in the following : ' + ' '.join(available_targets))
@@ -38,13 +38,18 @@ elif target == 'JZ_csl':
     machine_gpus_per_nodes=0
     executable_path='./dyablo_csl'
     account='zah'
-elif target == 'AA_genoa':
-    machine_threads_per_node=192
+elif target == 'AA_genoa_sockets':
+    machine_threads_per_node=384
+    machine_gpus_per_nodes=0
+    executable_path='./dyablo_genoa'
+    account='cin4545'
+elif target == 'AA_genoa_CCDs':
+    machine_threads_per_node=384
     machine_gpus_per_nodes=0
     executable_path='./dyablo_genoa'
     account='cin4545'
 elif target == 'AA_mi250':
-    machine_threads_per_node=64
+    machine_threads_per_node=128
     machine_gpus_per_nodes=8
     executable_path='./dyablo_mi250'
     account='cin4545'
@@ -165,29 +170,30 @@ elif target == 'JZ_csl':
     #run_testcase( nb_nodes=128, mpi_per_node=1, nrep_x=16, nrep_y=8)
     #run_testcase( nb_nodes=256, mpi_per_node=1, nrep_x=16, nrep_y=16)
     #run_testcase( nb_nodes=512, mpi_per_node=1, nrep_x=32, nrep_y=16)
-elif target == 'AA_genoa':                                                                               
+elif target == 'AA_genoa_sockets':                                                                               
     # 1 Process per CPU                                                                                  
-    #run_testcase( nb_nodes=1, mpi_per_node=2, nrep_x=2, nrep_y=1 )                                      
-    #run_testcase( nb_nodes=2, mpi_per_node=2, nrep_x=2, nrep_y=2 )                                      
-    #run_testcase( nb_nodes=4, mpi_per_node=2, nrep_x=4, nrep_y=2 )                                      
-    #run_testcase( nb_nodes=8, mpi_per_node=2, nrep_x=4, nrep_y=4 )                                      
-    #run_testcase( nb_nodes=16, mpi_per_node=2, nrep_x=8, nrep_y=4 )                                     
-    #run_testcase( nb_nodes=32, mpi_per_node=2, nrep_x=8, nrep_y=8 )                                     
-    #run_testcase( nb_nodes=64, mpi_per_node=2, nrep_x=16, nrep_y=8 )                                    
-    #run_testcase( nb_nodes=128, mpi_per_node=2, nrep_x=16, nrep_y=16 )                                  
-    #run_testcase( nb_nodes=256, mpi_per_node=2, nrep_x=32, nrep_y=16 )                                  
-                                                                                                         
-    # 1 Process per node                                                                                 
-    run_testcase( nb_nodes=1, mpi_per_node=1, nrep_x=1, nrep_y=1 )                                       
-    run_testcase( nb_nodes=2, mpi_per_node=1, nrep_x=2, nrep_y=1 )                                       
-    run_testcase( nb_nodes=4, mpi_per_node=1, nrep_x=2, nrep_y=2 )                                       
-    run_testcase( nb_nodes=8, mpi_per_node=1, nrep_x=4, nrep_y=2 )                                       
-    run_testcase( nb_nodes=16, mpi_per_node=1, nrep_x=4, nrep_y=4 )                                      
-    run_testcase( nb_nodes=32, mpi_per_node=1, nrep_x=8, nrep_y=4 )                                      
-    run_testcase( nb_nodes=64, mpi_per_node=1, nrep_x=8, nrep_y=8 )                                      
-    run_testcase( nb_nodes=128, mpi_per_node=1, nrep_x=16, nrep_y=8 )                                    
-    run_testcase( nb_nodes=256, mpi_per_node=1, nrep_x=16, nrep_y=16 )                                   
-    run_testcase( nb_nodes=512, mpi_per_node=1, nrep_x=32, nrep_y=16 )                                   
+    run_testcase( nb_nodes=1, mpi_per_node=2, nrep_x=2, nrep_y=1 )                                      
+    run_testcase( nb_nodes=2, mpi_per_node=2, nrep_x=2, nrep_y=2 )                                      
+    run_testcase( nb_nodes=4, mpi_per_node=2, nrep_x=4, nrep_y=2 )                                      
+    run_testcase( nb_nodes=8, mpi_per_node=2, nrep_x=4, nrep_y=4 )                                      
+    run_testcase( nb_nodes=16, mpi_per_node=2, nrep_x=8, nrep_y=4 )                                     
+    run_testcase( nb_nodes=32, mpi_per_node=2, nrep_x=8, nrep_y=8 )                                     
+    run_testcase( nb_nodes=64, mpi_per_node=2, nrep_x=16, nrep_y=8 )                                    
+    run_testcase( nb_nodes=128, mpi_per_node=2, nrep_x=16, nrep_y=16 )                                  
+    run_testcase( nb_nodes=256, mpi_per_node=2, nrep_x=32, nrep_y=16 )
+    run_testcase( nb_nodes=512, mpi_per_node=2, nrep_x=32, nrep_y=32 )
+elif target == 'AA_genoa_CCDs':                                                                               
+    # 4 Process per CPU                                                                                  
+    run_testcase( nb_nodes=1, mpi_per_node=8, nrep_x=4, nrep_y=2 )                                      
+    run_testcase( nb_nodes=2, mpi_per_node=8, nrep_x=4, nrep_y=4 )                                      
+    run_testcase( nb_nodes=4, mpi_per_node=8, nrep_x=8, nrep_y=4 )                                      
+    run_testcase( nb_nodes=8, mpi_per_node=8, nrep_x=8, nrep_y=8 )                                      
+    run_testcase( nb_nodes=16, mpi_per_node=8, nrep_x=16, nrep_y=8 )                                     
+    run_testcase( nb_nodes=32, mpi_per_node=8, nrep_x=16, nrep_y=16 )                                     
+    run_testcase( nb_nodes=64, mpi_per_node=8, nrep_x=32, nrep_y=16 )                                    
+    run_testcase( nb_nodes=128, mpi_per_node=8, nrep_x=32, nrep_y=32 )                                  
+    run_testcase( nb_nodes=256, mpi_per_node=8, nrep_x=64, nrep_y=32 )
+    run_testcase( nb_nodes=512, mpi_per_node=8, nrep_x=64, nrep_y=64 )
 elif target == 'AA_mi250':                                                                               
     run_testcase( nb_nodes=1, mpi_per_node=1, nrep_x=1, nrep_y=1 )                                       
     run_testcase( nb_nodes=1, mpi_per_node=2, nrep_x=2, nrep_y=1 )                                       

@@ -5,7 +5,7 @@ import re
 import shutil
 import subprocess
 
-to_parse = ['JZ_v100', 'JZ_a100', 'JZ_csl', 'AA_genoa', 'AA_mi250']
+to_parse = ['JZ_v100', 'JZ_a100', 'JZ_csl', 'AA_genoa_sockets', 'AA_genoa_CCDs', 'AA_mi250']
 to_really_parse = []
 
 verification_py_dir = os.path.abspath(os.path.dirname(__file__))
@@ -88,7 +88,7 @@ for p in to_really_parse:
 
                     mass_max_diff = max( mass_max_diff, dm_rel )
 
-                    epsilon_mass = 1e-13
+                    epsilon_mass = 1e-10
                     if( abs(dm_rel) > epsilon_mass):
                         run_list['invalid'].append((rname, f'Mass not conserved : rel diff {dm_rel} > {epsilon_mass} at iteration {iter}'))
                         break

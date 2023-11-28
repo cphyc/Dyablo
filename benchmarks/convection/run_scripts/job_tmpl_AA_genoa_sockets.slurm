@@ -1,0 +1,1 @@
+job_tmpl_AA_genoa.slurm
