@@ -14,6 +14,9 @@ template<typename State> class HydroUpdate_euler;
 template<typename State> class HydroUpdate_RK2;
 template<typename State> class HydroUpdate_euler_no_patch;
 
+template<int ndim> 
+class FiniteVolumePolicy_hydro;
+
 } //namespace dyablo 
 
 
@@ -32,7 +35,7 @@ inline bool dyablo::HydroUpdateFactory::init()
   DECLARE_REGISTERED(dyablo::HydroUpdate_RK2<dyablo::HydroState>);
   DECLARE_REGISTERED(dyablo::HydroUpdate_RK2<dyablo::MHDState>);
   DECLARE_REGISTERED(dyablo::HydroUpdate_RK2<dyablo::GLMMHDState>);
-  DECLARE_REGISTERED(dyablo::HydroUpdate_euler_no_patch<dyablo::HydroState>);
+  DECLARE_REGISTERED(dyablo::HydroUpdate_euler_no_patch<dyablo::FiniteVolumePolicy_hydro<3>>);
 
   return true;
 }
