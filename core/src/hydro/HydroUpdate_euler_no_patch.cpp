@@ -13,119 +13,42 @@ using offset_t      = typename CellIndex::offset_t;
 
 enum VarIndex_gravity {IGX, IGY, IGZ};
 
-/**
- * Applies corrector step for gravity
- * @param Uin Initial values before update
- * @param iCell_Uin Position insides Uin/Uout (non ghosted)
- * @param dt time step
- * @param use_field Get gravity field from Uin
- * @param gx, gy, gz, scalar values when use_field == false
- * @param Uout Updated array after hydro without gravity
- **/
-template<int ndim, typename State>
-KOKKOS_INLINE_FUNCTION
-void apply_gravity_correction( const FieldAccessor& Uin,
-                               const FieldAccessor& Uin_g,
-                               const CellIndex& iCell_Uin,
-                               real_t dt,
-                               bool use_field,
-                               real_t gx, real_t gy, real_t gz,
-                               const FieldAccessor& Uout ){
-  if(use_field)
-  {
-    gx = Uin_g.at(iCell_Uin, IGX);
-    gy = Uin_g.at(iCell_Uin, IGY);
-    if (ndim == 3)
-      gz = Uin_g.at(iCell_Uin, IGZ);
-  }
-
-  real_t rhoOld = Uin.at(iCell_Uin, State::Irho);
-  
-  real_t rhoNew = Uout.at(iCell_Uin, State::Irho);
-  real_t rhou = Uout.at(iCell_Uin, State::Irho_vx);
-  real_t rhov = Uout.at(iCell_Uin, State::Irho_vy);
-  real_t ekin_old = rhou*rhou + rhov*rhov;
-  real_t rhow;
-  
-  if (ndim == 3) {
-    rhow = Uout.at(iCell_Uin, State::Irho_vz);
-    ekin_old += rhow*rhow;
-  }
-  
-  ekin_old = 0.5 * ekin_old / rhoNew;
-
-  rhou += 0.5 * dt * gx * (rhoOld + rhoNew);
-  rhov += 0.5 * dt * gy * (rhoOld + rhoNew);
-
-  Uout.at(iCell_Uin, State::Irho_vx) = rhou;
-  Uout.at(iCell_Uin, State::Irho_vy) = rhov;
-  if (ndim == 3) {
-    rhow += 0.5 * dt * gz * (rhoOld + rhoNew);
-    Uout.at(iCell_Uin, State::Irho_vz) = rhow;
-  }
-
-  // Energy correction should be included in case of self-gravitation ?
-  real_t ekin_new = rhou*rhou + rhov*rhov;
-  if (ndim == 3)
-    ekin_new += rhow*rhow;
-  
-  ekin_new = 0.5 * ekin_new / rhoNew;
-  Uout.at(iCell_Uin, State::Ie_tot) += (ekin_new - ekin_old);
-}
-
 }// namespace
 }// namespace dyablo
 
 namespace dyablo {
 
-template< int ndim_ >
-class FiniteVolumePolicy_hydro 
+template< typename State_t >
+class FiniteVolumePolicy_State_legacy
 {
+private:
+  real_t gamma0;
+  constexpr static int ndim = 3;
 public:
-  constexpr static int ndim = ndim_;
-  using PrimState = PrimHydroState;
-  using ConsState = ConsHydroState;
-  using CellIndex = ForeachCell::CellIndex;
+  using PrimState = typename State_t::PrimState;
+  using ConsState = typename State_t::ConsState;
 
-  struct Params{
-    real_t gamma0;
-    RiemannParams rparams;
-    BoundaryConditions boundary_conditions;
-  };
-
-  FiniteVolumePolicy_hydro( ConfigMap& configMap )
-  : params{
-      .gamma0 = configMap.getValue<real_t>("hydro","gamma0", 1.4),
-      .rparams = configMap,
-      .boundary_conditions = configMap
-    }
+  FiniteVolumePolicy_State_legacy( ConfigMap& configMap )
+  : //ndim(configMap.getValue<int>("mesh", "ndim", 3)),
+    gamma0(configMap.getValue<real_t>("hydro","gamma0", 1.4))
   {}
-
-  FieldAccessor getUin( UserData& U ) const
-  {
-    return U.getAccessor( ConsState::getFieldsInfo() );
-  }
-
-  FieldAccessor getUout( UserData& U ) const
-  {
-    auto fields_info_next = ConsState::getFieldsInfo();
-    for( auto& p : fields_info_next )
-      p.name += "_next";
-    return U.getAccessor( fields_info_next );
-  }
 
   template < typename Array_t >
   ConsState getConsState( const Array_t& U, const CellIndex& iCell ) const
   {
     ConsState u;
-    getConservativeState<ndim>(U, iCell, u);
+    getConservativeState<ndim>(U, iCell, u); 
     return u;
   }
 
   template < typename Array_t >
   void setConsState( const Array_t& U, const CellIndex& iCell, const ConsState& u ) const
   {
-    setConservativeState<ndim>(U, iCell, u);
+    if( this->ndim == 2 )
+      setConservativeState<2>(U, iCell, u);
+    else if( this->ndim == 3 )
+      setConservativeState<3>(U, iCell, u);
+
   }
 
   template < typename Array_t >
@@ -155,47 +78,116 @@ public:
 
   PrimState consToPrim( const ConsState& u ) const
   {
-    return dyablo::consToPrim<ndim>(u, params.gamma0);
+    return dyablo::consToPrim<ndim>(u, gamma0);
   }
 
   ConsState primToCons( const PrimState& q ) const
   {
-    return dyablo::primToCons<ndim>(q, params.gamma0);
+    return dyablo::primToCons<ndim>(q, gamma0);
   }
+};
+template< typename LegacyState_t >
+class FiniteVolumePolicy_RiemannSolver_legacy
+{
+private:
+  RiemannParams rparams;
+public:
+  using PrimState = typename LegacyState_t::PrimState;
+  using ConsState = typename LegacyState_t::ConsState;
+
+  FiniteVolumePolicy_RiemannSolver_legacy( ConfigMap& configMap )
+  : rparams(configMap)
+  {}
 
   ConsState riemann_solver( PrimState qL, PrimState qR, ComponentIndex3D dir ) const
   {
     qL = swapComponents(qL, dir);
     qR = swapComponents(qR, dir);
-    ConsState flux = riemann_hydro(qL, qR, params.rparams);
+    ConsState flux = riemann_hydro(qL, qR, rparams);
     flux = swapComponents(flux, dir);
     return flux;
   }
+};
 
-  PrimState compute_slope( PrimState qL, PrimState qC, PrimState qR, real_t dL, real_t dR) const
-  {
-    auto dqp = (qR - qC) / dR;
-    auto dqm = (qC - qL) / dL;
+template< typename LegacyState_t >
+class FiniteVolumePolicy_BoundaryConditions_legacy
+{
+private:
+  constexpr static int ndim = 3;
+  BoundaryConditions boundary_conditions;
+public:
+  using PrimState = typename LegacyState_t::PrimState;
+  using ConsState = typename LegacyState_t::ConsState;
 
-    PrimState slope{};
-    state_foreach_var([](real_t& res, real_t dvp, real_t dvm) {
-      if (dvp * dvm <= 0.0)
-        res = 0.0;
-      else
-        res = fabs(dvp) > fabs(dvm) ? dvm : dvp;
-    }, slope, dqp, dqm);
-
-    return slope;
-  }
-
+  FiniteVolumePolicy_BoundaryConditions_legacy( ConfigMap& configMap )
+  : boundary_conditions(configMap)
+  {}
+  
   template < typename Array_t >
   ConsState getBoundaryValue( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const
   {
-    return params.boundary_conditions.template getBoundaryValue<ndim, HydroState>(U, iCell_boundary, metadata );
+    return boundary_conditions.template getBoundaryValue<ndim, LegacyState_t>(U, iCell_boundary, metadata );
+  }
+};
+
+template< typename FiniteVolumePolicy_State_t,
+          typename FiniteVolumePolicy_RiemannSolver_t,
+          typename FiniteVolumePolicy_BoundaryConditions_t,
+          typename FiniteVolumePolicy_Slope_t > 
+class FiniteVolumePolicy_impl : 
+  public FiniteVolumePolicy_State_t,
+  public FiniteVolumePolicy_RiemannSolver_t,
+  public FiniteVolumePolicy_BoundaryConditions_t,
+  public FiniteVolumePolicy_Slope_t
+{
+public:
+  constexpr static int ndim = 3;aluation non-centrée des pentes (tu prends que le côté 
+  using PrimState = typename FiniteVolumePolicy_State_t::PrimState;
+  using ConsState = typename FiniteVolumePolicy_State_t::ConsState;
+  using CellIndex = ForeachCell::CellIndex;
+
+  static_assert( std::is_same_v< typename FiniteVolumePolicy_RiemannSolver_t::PrimState
+                               , PrimState >, "RiemannSolver State type mismatch" );
+  static_assert( std::is_same_v< typename FiniteVolumePolicy_RiemannSolver_t::ConsState
+                               , ConsState >, "RiemannSolver State type mismatch" );
+  static_assert( std::is_same_v< typename FiniteVolumePolicy_BoundaryConditions_t::PrimState
+                               , PrimState >, "BoundaryConditions State type mismatch" );
+  static_assert( std::is_same_v< typename FiniteVolumePolicy_BoundaryConditions_t::ConsState
+                               , ConsState >, "BoundaryConditions State type mismatch" );
+
+  FiniteVolumePolicy_impl( ConfigMap& configMap )
+  : FiniteVolumePolicy_State_t(configMap),
+    FiniteVolumePolicy_RiemannSolver_t(configMap),
+    FiniteVolumePolicy_BoundaryConditions_t(configMap),
+    FiniteVolumePolicy_Slope_t(configMap)
+  {}
+
+  FieldAccessor getUin( UserData& U ) const
+  {
+    return U.getAccessor( ConsState::getFieldsInfo() );
   }
 
-private:
-  const Params params;
+  FieldAccessor getUout( UserData& U ) const
+  {
+    auto fields_info_next = ConsState::getFieldsInfo();
+    for( auto& p : fields_info_next )
+      p.name += "_next";
+    return U.getAccessor( fields_info_next );
+  }
+
+  using FiniteVolumePolicy_State_t::getConsState;
+  using FiniteVolumePolicy_State_t::setConsState;
+  using FiniteVolumePolicy_State_t::atomic_addConsState;
+  using FiniteVolumePolicy_State_t::getPrimState;
+  using FiniteVolumePolicy_State_t::setPrimState;
+  using FiniteVolumePolicy_State_t::consToPrim;
+  using FiniteVolumePolicy_State_t::primToCons;
+
+  using FiniteVolumePolicy_RiemannSolver_t::riemann_solver;
+  
+  using FiniteVolumePolicy_BoundaryConditions_t::getBoundaryValue;
+
+  using FiniteVolumePolicy_Slope_t::compute_slope;
 };
 
 template< typename Policy, typename Array_t >
@@ -463,6 +455,24 @@ private:
   real_t gx, gy, gz;
   bool well_balanced;
   real_t smallr, smallp;
+};
+
+
+template<typename LegacyState_t >
+using FiniteVolumePolicy_legacy = FiniteVolumePolicy_impl<
+  FiniteVolumePolicy_State_legacy<LegacyState_t>,
+  FiniteVolumePolicy_RiemannSolver_legacy<LegacyState_t>,
+  FiniteVolumePolicy_BoundaryConditions_legacy<LegacyState_t>,
+  FiniteVolumePolicy_Slope_minmod<LegacyState_t>
+  >;
+
+
+template<int ndim>
+class FiniteVolumePolicy_hydro 
+  : public FiniteVolumePolicy_legacy<dyablo::HydroState>
+{
+public:
+  using FiniteVolumePolicy_legacy<dyablo::HydroState>::FiniteVolumePolicy_legacy;
 };
 
 } // namespace dyablo
