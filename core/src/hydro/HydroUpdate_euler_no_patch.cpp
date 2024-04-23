@@ -34,6 +34,7 @@ public:
   {}
 
   template < typename Array_t >
+  KOKKOS_INLINE_FUNCTION
   ConsState getConsState( const Array_t& U, const CellIndex& iCell ) const
   {
     ConsState u;
@@ -42,6 +43,7 @@ public:
   }
 
   template < typename Array_t >
+  KOKKOS_INLINE_FUNCTION
   void setConsState( const Array_t& U, const CellIndex& iCell, const ConsState& u ) const
   {
     if( this->ndim == 2 )
@@ -52,6 +54,7 @@ public:
   }
 
   template < typename Array_t >
+  KOKKOS_INLINE_FUNCTION
   void atomic_addConsState( const Array_t& U, const CellIndex& iCell, const ConsState& u ) const
   {
     Kokkos::atomic_add(&U.at(iCell, ConsState::Irho), u.rho);
@@ -63,6 +66,7 @@ public:
   }
 
   template < typename Array_t >
+  KOKKOS_INLINE_FUNCTION
   PrimState getPrimState( const Array_t& Q, const CellIndex& iCell ) const
   {
     PrimState q;
@@ -71,16 +75,19 @@ public:
   }
 
   template < typename Array_t >
+  KOKKOS_INLINE_FUNCTION
   void setPrimState( const Array_t& Q, const CellIndex& iCell, const PrimState& q ) const
   {
     setPrimitiveState<ndim>(Q, iCell, q);
   }
 
+  KOKKOS_INLINE_FUNCTION
   PrimState consToPrim( const ConsState& u ) const
   {
     return dyablo::consToPrim<ndim>(u, gamma0);
   }
 
+  KOKKOS_INLINE_FUNCTION
   ConsState primToCons( const PrimState& q ) const
   {
     return dyablo::primToCons<ndim>(q, gamma0);
@@ -99,6 +106,7 @@ public:
   : rparams(configMap)
   {}
 
+  KOKKOS_INLINE_FUNCTION
   ConsState riemann_solver( PrimState qL, PrimState qR, ComponentIndex3D dir ) const
   {
     qL = swapComponents(qL, dir);
@@ -123,18 +131,21 @@ public:
   : boundary_conditions(configMap)
   {}
 
+  KOKKOS_INLINE_FUNCTION
   bool boundaryMode_overrideFlux() const
   {
     return false;
   }
   
   template < typename Array_t >
+  KOKKOS_INLINE_FUNCTION
   ConsState getBoundaryValue( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const
   {
     return boundary_conditions.template getBoundaryValue<ndim, LegacyState_t>(U, iCell_boundary, metadata );
   }
 
   template < typename Array_t >
+  KOKKOS_INLINE_FUNCTION
   ConsState getBoundaryFlux( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const
   {
     DYABLO_ASSERT_KOKKOS_DEBUG( boundaryMode_overrideFlux(), "called getBoundaryFlux() but Boundary mode is not flux");
@@ -152,6 +163,7 @@ public:
   FiniteVolumePolicy_Slope_minmod( ConfigMap& configMap )
   {}
 
+  KOKKOS_INLINE_FUNCTION
   PrimState compute_slope( PrimState qL, PrimState qC, PrimState qR, real_t dL, real_t dR) const
   {
     auto dqp = (qR - qC) / dR;
