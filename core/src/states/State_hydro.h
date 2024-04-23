@@ -192,6 +192,17 @@ void setConservativeState( const Array_t& U, const CellIndex& iCell, ConsHydroSt
     U.at(iCell, ConsHydroState::VarIndex::Irho_vz) = u.rho_w;
 }
 
+template <int ndim, typename Array_t, typename CellIndex >
+KOKKOS_INLINE_FUNCTION
+void atomic_add_ConservativeState( const Array_t& U, const CellIndex& iCell, ConsHydroState u) {
+  Kokkos::atomic_add(&U.at(iCell, ConsHydroState::VarIndex::Irho), u.rho);
+  Kokkos::atomic_add(&U.at(iCell, ConsHydroState::VarIndex::Ie_tot), u.e_tot);
+  Kokkos::atomic_add(&U.at(iCell, ConsHydroState::VarIndex::Irho_vx), u.rho_u);
+  Kokkos::atomic_add(&U.at(iCell, ConsHydroState::VarIndex::Irho_vy), u.rho_v);
+  if (ndim == 3)
+    Kokkos::atomic_add(&U.at(iCell, ConsHydroState::VarIndex::Irho_vz), u.rho_w);
+}
+
 /**
  * @brief Converts from a hydro conservative state to a hydro primitive state
  * 

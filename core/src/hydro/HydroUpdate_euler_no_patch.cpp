@@ -57,12 +57,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   void atomic_addConsState( const Array_t& U, const CellIndex& iCell, const ConsState& u ) const
   {
-    Kokkos::atomic_add(&U.at(iCell, ConsState::Irho), u.rho);
-    Kokkos::atomic_add(&U.at(iCell, ConsState::Ie_tot), u.e_tot);
-    Kokkos::atomic_add(&U.at(iCell, ConsState::Irho_vx), u.rho_u);
-    Kokkos::atomic_add(&U.at(iCell, ConsState::Irho_vy), u.rho_v);
-    if (ndim == 3)
-      Kokkos::atomic_add(&U.at(iCell, ConsState::Irho_vz), u.rho_w);
+    atomic_add_ConservativeState<ndim>( U, iCell, u );
   }
 
   template < typename Array_t >
