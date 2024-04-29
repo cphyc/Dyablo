@@ -244,8 +244,6 @@ public:
     else
       DYABLO_ASSERT_KOKKOS_DEBUG(false, "Internal error! Should not happen");
     
-    int sign = -offset[dir]; // u_in is considered left value, flux must be negated when offset = 1
-
     real_t gamma0 = FiniteVolumePolicy_RiemannSolver_t::rparams.gamma0;
     real_t smallr = FiniteVolumePolicy_RiemannSolver_t::rparams.smallr;
     real_t smallp = FiniteVolumePolicy_RiemannSolver_t::rparams.smallp;
@@ -259,12 +257,12 @@ public:
     // Left variables
     real_t rl = fmax(r_in, smallr);
     real_t pl = fmax(p_in, rl*smallp);
-    real_t ul =      u_in;   
+    real_t ul = offset[dir] * u_in; 
 
     // Right variables
     real_t rr = fmax(r_in, smallr);
     real_t pr = fmax(p_in, rr*smallp);
-    real_t ur =    - u_in;
+    real_t ur = - ul;
     
     real_t ptotl = pl;
     real_t ptotr = pr;
@@ -284,8 +282,18 @@ public:
     // Compute acoustic star state
     real_t ptotstar = (rcr*ptotl+rcl*ptotr+rcl*rcr*(ul-ur))/(rcr+rcl);
 
+    real_t u_out = ptotstar;
+
     ConsHydroState flux_out {};
-    flux_out.rho_u = ptotstar;
+    if(dir==IX)
+      flux_out.rho_u = u_out;
+    else if(dir==IY)
+      flux_out.rho_v = u_out;
+    else if(dir==IZ)
+      flux_out.rho_w = u_out;
+    else
+      DYABLO_ASSERT_KOKKOS_DEBUG(false, "Internal error! Should not happen");
+
 
     return flux_out;
   }
