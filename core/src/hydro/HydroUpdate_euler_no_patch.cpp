@@ -46,11 +46,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   void setConsState( const Array_t& U, const CellIndex& iCell, const ConsState& u ) const
   {
-    if( this->ndim == 2 )
-      setConservativeState<2>(U, iCell, u);
-    else if( this->ndim == 3 )
-      setConservativeState<3>(U, iCell, u);
-
+    setConservativeState<ndim>(U, iCell, u);
   }
 
   template < typename Array_t >
@@ -91,7 +87,7 @@ public:
 template< typename LegacyState_t >
 class FiniteVolumePolicy_RiemannSolver_legacy
 {
-private:
+public:
   RiemannParams rparams;
 public:
   using PrimState = typename LegacyState_t::PrimState;
@@ -113,7 +109,7 @@ public:
 };
 
 template< typename LegacyState_t >
-class FiniteVolumePolicy_BoundaryConditions_legacy
+class FiniteVolumePolicy_BoundaryConditions_value_euler
 {
 private:
   constexpr static int ndim = 3;
@@ -122,29 +118,15 @@ public:
   using PrimState = typename LegacyState_t::PrimState;
   using ConsState = typename LegacyState_t::ConsState;
 
-  FiniteVolumePolicy_BoundaryConditions_legacy( ConfigMap& configMap )
+  FiniteVolumePolicy_BoundaryConditions_value_euler( ConfigMap& configMap )
   : boundary_conditions(configMap)
   {}
 
-  KOKKOS_INLINE_FUNCTION
-  bool boundaryMode_overrideFlux() const
-  {
-    return false;
-  }
-  
   template < typename Array_t >
   KOKKOS_INLINE_FUNCTION
   ConsState getBoundaryValue( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const
   {
     return boundary_conditions.template getBoundaryValue<ndim, LegacyState_t>(U, iCell_boundary, metadata );
-  }
-
-  template < typename Array_t >
-  KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryFlux( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const
-  {
-    DYABLO_ASSERT_KOKKOS_DEBUG( boundaryMode_overrideFlux(), "called getBoundaryFlux() but Boundary mode is not flux");
-    return ConsState{};
   }
 };
 
@@ -232,9 +214,81 @@ public:
 
   using FiniteVolumePolicy_RiemannSolver_t::riemann_solver;
   
-  using FiniteVolumePolicy_BoundaryConditions_t::boundaryMode_overrideFlux;
   using FiniteVolumePolicy_BoundaryConditions_t::getBoundaryValue;
-  using FiniteVolumePolicy_BoundaryConditions_t::getBoundaryFlux;
+    template < typename Array_t >
+  KOKKOS_INLINE_FUNCTION
+  ConsState getBoundaryFlux( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const
+  {
+    CellIndex iCell_ref;
+    offset_t  offset;    
+    iCell_boundary.getBoundaryPosAndOffset(iCell_ref, offset);
+
+    const FiniteVolumePolicy_impl& policy = *this;
+
+    PrimState q_in = policy.consToPrim(policy.getConsState( U, iCell_ref ));
+
+    
+    bool dir_IX = offset[IX] == -1 || offset[IX] == 1;
+    bool dir_IY = offset[IY] == -1 || offset[IY] == 1;
+    bool dir_IZ = offset[IZ] == -1 || offset[IZ] == 1;
+    DYABLO_ASSERT_KOKKOS_DEBUG( (int)dir_IX + (int)dir_IY + (int)dir_IZ == 1
+                              , "offset is not compatible with getBoundaryFlux" );
+
+    ComponentIndex3D dir = IZ;
+    if( dir_IX )
+      dir = IX;
+    else if( dir_IY )
+      dir = IY;
+    else if( dir_IZ )
+      dir = IZ;
+    else
+      DYABLO_ASSERT_KOKKOS_DEBUG(false, "Internal error! Should not happen");
+    
+    int sign = -offset[dir]; // u_in is considered left value, flux must be negated when offset = 1
+
+    real_t gamma0 = FiniteVolumePolicy_RiemannSolver_t::rparams.gamma0;
+    real_t smallr = FiniteVolumePolicy_RiemannSolver_t::rparams.smallr;
+    real_t smallp = FiniteVolumePolicy_RiemannSolver_t::rparams.smallp;
+    real_t smallc = FiniteVolumePolicy_RiemannSolver_t::rparams.smallc;
+    
+    real_t r_in = q_in.rho;
+    real_t p_in = q_in.p;
+    real_t v_in[3] = {q_in.u, q_in.v, q_in.w};
+    real_t u_in = v_in[dir];
+
+    // Left variables
+    real_t rl = fmax(r_in, smallr);
+    real_t pl = fmax(p_in, rl*smallp);
+    real_t ul =      u_in;   
+
+    // Right variables
+    real_t rr = fmax(r_in, smallr);
+    real_t pr = fmax(p_in, rr*smallp);
+    real_t ur =    - u_in;
+    
+    real_t ptotl = pl;
+    real_t ptotr = pr;
+      
+    // Find the largest eigenvalues in the normal direction to the interface
+    real_t cfastl = SQRT(fmax(gamma0*pl/rl,smallc*smallc));
+    real_t cfastr = SQRT(fmax(gamma0*pr/rr,smallc*smallc));
+
+    // Compute HLL wave speed
+    real_t SL = fmin(ul,ur) - fmax(cfastl,cfastr);
+    real_t SR = fmax(ul,ur) + fmax(cfastl,cfastr);
+
+    // Compute lagrangian sound speed
+    real_t rcl = rl*(ul-SL);
+    real_t rcr = rr*(SR-ur);
+      
+    // Compute acoustic star state
+    real_t ptotstar = (rcr*ptotl+rcl*ptotr+rcl*rcr*(ul-ur))/(rcr+rcl);
+
+    ConsHydroState flux_out {};
+    flux_out.rho_u = ptotstar;
+
+    return flux_out;
+  }
 
   using FiniteVolumePolicy_Slope_t::compute_slope;
 };
@@ -419,7 +473,7 @@ public:
           offset_t off_m{}; 
           off_m[dir] = -1;
           const CellIndex iCell_m = iCell.getNeighbor_ghost(off_m, Uin.getShape());
-          if( iCell_m.is_boundary() && policy.boundaryMode_overrideFlux() )
+          if( iCell_m.is_boundary() )
           {
             fluxL = policy.getBoundaryFlux(Uin, iCell_m, cellmetadata);
           }
@@ -456,7 +510,7 @@ public:
           offset_t off_p{}; 
           off_p[dir] = 1;
           const CellIndex iCell_p = iCell.getNeighbor_ghost(off_p, Uin.getShape());
-          if( iCell_p.is_boundary() && policy.boundaryMode_overrideFlux() )
+          if( iCell_p.is_boundary() )
           {
             fluxR = policy.getBoundaryFlux(Uin, iCell_p, cellmetadata);
           }
@@ -526,7 +580,7 @@ template<typename LegacyState_t >
 using FiniteVolumePolicy_legacy = FiniteVolumePolicy_impl<
   FiniteVolumePolicy_State_legacy<LegacyState_t>,
   FiniteVolumePolicy_RiemannSolver_legacy<LegacyState_t>,
-  FiniteVolumePolicy_BoundaryConditions_legacy<LegacyState_t>,
+  FiniteVolumePolicy_BoundaryConditions_value_euler<LegacyState_t>,
   FiniteVolumePolicy_Slope_minmod<LegacyState_t>
   >;
 
