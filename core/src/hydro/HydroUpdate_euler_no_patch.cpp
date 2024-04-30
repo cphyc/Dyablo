@@ -188,7 +188,12 @@ public:
   : FiniteVolumePolicy_State_t(configMap),
     FiniteVolumePolicy_RiemannSolver_t(configMap),
     FiniteVolumePolicy_BoundaryConditions_t(configMap),
-    FiniteVolumePolicy_Slope_t(configMap)
+    FiniteVolumePolicy_Slope_t(configMap),
+    boundary_type{
+      configMap.getValue<BoundaryConditionType>("mesh","boundary_type_xmin", BC_ABSORBING),
+      configMap.getValue<BoundaryConditionType>("mesh","boundary_type_ymin", BC_ABSORBING),
+      configMap.getValue<BoundaryConditionType>("mesh","boundary_type_zmin", BC_ABSORBING)
+    }
   {}
 
   FieldAccessor getUin( UserData& U ) const
@@ -215,7 +220,10 @@ public:
   using FiniteVolumePolicy_RiemannSolver_t::riemann_solver;
   
   using FiniteVolumePolicy_BoundaryConditions_t::getBoundaryValue;
-    template < typename Array_t >
+
+  Kokkos::Array<BoundaryConditionType, 3> boundary_type;
+  
+  template < typename Array_t >
   KOKKOS_INLINE_FUNCTION
   ConsState getBoundaryFlux( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const
   {
@@ -225,7 +233,8 @@ public:
 
     const FiniteVolumePolicy_impl& policy = *this;
 
-    PrimState q_in = policy.consToPrim(policy.getConsState( U, iCell_ref ));
+    ConsState u_in = policy.getConsState( U, iCell_ref );
+    PrimState q_in = policy.consToPrim(u_in);
 
     
     bool dir_IX = offset[IX] == -1 || offset[IX] == 1;
@@ -243,6 +252,9 @@ public:
       dir = IZ;
     else
       DYABLO_ASSERT_KOKKOS_DEBUG(false, "Internal error! Should not happen");
+
+    bool reflecting = (boundary_type[dir] == BC_REFLECTING);
+    bool absorbing  = (boundary_type[dir] == BC_ABSORBING);
     
     real_t gamma0 = FiniteVolumePolicy_RiemannSolver_t::rparams.gamma0;
     real_t smallr = FiniteVolumePolicy_RiemannSolver_t::rparams.smallr;
@@ -252,17 +264,27 @@ public:
     real_t r_in = q_in.rho;
     real_t p_in = q_in.p;
     real_t v_in[3] = {q_in.u, q_in.v, q_in.w};
-    real_t u_in = v_in[dir];
+    real_t v_normal = v_in[dir];
 
     // Left variables
     real_t rl = fmax(r_in, smallr);
-    real_t pl = fmax(p_in, rl*smallp);
-    real_t ul = offset[dir] * u_in; 
+    real_t pl = fmax(p_in, rl*smallp);   
 
     // Right variables
     real_t rr = fmax(r_in, smallr);
     real_t pr = fmax(p_in, rr*smallp);
-    real_t ur = - ul;
+
+    real_t ul=0, ur=0;
+    if( reflecting )
+    {
+       ul = offset[dir] * v_normal;
+       ur = - ul;
+    }
+    else if( absorbing )
+    {
+       ul = v_normal;
+       ur = v_normal;
+    }
     
     real_t ptotl = pl;
     real_t ptotr = pr;
@@ -282,18 +304,23 @@ public:
     // Compute acoustic star state
     real_t ptotstar = (rcr*ptotl+rcl*ptotr+rcl*rcr*(ul-ur))/(rcr+rcl);
 
-    real_t u_out = ptotstar;
-
     ConsHydroState flux_out {};
-    if(dir==IX)
-      flux_out.rho_u = u_out;
-    else if(dir==IY)
-      flux_out.rho_v = u_out;
-    else if(dir==IZ)
-      flux_out.rho_w = u_out;
-    else
-      DYABLO_ASSERT_KOKKOS_DEBUG(false, "Internal error! Should not happen");
+    if( reflecting )
+    {
+      flux_out.rho_u = ((dir==IX) ? ptotstar : 0);
+      flux_out.rho_v = ((dir==IY) ? ptotstar : 0);
+      flux_out.rho_w = ((dir==IZ) ? ptotstar : 0);
+    }
+    else if( absorbing )
+    {
+      real_t f_rho = r_in*v_normal;
 
+      flux_out.rho = f_rho;
+      flux_out.rho_u = f_rho*q_in.u + ((dir==IX) ? ptotstar : 0);
+      flux_out.rho_v = f_rho*q_in.v + ((dir==IY) ? ptotstar : 0);
+      flux_out.rho_w = f_rho*q_in.w + ((dir==IZ) ? ptotstar : 0);
+      flux_out.e_tot = (ptotstar + u_in.e_tot) * v_normal;
+    }
 
     return flux_out;
   }
