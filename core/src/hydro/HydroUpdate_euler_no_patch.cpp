@@ -189,10 +189,15 @@ public:
     FiniteVolumePolicy_RiemannSolver_t(configMap),
     FiniteVolumePolicy_BoundaryConditions_t(configMap),
     FiniteVolumePolicy_Slope_t(configMap),
-    boundary_type{
+    bc_min{
       configMap.getValue<BoundaryConditionType>("mesh","boundary_type_xmin", BC_ABSORBING),
       configMap.getValue<BoundaryConditionType>("mesh","boundary_type_ymin", BC_ABSORBING),
       configMap.getValue<BoundaryConditionType>("mesh","boundary_type_zmin", BC_ABSORBING)
+    },
+    bc_max{
+      configMap.getValue<BoundaryConditionType>("mesh","boundary_type_xmax", BC_ABSORBING),
+      configMap.getValue<BoundaryConditionType>("mesh","boundary_type_ymax", BC_ABSORBING),
+      configMap.getValue<BoundaryConditionType>("mesh","boundary_type_zmax", BC_ABSORBING)
     }
   {}
 
@@ -219,9 +224,48 @@ public:
 
   using FiniteVolumePolicy_RiemannSolver_t::riemann_solver;
   
-  using FiniteVolumePolicy_BoundaryConditions_t::getBoundaryValue;
+  Kokkos::Array<BoundaryConditionType, 3> bc_min, bc_max;
 
-  Kokkos::Array<BoundaryConditionType, 3> boundary_type;
+  template < typename Array_t >
+  KOKKOS_INLINE_FUNCTION
+  ConsState getBoundaryValue( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const 
+  {
+    const FiniteVolumePolicy_impl& policy = *this;
+
+    CellIndex iCell_inside;
+    offset_t  offset;    
+    iCell_boundary.getBoundaryPosAndOffset(iCell_inside, offset);
+
+    auto sign = [](int x){return (x>0)-(x<0);};
+
+    CellIndex::offset_t symmetric_offset {
+      (int16_t)(-offset[IX] + sign(offset[IX])), 
+      (int16_t)(-offset[IY] + sign(offset[IY])), 
+      (int16_t)(-offset[IZ] + sign(offset[IZ]))
+    }; 
+
+    CellIndex iCell_sym = iCell_inside.getNeighbor(symmetric_offset);
+    ConsState u_sym = policy.getConsState( U, iCell_sym );    
+    ConsState res = u_sym;
+
+    if ( (offset[IX] > 0 && bc_max[IX] == BC_REFLECTING)
+      || (offset[IX] < 0 && bc_min[IX] == BC_REFLECTING) )
+    {
+        res.rho_u = -u_sym.rho_u;
+    }
+    if ( (offset[IY] > 0 && bc_max[IY] == BC_REFLECTING)
+      || (offset[IY] < 0 && bc_min[IY] == BC_REFLECTING) )
+    {
+        res.rho_v = -u_sym.rho_v;
+    }
+    if ( (offset[IZ] > 0 && bc_max[IZ] == BC_REFLECTING)
+      || (offset[IZ] < 0 && bc_min[IZ] == BC_REFLECTING) )
+    {
+        res.rho_w = -u_sym.rho_w;
+    }
+
+    return res;
+  }
   
   template < typename Array_t >
   KOKKOS_INLINE_FUNCTION
@@ -253,8 +297,10 @@ public:
     else
       DYABLO_ASSERT_KOKKOS_DEBUG(false, "Internal error! Should not happen");
 
-    bool reflecting = (boundary_type[dir] == BC_REFLECTING);
-    bool absorbing  = (boundary_type[dir] == BC_ABSORBING);
+    bool reflecting = (offset[dir] > 0 && bc_max[dir] == BC_REFLECTING)
+                  ||  (offset[dir] < 0 && bc_min[dir] == BC_REFLECTING);
+    bool absorbing  = (offset[dir] > 0 && bc_max[dir] == BC_ABSORBING)
+                  ||  (offset[dir] < 0 && bc_min[dir] == BC_ABSORBING);
     
     real_t gamma0 = FiniteVolumePolicy_RiemannSolver_t::rparams.gamma0;
     real_t smallr = FiniteVolumePolicy_RiemannSolver_t::rparams.smallr;
