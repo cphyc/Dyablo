@@ -22,14 +22,14 @@ template< typename State_t >
 class FiniteVolumePolicy_State_legacy
 {
 private:
+  int ndim;
   real_t gamma0;
-  constexpr static int ndim = 3;
 public:
   using PrimState = typename State_t::PrimState;
   using ConsState = typename State_t::ConsState;
 
   FiniteVolumePolicy_State_legacy( ConfigMap& configMap )
-  : //ndim(configMap.getValue<int>("mesh", "ndim", 3)),
+  : ndim(configMap.getValue<int>("mesh", "ndim", 3)),
     gamma0(configMap.getValue<real_t>("hydro","gamma0", 1.4))
   {}
 
@@ -38,7 +38,10 @@ public:
   ConsState getConsState( const Array_t& U, const CellIndex& iCell ) const
   {
     ConsState u;
-    getConservativeState<ndim>(U, iCell, u); 
+    if(ndim==3)
+      getConservativeState<3>(U, iCell, u);
+    else
+      getConservativeState<2>(U, iCell, u);
     return u;
   }
 
@@ -46,14 +49,20 @@ public:
   KOKKOS_INLINE_FUNCTION
   void setConsState( const Array_t& U, const CellIndex& iCell, const ConsState& u ) const
   {
-    setConservativeState<ndim>(U, iCell, u);
+    if(ndim==3)
+      setConservativeState<3>(U, iCell, u);
+    else
+      setConservativeState<2>(U, iCell, u);
   }
 
   template < typename Array_t >
   KOKKOS_INLINE_FUNCTION
   void atomic_addConsState( const Array_t& U, const CellIndex& iCell, const ConsState& u ) const
   {
-    atomic_add_ConservativeState<ndim>( U, iCell, u );
+    if(ndim==3)
+      atomic_add_ConservativeState<3>( U, iCell, u );
+    else
+      atomic_add_ConservativeState<2>( U, iCell, u );
   }
 
   template < typename Array_t >
@@ -61,7 +70,10 @@ public:
   PrimState getPrimState( const Array_t& Q, const CellIndex& iCell ) const
   {
     PrimState q;
-    getPrimitiveState<ndim>(Q, iCell, q);
+    if(ndim==3)
+      getPrimitiveState<3>(Q, iCell, q);
+    else
+      getPrimitiveState<2>(Q, iCell, q);
     return q;
   }
 
@@ -69,19 +81,28 @@ public:
   KOKKOS_INLINE_FUNCTION
   void setPrimState( const Array_t& Q, const CellIndex& iCell, const PrimState& q ) const
   {
-    setPrimitiveState<ndim>(Q, iCell, q);
+    if(ndim==3)
+      setPrimitiveState<3>(Q, iCell, q);
+    else
+      setPrimitiveState<2>(Q, iCell, q);
   }
 
   KOKKOS_INLINE_FUNCTION
   PrimState consToPrim( const ConsState& u ) const
   {
-    return dyablo::consToPrim<ndim>(u, gamma0);
+    if(ndim==3)
+      return dyablo::consToPrim<3>(u, gamma0);
+    else
+      return dyablo::consToPrim<2>(u, gamma0);
   }
 
   KOKKOS_INLINE_FUNCTION
   ConsState primToCons( const PrimState& q ) const
   {
-    return dyablo::primToCons<ndim>(q, gamma0);
+    if(ndim==3)
+      return dyablo::primToCons<3>(q, gamma0);
+    else
+      return dyablo::primToCons<2>(q, gamma0);
   }
 };
 template< typename LegacyState_t >
@@ -111,23 +132,10 @@ public:
 template< typename LegacyState_t >
 class FiniteVolumePolicy_BoundaryConditions_value_euler
 {
-private:
-  constexpr static int ndim = 3;
-  BoundaryConditions boundary_conditions;
-public:
-  using PrimState = typename LegacyState_t::PrimState;
-  using ConsState = typename LegacyState_t::ConsState;
-
+  public:
   FiniteVolumePolicy_BoundaryConditions_value_euler( ConfigMap& configMap )
-  : boundary_conditions(configMap)
   {}
 
-  template < typename Array_t >
-  KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryValue( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const
-  {
-    return boundary_conditions.template getBoundaryValue<ndim, LegacyState_t>(U, iCell_boundary, metadata );
-  }
 };
 
 template< typename LegacyState_t >
@@ -170,7 +178,6 @@ class FiniteVolumePolicy_impl :
   public FiniteVolumePolicy_Slope_t
 {
 public:
-  constexpr static int ndim = 3;
   using PrimState = typename FiniteVolumePolicy_State_t::PrimState;
   using ConsState = typename FiniteVolumePolicy_State_t::ConsState;
   using CellIndex = ForeachCell::CellIndex;
@@ -179,10 +186,6 @@ public:
                                , PrimState >, "RiemannSolver State type mismatch" );
   static_assert( std::is_same_v< typename FiniteVolumePolicy_RiemannSolver_t::ConsState
                                , ConsState >, "RiemannSolver State type mismatch" );
-  static_assert( std::is_same_v< typename FiniteVolumePolicy_BoundaryConditions_t::PrimState
-                               , PrimState >, "BoundaryConditions State type mismatch" );
-  static_assert( std::is_same_v< typename FiniteVolumePolicy_BoundaryConditions_t::ConsState
-                               , ConsState >, "BoundaryConditions State type mismatch" );
 
   FiniteVolumePolicy_impl( ConfigMap& configMap )
   : FiniteVolumePolicy_State_t(configMap),
@@ -431,6 +434,7 @@ public:
   : foreach_cell(foreach_cell),
     timers(timers),
     policy(configMap),
+    ndim(configMap.getValue<int>("mesh", "ndim", 3)),
     gravity_type(configMap.getValue<GravityType>("gravity", "gravity_type", GRAVITY_NONE)),
     well_balanced(configMap.getValue<bool>("hydro", "well_balanced", false)),
     smallr( configMap.getValue<real_t>("hydro","smallr", 1e-10) ),
@@ -457,7 +461,6 @@ public:
   void update( UserData& U, ScalarSimulationData& scalar_data)
   {
     real_t dt = scalar_data.get<real_t>("dt");
-    constexpr int ndim = Policy::ndim;
 
     const Policy& policy = this->policy; 
     Timers& timers = this->timers; 
@@ -506,7 +509,7 @@ public:
             u = policy.getBoundaryValue(Uin, iCell_n, cellmetadata);
           else if (level_diff < 0) {
             int subcell_count = 
-            foreach_smaller_neighbor<ndim>(iCell_n, off, Uin.getShape(),
+            foreach_smaller_neighbor(ndim, iCell_n, off, Uin.getShape(),
               [&](const CellIndex& iCell_neigh) {
                 ConsState uloc = policy.getConsState(Uin, iCell_neigh);
                 u += uloc;
@@ -546,7 +549,7 @@ public:
         PrimState slope_C = get_slope(iCell, dir);
         real_t size_C = cellmetadata.getCellSize(iCell)[dir];
 
-        constexpr real_t dim_fac = (ndim == 2 ? 0.5 : 0.25);
+        real_t dim_fac = (ndim == 2 ? 0.5 : 0.25);
 
         // Compute left side flux
         ConsState fluxL {};
@@ -650,6 +653,7 @@ private:
   Timers& timers;  
   Policy policy;
 
+  int ndim;
   GravityType gravity_type;
   real_t gx, gy, gz;
   bool well_balanced;
@@ -666,7 +670,6 @@ using FiniteVolumePolicy_legacy = FiniteVolumePolicy_impl<
   >;
 
 
-template<int ndim>
 class FiniteVolumePolicy_hydro 
   : public FiniteVolumePolicy_legacy<dyablo::HydroState>
 {
@@ -677,6 +680,6 @@ public:
 } // namespace dyablo
 
 FACTORY_REGISTER( dyablo::HydroUpdateFactory, 
-                  dyablo::HydroUpdate_euler_no_patch<dyablo::FiniteVolumePolicy_hydro<3>>, 
+                  dyablo::HydroUpdate_euler_no_patch<dyablo::FiniteVolumePolicy_hydro>, 
                   "HydroUpdate_euler_no_patch")
 

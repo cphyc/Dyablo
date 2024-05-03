@@ -43,9 +43,9 @@ CellIndex get_sibling_cell<true>(const CellIndex& iCell, const CellIndex::offset
  * NOTE : level_diff() must be -1
  * NOTE : for example, neighbors in 3D are the 4 cells that are in contact with the original cell
  **/
-template< int ndim, bool enable_different_block=true, typename Func >
+template< bool enable_different_block=true, typename Func >
 KOKKOS_INLINE_FUNCTION
-int foreach_smaller_neighbor( const CellIndex& iCell, const CellIndex::offset_t& offset, const CellArray_global_ghosted::Shape_t& array, const Func& apply_neighbor )
+int foreach_smaller_neighbor( int ndim, const CellIndex& iCell, const CellIndex::offset_t& offset, const CellArray_global_ghosted::Shape_t& array, const Func& apply_neighbor )
 {
   DYABLO_ASSERT_KOKKOS_DEBUG( iCell.level_diff() == -1, "iCell must be smaller neighbor for foreach_smaller_neighbor" );
   DYABLO_ASSERT_KOKKOS_DEBUG( enable_different_block || ( iCell.bx%2 == 0 && iCell.by%2 == 0 && iCell.bz%2 == 0 ),
@@ -62,6 +62,13 @@ int foreach_smaller_neighbor( const CellIndex& iCell, const CellIndex::offset_t&
       apply_neighbor(iCell_ghost);
   }
   return di_count*dj_count*dk_count;
+}
+
+template< int ndim, bool enable_different_block=true, typename Func >
+KOKKOS_INLINE_FUNCTION
+int foreach_smaller_neighbor( const CellIndex& iCell, const CellIndex::offset_t& offset, const CellArray_global_ghosted::Shape_t& array, const Func& apply_neighbor )
+{
+  return foreach_smaller_neighbor( ndim, iCell, offset, array, apply_neighbor );
 }
 
 template< int ndim, bool enable_different_block=true, typename Func >
