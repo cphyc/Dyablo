@@ -461,6 +461,7 @@ public:
   void update( UserData& U, ScalarSimulationData& scalar_data)
   {
     real_t dt = scalar_data.get<real_t>("dt");
+    int ndim = this->ndim;
 
     const Policy& policy = this->policy; 
     Timers& timers = this->timers; 
