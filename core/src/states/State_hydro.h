@@ -4,6 +4,7 @@
 #include "kokkos_shared.h"
 #include "State_Ops.h"
 #include "FieldManager.h"
+#include "UserData.h"
 
 namespace dyablo {
 
