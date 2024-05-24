@@ -58,7 +58,15 @@ public:
       if( dvp * dvm <= 0 )
         res = 0.0;
       else
-        res = (fabs(2.0 * dvp) < fabs(dvm) ? 2.0 * dvp : dvm);
+      {
+        real_t g1 = (fabs(2*dvp) < fabs(  dvm) ? 2*dvp :   dvm);
+        real_t g2 = (fabs(  dvp) < fabs(2*dvm) ?   dvp : 2*dvm);
+        if( g1 * g2 <= 0 )
+          res = 0;
+        else
+          res = fabs(g1) < fabs(g2) ? g2 : g1;
+      }
+        
     }, slope, dqp, dqm);
 
     return slope;
