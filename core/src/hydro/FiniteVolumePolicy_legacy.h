@@ -273,6 +273,7 @@ public:
     bool absorbing  = (offset[dir] > 0 && bc_max[dir] == BC_ABSORBING)
                   ||  (offset[dir] < 0 && bc_min[dir] == BC_ABSORBING);
     
+    // TODO : don't break encapsulation here
     real_t gamma0 = FiniteVolumePolicy_RiemannSolver_t::rparams.gamma0;
     real_t smallr = FiniteVolumePolicy_RiemannSolver_t::rparams.smallr;
     real_t smallp = FiniteVolumePolicy_RiemannSolver_t::rparams.smallp;

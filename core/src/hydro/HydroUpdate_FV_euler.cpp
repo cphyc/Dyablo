@@ -1,17 +1,16 @@
 #include "states/State_hydro.h"
 
-#include "hydro/FiniteVolumePolicy_legacy.h"
-#include "hydro/FiniteVolumePolicy_Slope.h"
+#include "hydro/FiniteVolumePolicy_Hydro.h"
 
 #include "hydro/FiniteVolume_euler.h"
 
 namespace dyablo{
 
 class HydroUpdate_FV_euler 
-  : public FiniteVolume_euler<FiniteVolumePolicy_legacy<HydroState>>
+  : public FiniteVolume_euler<FiniteVolumePolicy_Hydro>
 {
 public:
-  using FiniteVolume_euler<FiniteVolumePolicy_legacy<HydroState>>::FiniteVolume_euler;
+  using FiniteVolume_euler<FiniteVolumePolicy_Hydro>::FiniteVolume_euler;
 };
 
 } //namespace dyablo
