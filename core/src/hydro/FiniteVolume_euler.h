@@ -280,7 +280,11 @@ public:
     });
 
     // Reducing the ghosts to accumulate the flux in the data arrays 
-    GhostCommunicator_partial_blocks ghost_comm ( foreach_cell.get_amr_mesh().getMesh() );
+    int ghost_count = 1;
+    GhostCommunicator_partial_blocks ghost_comm ( 
+      foreach_cell.get_amr_mesh().getMesh(),
+      Uout.getShape(),
+      ghost_count );
     ghost_comm.reduce_ghosts( Uout );
 
     clean_negative_primitive_values(policy, foreach_cell, Uout, smallr, smallp);
