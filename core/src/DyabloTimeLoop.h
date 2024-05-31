@@ -301,6 +301,13 @@ public:
     else
       m_gravity_type = GRAVITY_NONE;
 
+    std::string gravity_update_id = configMap.getValue<std::string>("gravity", "update", "none");
+    this->gravity_update = HydroUpdateFactory::make_instance( gravity_update_id,
+        configMap,
+        m_foreach_cell,
+        timers
+      );
+
     this->m_iteration_handler = std::make_unique<IterationHandler>(configMap, m_scalar_data);
 
     std::string godunov_updater_id = configMap.getValue<std::string>("hydro", "update", "HydroUpdate_hancock");
@@ -719,6 +726,9 @@ public:
 
       godunov_updater->update( U, m_scalar_data );
 
+      if(gravity_update)
+        gravity_update->update( U, m_scalar_data );
+
       if ( viscosity_updater )
         viscosity_updater->update( U, m_scalar_data );
       if ( thermal_conduction_updater )
@@ -837,6 +847,7 @@ private:
   std::unique_ptr<MapUserData> mapUserData;
   std::unique_ptr<IOManager> io_manager, io_manager_checkpoint;
   std::unique_ptr<GravitySolver> gravity_solver;
+  std::unique_ptr<HydroUpdate> gravity_update;
 
   std::unique_ptr<CosmoManager> cosmo_manager;
 

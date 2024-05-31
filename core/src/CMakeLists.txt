@@ -10,6 +10,7 @@ set( core_src
     ${CMAKE_CURRENT_SOURCE_DIR}/hydro/HydroUpdate_FV_euler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/hydro/HydroUpdate_FV_euler_legacy.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/hydro/HydroUpdate_RK2.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/hydro/HydroUpdate_gravity.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/gravity/GravitySolver_point_mass.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/gravity/GravitySolver_constant.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/gravity/GravitySolver_cg.cpp
