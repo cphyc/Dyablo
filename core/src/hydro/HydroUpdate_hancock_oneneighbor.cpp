@@ -408,69 +408,6 @@ void compute_fluxes_and_update( const FieldArray& Uin, const FieldArray& Uout, c
   setConservativeState<ndim>(Uout, iCell_Q, qcons);
 }
 
-enum VarIndex_gravity {IGX, IGY, IGZ};
-
-/**
- * Applies corrector step for gravity
- * @param Uin Initial values before update
- * @param iCell_Uin Position insides Uin/Uout (non ghosted)
- * @param dt time step
- * @param use_field Get gravity field from Uin
- * @param gx, gy, gz, scalar values when use_field == false
- * @param Uout Updated array after hydro without gravity
- **/
-template<int ndim, typename State>
-KOKKOS_INLINE_FUNCTION
-void apply_gravity_correction( const FieldArray& Uin,
-                               const FieldArray& Uin_g,
-                               const CellIndex& iCell_Uin,
-                               real_t dt,
-                               bool use_field,
-                               real_t gx, real_t gy, real_t gz,
-                               const FieldArray& Uout ){
-  
-  if(use_field)
-  {
-    gx = Uin_g.at(iCell_Uin, IGX);
-    gy = Uin_g.at(iCell_Uin, IGY);
-    if (ndim == 3)
-      gz = Uin_g.at(iCell_Uin, IGZ);
-  }
-
-  real_t rhoOld = Uin.at(iCell_Uin, State::Irho);
-  
-  real_t rhoNew = Uout.at(iCell_Uin, State::Irho);
-  real_t rhou = Uout.at(iCell_Uin, State::Irho_vx);
-  real_t rhov = Uout.at(iCell_Uin, State::Irho_vy);
-  real_t ekin_old = rhou*rhou + rhov*rhov;
-  real_t rhow;
-  
-  if (ndim == 3) {
-    rhow = Uout.at(iCell_Uin, State::Irho_vz);
-    ekin_old += rhow*rhow;
-  }
-  
-  ekin_old = 0.5 * ekin_old / rhoNew;
-
-  rhou += 0.5 * dt * gx * (rhoOld + rhoNew);
-  rhov += 0.5 * dt * gy * (rhoOld + rhoNew);
-
-  Uout.at(iCell_Uin, State::Irho_vx) = rhou;
-  Uout.at(iCell_Uin, State::Irho_vy) = rhov;
-  if (ndim == 3) {
-    rhow += 0.5 * dt * gz * (rhoOld + rhoNew);
-    Uout.at(iCell_Uin, State::Irho_vz) = rhow;
-  }
-
-  // Energy correction should be included in case of self-gravitation ?
-  real_t ekin_new = rhou*rhou + rhov*rhov;
-  if (ndim == 3)
-    ekin_new += rhow*rhow;
-  
-  ekin_new = 0.5 * ekin_new / rhoNew;
-  Uout.at(iCell_Uin, State::Ie_tot) += (ekin_new - ekin_old);
-}
-
 }
 
 /**
@@ -494,19 +431,8 @@ public:
     : foreach_cell(foreach_cell),
       riemann_params(configMap),
       bc_manager(configMap),
-      gx( configMap.getValue<real_t>("gravity", "gx",  0.0) ),
-      gy( configMap.getValue<real_t>("gravity", "gy",  0.0) ),
-      gz( configMap.getValue<real_t>("gravity", "gz",  0.0) ),
       timers(timers)
-  {
-    GravityType gravity_type = configMap.getValue<GravityType>("gravity", "gravity_type", GRAVITY_NONE);
-    this->gravity_enabled = gravity_type!=GRAVITY_NONE;
-    this->gravity_use_field = gravity_type&GRAVITY_FIELD;
-    [[maybe_unused]] bool gravity_use_scalar = gravity_type==GRAVITY_CST_SCALAR;
-
-    DYABLO_ASSERT_HOST_RELEASE( !gravity_enabled || ( gravity_use_field != gravity_use_scalar ),
-      "If gravity is on it must either use the force field from U or a constant scalar force field"  );
-  }
+  {}
 
   void update( UserData& U, ScalarSimulationData& scalar_data) 
   {
@@ -527,21 +453,14 @@ public:
     const RiemannParams& riemann_params = this->riemann_params;
     const BoundaryConditions& bc_manager = this->bc_manager;
     ForeachCell& foreach_cell = this->foreach_cell;
+    
     int nb_ghosts = 1;
     GhostCommunicator ghost_comm(foreach_cell.get_amr_mesh(), U.getShape(), nb_ghosts );
-    bool gravity_use_field = this->gravity_use_field;
-    bool gravity_enabled = this->gravity_enabled;
-    real_t gx = this->gx;
-    real_t gy = this->gy;
-    real_t gz = this->gz;
 
     timers.get("HydroUpdate_hancock_oneneighbor").start();
 
     auto fields_info = ConsState::getFieldsInfo();
     UserData::FieldAccessor Uin = U.getAccessor( fields_info );
-    UserData::FieldAccessor Uin_g;
-    if( gravity_use_field )
-      Uin_g = U.getAccessor( {{"gx",IGX}, {"gy",IGY}, {"gz",IGZ}} );    
     
     auto fields_info_next = fields_info;
     for( auto& p : fields_info_next )
@@ -586,9 +505,6 @@ public:
         compute_fluxes_and_update<ndim, State>(Uin, Uout, Q, iCell_Q, 
                                                Slopes_x, Slopes_y, Slopes_z,
                                                cellmetadata, dt, riemann_params, bc_manager);
-        // Applying correction step for gravity
-      if (gravity_enabled)
-        apply_gravity_correction<ndim, ConsState>(Uin, Uin_g, iCell_Q, dt, gravity_use_field, gx, gy, gz, Uout);
     });
 
     clean_negative_primitive_values<ndim, State>(foreach_cell, Uout, riemann_params.gamma0, riemann_params.smallr, riemann_params.smallp);
@@ -598,11 +514,7 @@ public:
   private:
     ForeachCell& foreach_cell;
     RiemannParams riemann_params;  
-    BoundaryConditions bc_manager;
-    real_t gx, gy, gz;
-
-    bool gravity_enabled, gravity_use_field;
-    
+    BoundaryConditions bc_manager;    
     Timers& timers;
 };
 

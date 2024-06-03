@@ -75,22 +75,9 @@ public:
     timers(timers),
     policy(configMap),
     ndim(configMap.getValue<int>("mesh", "ndim", 3)),
-    gravity_type(configMap.getValue<GravityType>("gravity", "gravity_type", GRAVITY_NONE)),
-    well_balanced(configMap.getValue<bool>("hydro", "well_balanced", false)),
     smallr( configMap.getValue<real_t>("hydro","smallr", 1e-10) ),
     smallp( configMap.getValue<real_t>("hydro","smallp", 1e-10) )
-  {
-    if (gravity_type & GRAVITY_CONSTANT) {
-      gx = configMap.getValue<real_t>("gravity", "gx", 0.0);
-      gy = configMap.getValue<real_t>("gravity", "gy", 0.0);
-      gz = configMap.getValue<real_t>("gravity", "gz", 0.0);
-    } 
-
-    DYABLO_ASSERT_HOST_RELEASE((std::is_same_v<PrimState, PrimHydroState> || !well_balanced), 
-                               "Well balanced scheme not implemented for MHD solvers yet !");
-  }
-
-  ~FiniteVolume_euler() {}
+  { }
 
   /**
    * @brief Solves hydro for one step using the euler method
@@ -299,9 +286,6 @@ private:
   Policy policy;
 
   int ndim;
-  GravityType gravity_type;
-  real_t gx, gy, gz;
-  bool well_balanced;
   real_t smallr, smallp;
 };
 

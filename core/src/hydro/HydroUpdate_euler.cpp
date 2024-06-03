@@ -13,69 +13,6 @@ using PatchArray = ForeachCell::CellArray_patch;
 using CellIndex = ForeachCell::CellIndex;
 using FieldArray = UserData::FieldAccessor;
 
-enum VarIndex_gravity {IGX, IGY, IGZ};
-
-/**
- * @brief Applies corrector step for gravity
- * 
- * @param Uin Initial values before update
- * @param iCell_Uin Position insides Uin/Uout (non ghosted)
- * @param dt time step
- * @param use_field Get gravity field from Uin
- * @param gx, gy, gz, scalar values when use_field == false
- * @param Uout Updated array after hydro without gravity
- **/
-template<int ndim, typename State>
-KOKKOS_INLINE_FUNCTION
-void apply_gravity_correction( const FieldArray& Uin,
-                               const FieldArray& Uin_g,
-                               const CellIndex& iCell_Uin,
-                               real_t dt,
-                               bool use_field,
-                               real_t gx, real_t gy, real_t gz,
-                               const FieldArray& Uout ){
-  if(use_field)
-  {
-    gx = Uin_g.at(iCell_Uin, IGX);
-    gy = Uin_g.at(iCell_Uin, IGY);
-    if (ndim == 3)
-      gz = Uin_g.at(iCell_Uin, IGZ);
-  }
-
-  real_t rhoOld = Uin.at(iCell_Uin, State::Irho);
-  
-  real_t rhoNew = Uout.at(iCell_Uin, State::Irho);
-  real_t rhou = Uout.at(iCell_Uin, State::Irho_vx);
-  real_t rhov = Uout.at(iCell_Uin, State::Irho_vy);
-  real_t ekin_old = rhou*rhou + rhov*rhov;
-  real_t rhow;
-  
-  if (ndim == 3) {
-    rhow = Uout.at(iCell_Uin, State::Irho_vz);
-    ekin_old += rhow*rhow;
-  }
-  
-  ekin_old = 0.5 * ekin_old / rhoNew;
-
-  rhou += 0.5 * dt * gx * (rhoOld + rhoNew);
-  rhov += 0.5 * dt * gy * (rhoOld + rhoNew);
-
-  Uout.at(iCell_Uin, State::Irho_vx) = rhou;
-  Uout.at(iCell_Uin, State::Irho_vy) = rhov;
-  if (ndim == 3) {
-    rhow += 0.5 * dt * gz * (rhoOld + rhoNew);
-    Uout.at(iCell_Uin, State::Irho_vz) = rhow;
-  }
-
-  // Energy correction should be included in case of self-gravitation ?
-  real_t ekin_new = rhou*rhou + rhov*rhov;
-  if (ndim == 3)
-    ekin_new += rhow*rhow;
-  
-  ekin_new = 0.5 * ekin_new / rhoNew;
-  Uout.at(iCell_Uin, State::Ie_tot) += (ekin_new - ekin_old);
-}
-
 }// namespace
 }// namespace dyablo
 
@@ -140,7 +77,6 @@ public:
     int ndim >
   void update_aux( UserData& U, real_t dt) 
   {
-
     const RiemannParams& params = this->params; 
     const GravityType gravity_type = this->gravity_type;
 
@@ -164,9 +100,6 @@ public:
 
     auto fields_info = ConsState::getFieldsInfo();
     UserData::FieldAccessor Uin = U.getAccessor( fields_info );
-    UserData::FieldAccessor Uin_g;
-    if( gravity_use_field )
-      Uin_g = U.getAccessor( {{"gx",IGX}, {"gy",IGY}, {"gz",IGZ}} );
     auto fields_info_next = fields_info;
     for( auto& p : fields_info_next )
       p.name += "_next";
@@ -216,10 +149,6 @@ public:
         euler_update<ndim, State>(params, IY, iCell_Uout, Uin, Qgroup, dt, size[IY], bc_manager, ginfo, Uout);
         if(ndim==3)   
           euler_update<ndim, State>(params, IZ, iCell_Uout, Uin, Qgroup, dt, size[IZ], bc_manager, ginfo, Uout);
-      
-        // Applying correction step for gravity
-        if (has_gravity && !ginfo.apply_gravity_in_step)
-          apply_gravity_correction<ndim, ConsState>(Uin, Uin_g, iCell_Uout, dt, gravity_use_field, gx, gy, gz, Uout);
       });
     });
 

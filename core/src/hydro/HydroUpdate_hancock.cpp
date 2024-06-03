@@ -226,74 +226,6 @@ namespace {
     setConservativeState<ndim>(Uout, iCell_Uout, umod);
   }
 
-  enum Gravity_VarIndex : VarIndex
-  {
-    IGX, IGY, IGZ
-  };
-
-  /**
-   * @brief Applies corrector step for gravity
-   * 
-   * @tparam ndim the number of dimensions
-   * @param Uin Initial values before update
-   * @param iCell_Uin Position insides Uin/Uout (non ghosted)
-   * @param dt time step
-   * @param use_field Get gravity field from Uin
-   * @param gx scalar values when use_field == false
-   * @param gy
-   * @param gz
-   * @param Uout Updated array after hydro without gravity
-   **/
-  template<int ndim, typename State_t>
-  KOKKOS_INLINE_FUNCTION
-  void apply_gravity_correction( const Uin_t& Uin,
-                                 const Uin_t& Uin_gravity,
-                                 const CellIndex& iCell_Uin,
-                                 real_t dt,
-                                 bool use_field,
-                                 real_t gx, real_t gy, real_t gz,
-                                 const Uout_t& Uout ){
-    if(use_field)
-    {
-      gx = Uin_gravity.at(iCell_Uin, Gravity_VarIndex::IGX);
-      gy = Uin_gravity.at(iCell_Uin, Gravity_VarIndex::IGY);
-      if (ndim == 3)
-        gz = Uin_gravity.at(iCell_Uin, Gravity_VarIndex::IGZ);
-    }
-
-    real_t rhoOld = Uin.at(iCell_Uin, State_t::VarIndex::Irho);
-    
-    real_t rhoNew = Uout.at(iCell_Uin, State_t::VarIndex::Irho);
-    real_t rhou = Uout.at(iCell_Uin, State_t::VarIndex::Irho_vx);
-    real_t rhov = Uout.at(iCell_Uin, State_t::VarIndex::Irho_vy);
-    real_t ekin_old = rhou*rhou + rhov*rhov;
-    real_t rhow;
-    
-    if (ndim == 3) {
-      rhow = Uout.at(iCell_Uin, State_t::VarIndex::Irho_vz);
-      ekin_old += rhow*rhow;
-    }
-    
-    ekin_old = 0.5 * ekin_old / rhoNew;
-
-    rhou += 0.5 * dt * gx * (rhoOld + rhoNew);
-    rhov += 0.5 * dt * gy * (rhoOld + rhoNew);
-
-    Uout.at(iCell_Uin, State_t::VarIndex::Irho_vx) = rhou;
-    Uout.at(iCell_Uin, State_t::VarIndex::Irho_vy) = rhov;
-    if (ndim == 3) {
-      rhow += 0.5 * dt * gz * (rhoOld + rhoNew);
-      Uout.at(iCell_Uin, State_t::VarIndex::Irho_vz) = rhow;
-    }
-
-    // Energy correction should be included in case of self-gravitation ?
-    real_t ekin_new = rhou*rhou + rhov*rhov;
-    if (ndim == 3)
-      ekin_new += rhow*rhow;
-    
-    ekin_new = 0.5 * ekin_new / rhoNew;
-    Uout.at(iCell_Uin, State_t::VarIndex::Ie_tot) += (ekin_new - ekin_old);
-  }    
 } // namespace
 } // namespace dyablo
 
@@ -318,17 +250,8 @@ public:
   : foreach_cell(foreach_cell),
     timers(timers),
     params(configMap),
-    bc_manager(configMap),
-    gravity_type(configMap.getValue<GravityType>("gravity", "gravity_type", GRAVITY_NONE))
-  {
-    if (gravity_type & GRAVITY_CONSTANT) {
-      gx = configMap.getValue<real_t>("gravity", "gx", 0.0);
-      gy = configMap.getValue<real_t>("gravity", "gy", 0.0);
-      gz = configMap.getValue<real_t>("gravity", "gz", 0.0);
-    } 
-  }
-
-  ~HydroUpdate_hancock() {}
+    bc_manager(configMap)
+  {}
 
   /**
    * @brief Solves hydro for one step using the Muscl-Hancock method
@@ -355,7 +278,6 @@ public:
     const RiemannParams& params = this->params;  
     const real_t gamma = params.gamma0;
     const double smallr = params.smallr;
-    const GravityType gravity_type = this->gravity_type;
     
     auto fields_info = ConsState::getFieldsInfo();
 
@@ -366,14 +288,6 @@ public:
     Uout_t Uout = U.getAccessor( fields_info_next );
 
     auto bc_manager = this->bc_manager;
-
-    bool has_gravity = gravity_type!=GRAVITY_NONE;
-    bool gravity_use_field = gravity_type&GRAVITY_FIELD;
-    [[maybe_unused]] bool gravity_use_scalar = gravity_type==GRAVITY_CST_SCALAR;
-    real_t gx = this->gx, gy = this->gy, gz = this->gz;
-
-    DYABLO_ASSERT_HOST_RELEASE( !has_gravity || ( gravity_use_field != gravity_use_scalar ),
-      "If gravity is on it must either use the force field from U or a constant scalar force field"  );
 
     Timers& timers = this->timers; 
 
@@ -396,15 +310,6 @@ public:
 
     ForeachCell::CellMetaData cellmetadata = foreach_cell.getCellMetaData();
     GhostedArray::Shape_t U_shape = U.getShape();
-
-    Uin_t Uin_gravity;
-    if (gravity_use_field) {
-      Uin_gravity = U.getAccessor( {
-          {"gx", Gravity_VarIndex::IGX}, 
-          {"gy", Gravity_VarIndex::IGY},
-          {"gz", Gravity_VarIndex::IGZ} 
-      });
-    }
 
     // Iterate over patches
     foreach_cell.foreach_patch( "HydroUpdate_hancock::update",
@@ -450,10 +355,6 @@ public:
         compute_fluxes<ndim, State>(IX, iCell_Uout, SlopesX, Sources, params, smallr, dt/size[IX], Uout);
         compute_fluxes<ndim, State>(IY, iCell_Uout, SlopesY, Sources, params, smallr, dt/size[IY], Uout);
         if( ndim==3 ) compute_fluxes<ndim, State>(IZ, iCell_Uout, SlopesZ, Sources, params, smallr, dt/size[IZ], Uout);
-      
-        // Applying correction step for gravity
-        if (has_gravity)
-         apply_gravity_correction<ndim, ConsState>(Uin, Uin_gravity, iCell_Uout, dt, gravity_use_field, gx, gy, gz, Uout);
       });
     });
 
@@ -470,9 +371,6 @@ private:
 
   RiemannParams params;
   BoundaryConditions bc_manager;
-
-  GravityType gravity_type;
-  real_t gx, gy, gz;
 };
 
 } // namespace dyablo
