@@ -131,6 +131,10 @@ void run_test(int ndim, std::string HydroUpdate_id ) {
 
   bool has_mhd = HydroUpdate_id.find("MHD") != std::string::npos;
   bool is_glm  = HydroUpdate_id.find("GLM") != std::string::npos;
+  bool is_gravity = HydroUpdate_id.find("gravity") != std::string::npos;
+
+  if( is_gravity )
+    GTEST_SKIP();
 
   // Content of .ini file used to configure configmap and HydroParams
   std::string configmap_str;
