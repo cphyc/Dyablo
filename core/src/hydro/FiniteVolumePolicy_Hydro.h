@@ -1,6 +1,7 @@
 #pragma once
 
 #include "states/State_hydro.h"
+#include "FiniteVolumePolicy_base.h"
 
 namespace dyablo{
 
@@ -293,11 +294,14 @@ private:
 
 namespace dyablo{
 
-using FiniteVolumePolicy_Hydro = FiniteVolumePolicy_impl<
-  FiniteVolumePolicy_State_Hydro,
-  FiniteVolumePolicy_RiemannSolver_Hydro_hllc,
-  FiniteVolumePolicy_BoundaryConditions_value_euler<FiniteVolumePolicy_State_Hydro>,
-  FiniteVolumePolicy_Slope_dynamic<FiniteVolumePolicy_State_Hydro>
+using FiniteVolumePolicy_Hydro = 
+  FiniteVolumePolicy_base<
+    FiniteVolumePolicy_impl<
+      FiniteVolumePolicy_State_Hydro,
+      FiniteVolumePolicy_RiemannSolver_Hydro_hllc,
+      FiniteVolumePolicy_BoundaryConditions_value_euler<FiniteVolumePolicy_State_Hydro>,
+      FiniteVolumePolicy_Slope_dynamic<FiniteVolumePolicy_State_Hydro>
+    >
   >;
 
 } //namespace dyablo

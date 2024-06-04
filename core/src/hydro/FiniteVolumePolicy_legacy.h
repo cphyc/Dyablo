@@ -3,6 +3,7 @@
 #include "RiemannSolvers.h"
 #include "foreach_cell/ForeachCell.h"
 #include "hydro/FiniteVolumePolicy_Slope.h"
+#include "FiniteVolumePolicy_base.h"
 
 namespace dyablo{
 
@@ -347,11 +348,14 @@ public:
 };
 
 template<typename LegacyState_t >
-using FiniteVolumePolicy_legacy = FiniteVolumePolicy_impl<
+using FiniteVolumePolicy_legacy = 
+  FiniteVolumePolicy_base<
+    FiniteVolumePolicy_impl<
   FiniteVolumePolicy_State_legacy<LegacyState_t>,
   FiniteVolumePolicy_RiemannSolver_legacy<LegacyState_t>,
   FiniteVolumePolicy_BoundaryConditions_value_euler<LegacyState_t>,
   FiniteVolumePolicy_Slope_dynamic<LegacyState_t>
+    >
   >;
 
 

@@ -62,6 +62,9 @@ void clean_negative_primitive_values(const Policy& policy, const ForeachCell& fo
  */
 template<typename Policy>
 class FiniteVolume_euler : public HydroUpdate {
+  static_assert( is_FiniteVolumePolicy_v<Policy>,
+  "Policy must be wrapped in FiniteVolumePolicy_base");
+
 public:
   using PrimState = typename Policy::PrimState;
   using ConsState = typename Policy::ConsState;
