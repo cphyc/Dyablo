@@ -1,10 +1,65 @@
 #pragma once
 
-#include "states/State_hydro.h"
+#include "states/State_Ops.h"
 #include "FiniteVolumePolicy_base.h"
 #include "FiniteVolumePolicy_Slope.h"
 
 namespace dyablo{
+
+/**
+ * @brief Structure holding conservative hydrodynamics variables
+ **/ 
+struct FiniteVolumePolicy_ConsHydroState {
+  enum VarIndex : dyablo::VarIndex
+  {
+    Irho,
+    Ie_tot,
+    Irho_vx,
+    Irho_vy,
+    Irho_vz
+  };  
+
+  real_t rho = 0;
+  real_t e_tot = 0;
+  real_t rho_u = 0;
+  real_t rho_v = 0;
+  real_t rho_w = 0;
+};
+
+DECLARE_STATE_TYPE( FiniteVolumePolicy_ConsHydroState, 5 );
+DECLARE_STATE_GET( FiniteVolumePolicy_ConsHydroState, 0, rho );
+DECLARE_STATE_GET( FiniteVolumePolicy_ConsHydroState, 1, e_tot );
+DECLARE_STATE_GET( FiniteVolumePolicy_ConsHydroState, 2, rho_u );
+DECLARE_STATE_GET( FiniteVolumePolicy_ConsHydroState, 3, rho_v );
+DECLARE_STATE_GET( FiniteVolumePolicy_ConsHydroState, 4, rho_w );
+
+/**
+ * @brief Structure holding primitive hydrodynamics variables
+ */
+struct FiniteVolumePolicy_PrimHydroState {
+  enum VarIndex : dyablo::VarIndex
+  {
+    Irho,
+    Ip,
+    Iu,
+    Iv,
+    Iw
+  };
+
+  real_t rho = 0;
+  real_t p = 0;
+  real_t u = 0;
+  real_t v = 0;
+  real_t w = 0;
+};
+
+DECLARE_STATE_TYPE( FiniteVolumePolicy_PrimHydroState, 5 );
+DECLARE_STATE_GET( FiniteVolumePolicy_PrimHydroState, 0, rho );
+DECLARE_STATE_GET( FiniteVolumePolicy_PrimHydroState, 1, p );
+DECLARE_STATE_GET( FiniteVolumePolicy_PrimHydroState, 2, u );
+DECLARE_STATE_GET( FiniteVolumePolicy_PrimHydroState, 3, v );
+DECLARE_STATE_GET( FiniteVolumePolicy_PrimHydroState, 4, w );
+
 
 class FiniteVolumePolicy_State_Hydro
 {
@@ -15,25 +70,39 @@ private:
   using CellIndex = ForeachCell::CellIndex;
   using FieldAccessor = UserData::FieldAccessor;
 public:
-  using PrimState = PrimHydroState;
-  using ConsState = ConsHydroState;
+  using PrimState = FiniteVolumePolicy_PrimHydroState;
+  using ConsState = FiniteVolumePolicy_ConsHydroState;
 
   FiniteVolumePolicy_State_Hydro( ConfigMap& configMap )
   : ndim(configMap.getValue<int>("mesh", "ndim", 3)),
     gamma0(configMap.getValue<real_t>("hydro","gamma0", 1.4))
   {}
 
+  using ConsVarIndex = FiniteVolumePolicy_ConsHydroState::VarIndex;
+
   FieldAccessor getUin( UserData& U ) const
   {
-    return U.getAccessor( ConsState::getFieldsInfo() );
+    std::vector<FieldAccessor::FieldInfo> Uin_fieldinfo { 
+      {"rho",     ConsVarIndex::Irho}, 
+      {"e_tot",   ConsVarIndex::Ie_tot},
+      {"rho_vx",  ConsVarIndex::Irho_vx},
+      {"rho_vy",  ConsVarIndex::Irho_vy},
+      {"rho_vz",  ConsVarIndex::Irho_vz} 
+    };
+
+    return U.getAccessor( Uin_fieldinfo );
   }
 
   FieldAccessor getUout( UserData& U ) const
   {
-    auto fields_info_next = ConsState::getFieldsInfo();
-    for( auto& p : fields_info_next )
-      p.name += "_next";
-    return U.getAccessor( fields_info_next );
+    std::vector<FieldAccessor::FieldInfo> Uout_fieldinfo { 
+      {"rho_next",     ConsVarIndex::Irho}, 
+      {"e_tot_next",   ConsVarIndex::Ie_tot},
+      {"rho_vx_next",  ConsVarIndex::Irho_vx},
+      {"rho_vy_next",  ConsVarIndex::Irho_vy},
+      {"rho_vz_next",  ConsVarIndex::Irho_vz} 
+    };
+    return U.getAccessor( Uout_fieldinfo );
   }
 
   template < typename Array_t >
@@ -41,11 +110,11 @@ public:
   ConsState getConsState( const Array_t& U, const CellIndex& iCell ) const
   {
     ConsState u;
-    u.rho   = U.at(iCell, ConsHydroState::VarIndex::Irho );
-    u.e_tot = U.at(iCell, ConsHydroState::VarIndex::Ie_tot );
-    u.rho_u = U.at(iCell, ConsHydroState::VarIndex::Irho_vx );
-    u.rho_v = U.at(iCell, ConsHydroState::VarIndex::Irho_vy );
-    u.rho_w = (ndim == 3 ? U.at(iCell, ConsHydroState::VarIndex::Irho_vz ) : 0.0);
+    u.rho   = U.at(iCell, ConsState::VarIndex::Irho );
+    u.e_tot = U.at(iCell, ConsState::VarIndex::Ie_tot );
+    u.rho_u = U.at(iCell, ConsState::VarIndex::Irho_vx );
+    u.rho_v = U.at(iCell, ConsState::VarIndex::Irho_vy );
+    u.rho_w = (ndim == 3 ? U.at(iCell, ConsState::VarIndex::Irho_vz ) : 0.0);
     return u;
   }
 
@@ -53,24 +122,24 @@ public:
   KOKKOS_INLINE_FUNCTION
   void setConsState( const Array_t& U, const CellIndex& iCell, const ConsState& u ) const
   {
-    U.at(iCell, ConsHydroState::VarIndex::Irho) = u.rho;
-    U.at(iCell, ConsHydroState::VarIndex::Ie_tot) = u.e_tot;
-    U.at(iCell, ConsHydroState::VarIndex::Irho_vx) = u.rho_u;
-    U.at(iCell, ConsHydroState::VarIndex::Irho_vy) = u.rho_v;
+    U.at(iCell, ConsState::VarIndex::Irho) = u.rho;
+    U.at(iCell, ConsState::VarIndex::Ie_tot) = u.e_tot;
+    U.at(iCell, ConsState::VarIndex::Irho_vx) = u.rho_u;
+    U.at(iCell, ConsState::VarIndex::Irho_vy) = u.rho_v;
     if (ndim == 3)
-      U.at(iCell, ConsHydroState::VarIndex::Irho_vz) = u.rho_w;
+      U.at(iCell, ConsState::VarIndex::Irho_vz) = u.rho_w;
   }
 
   template < typename Array_t >
   KOKKOS_INLINE_FUNCTION
   void atomic_addConsState( const Array_t& U, const CellIndex& iCell, const ConsState& u ) const
   {
-    Kokkos::atomic_add(&U.at(iCell, ConsHydroState::VarIndex::Irho), u.rho);
-    Kokkos::atomic_add(&U.at(iCell, ConsHydroState::VarIndex::Ie_tot), u.e_tot);
-    Kokkos::atomic_add(&U.at(iCell, ConsHydroState::VarIndex::Irho_vx), u.rho_u);
-    Kokkos::atomic_add(&U.at(iCell, ConsHydroState::VarIndex::Irho_vy), u.rho_v);
+    Kokkos::atomic_add(&U.at(iCell, ConsState::VarIndex::Irho), u.rho);
+    Kokkos::atomic_add(&U.at(iCell, ConsState::VarIndex::Ie_tot), u.e_tot);
+    Kokkos::atomic_add(&U.at(iCell, ConsState::VarIndex::Irho_vx), u.rho_u);
+    Kokkos::atomic_add(&U.at(iCell, ConsState::VarIndex::Irho_vy), u.rho_v);
     if (ndim == 3)
-      Kokkos::atomic_add(&U.at(iCell, ConsHydroState::VarIndex::Irho_vz), u.rho_w);
+      Kokkos::atomic_add(&U.at(iCell, ConsState::VarIndex::Irho_vz), u.rho_w);
   }
 
   template < typename Array_t >
@@ -78,11 +147,11 @@ public:
   PrimState getPrimState( const Array_t& Q, const CellIndex& iCell ) const
   {
     PrimState q;
-    q.rho = Q.at(iCell, PrimHydroState::VarIndex::Irho );
-    q.p   = Q.at(iCell, PrimHydroState::VarIndex::Ip );
-    q.u   = Q.at(iCell, PrimHydroState::VarIndex::Iu );
-    q.v   = Q.at(iCell, PrimHydroState::VarIndex::Iv );
-    q.w   = (ndim == 3 ? Q.at(iCell, PrimHydroState::VarIndex::Iw ) : 0.0);
+    q.rho = Q.at(iCell, PrimState::VarIndex::Irho );
+    q.p   = Q.at(iCell, PrimState::VarIndex::Ip );
+    q.u   = Q.at(iCell, PrimState::VarIndex::Iu );
+    q.v   = Q.at(iCell, PrimState::VarIndex::Iv );
+    q.w   = (ndim == 3 ? Q.at(iCell, PrimState::VarIndex::Iw ) : 0.0);
     return q;
   }
 
@@ -90,12 +159,12 @@ public:
   KOKKOS_INLINE_FUNCTION
   void setPrimState( const Array_t& Q, const CellIndex& iCell, const PrimState& q ) const
   {
-    Q.at(iCell, PrimHydroState::VarIndex::Irho) = q.rho;
-    Q.at(iCell, PrimHydroState::VarIndex::Ip) = q.p;
-    Q.at(iCell, PrimHydroState::VarIndex::Iu) = q.u;
-    Q.at(iCell, PrimHydroState::VarIndex::Iv) = q.v;
+    Q.at(iCell, PrimState::VarIndex::Irho) = q.rho;
+    Q.at(iCell, PrimState::VarIndex::Ip) = q.p;
+    Q.at(iCell, PrimState::VarIndex::Iu) = q.u;
+    Q.at(iCell, PrimState::VarIndex::Iv) = q.v;
     if (ndim == 3)
-      Q.at(iCell, PrimHydroState::VarIndex::Iw) = q.w;
+      Q.at(iCell, PrimState::VarIndex::Iw) = q.w;
   }
 
   KOKKOS_INLINE_FUNCTION
@@ -469,7 +538,7 @@ public:
     // Compute acoustic star state
     real_t ptotstar = (rcr*ptotl+rcl*ptotr+rcl*rcr*(ul-ur))/(rcr+rcl);
 
-    ConsHydroState flux_out {};
+    ConsState flux_out {};
     if( reflecting )
     {
       flux_out.rho_u = ((dir==IX) ? ptotstar : 0);
