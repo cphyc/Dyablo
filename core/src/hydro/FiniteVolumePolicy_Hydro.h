@@ -563,7 +563,11 @@ class FiniteVolumePolicy_Hydro_impl
 private:
   using CellIndex     = ForeachCell::CellIndex;
   using CellMetaData  = ForeachCell::CellMetaData;
+  using State = FiniteVolumePolicy_State_Hydro;
 public:
+  using PrimState = State::PrimState;
+  using ConsState = State::ConsState;
+
   FiniteVolumePolicy_Hydro_impl( ConfigMap& configMap )
   : FiniteVolumePolicy_State_Hydro(configMap),
     FiniteVolumePolicy_RiemannSolver_Hydro_hllc(configMap),
