@@ -16,6 +16,7 @@ template<typename State> class HydroUpdate_RK2;
 
 class HydroUpdate_FV_euler;
 class HydroUpdate_FV_euler_legacy;
+class HydroUpdate_FV_hancock;
 class HydroUpdate_gravity;
 
 } //namespace dyablo 
@@ -38,6 +39,7 @@ inline bool dyablo::HydroUpdateFactory::init()
   DECLARE_REGISTERED(dyablo::HydroUpdate_RK2<dyablo::GLMMHDState>);
   DECLARE_REGISTERED(dyablo::HydroUpdate_FV_euler);
   DECLARE_REGISTERED(dyablo::HydroUpdate_FV_euler_legacy);
+  DECLARE_REGISTERED(dyablo::HydroUpdate_FV_hancock);
   DECLARE_REGISTERED(dyablo::HydroUpdate_gravity);
 
   return true;
