@@ -12,8 +12,11 @@ namespace dyablo{
  * in this template interface to check every interface methods
  **/
 template< typename FiniteVolumePolicy_impl >
-class FiniteVolumePolicy_base : public FiniteVolumePolicy_impl
+class FiniteVolumePolicy_base
 {
+private:
+  FiniteVolumePolicy_impl impl;
+
 public:
   /// Structure containing primitive variables
   using PrimState = typename FiniteVolumePolicy_impl::PrimState;
@@ -25,7 +28,7 @@ public:
 
   /// FiniteVolumePolicy needs to be constructible from a ConfigMap
   FiniteVolumePolicy_base( ConfigMap& configMap )
-  : FiniteVolumePolicy_impl(configMap)
+  : impl(configMap)
   {}
 
   /**
@@ -34,7 +37,7 @@ public:
    **/
   FieldAccessor getUin( UserData& U ) const
   {
-    return FiniteVolumePolicy_impl::getUin(U);
+    return impl.getUin(U);
   }
 
   /**
@@ -43,7 +46,7 @@ public:
    **/
   FieldAccessor getUout( UserData& U ) const
   {
-    return FiniteVolumePolicy_impl::getUout(U);
+    return impl.getUout(U);
   }
 
   /**
@@ -59,7 +62,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   ConsState getConsState( const Array_t& U, const CellIndex& iCell ) const
   {
-    return FiniteVolumePolicy_impl::getConsState(U, iCell);
+    return impl.getConsState(U, iCell);
   }
 
   /**
@@ -77,7 +80,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   void setConsState( const Array_t& U, const CellIndex& iCell, const ConsState& u ) const
   {
-    FiniteVolumePolicy_impl::setConsState(U, iCell, u);
+    impl.setConsState(U, iCell, u);
   }
 
   /**
@@ -95,7 +98,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   void atomic_addConsState( const Array_t& U, const CellIndex& iCell, const ConsState& u ) const
   {
-    FiniteVolumePolicy_impl::atomic_addConsState(U, iCell, u);
+    impl.atomic_addConsState(U, iCell, u);
   }
 
   /**
@@ -111,7 +114,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   PrimState getPrimState( const Array_t& Q, const CellIndex& iCell ) const
   {
-    return FiniteVolumePolicy_impl::getPrimState(Q, iCell);
+    return impl.getPrimState(Q, iCell);
   }
 
   /**
@@ -129,7 +132,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   void setPrimState( const Array_t& Q, const CellIndex& iCell, const PrimState& q ) const
   {
-    FiniteVolumePolicy_impl::setPrimState(Q, iCell, q);
+    impl.setPrimState(Q, iCell, q);
   }
 
   /***
@@ -140,7 +143,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   PrimState consToPrim( const ConsState& u ) const
   {
-    return FiniteVolumePolicy_impl::consToPrim(u);
+    return impl.consToPrim(u);
   }
 
   /***
@@ -151,7 +154,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   ConsState primToCons( const PrimState& q ) const
   {
-    return FiniteVolumePolicy_impl::primToCons(q);
+    return impl.primToCons(q);
   }
 
   /** 
@@ -167,7 +170,14 @@ public:
   KOKKOS_INLINE_FUNCTION
   ConsState riemann_solver( PrimState qL, PrimState qR, ComponentIndex3D dir ) const
   {
-    return FiniteVolumePolicy_impl::riemann_solver(qL, qR, dir);
+    return impl.riemann_solver(qL, qR, dir);
+  }
+
+  
+  KOKKOS_INLINE_FUNCTION
+  PrimState compute_slope( PrimState qL, PrimState qC, PrimState qR, real_t dL, real_t dR) const
+  {
+    return impl.compute_slope(qL, qC, qR, dL, dR);
   }
 
   /**
@@ -188,7 +198,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   ConsState getBoundaryValue( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const 
   {
-    return FiniteVolumePolicy_impl::getBoundaryValue(U, iCell_boundary, metadata);
+    return impl.getBoundaryValue(U, iCell_boundary, metadata);
   }
   
   /**
@@ -210,7 +220,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   ConsState getBoundaryFlux( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const
   {
-    return FiniteVolumePolicy_impl::getBoundaryFlux(U, iCell_boundary, metadata);
+    return impl.getBoundaryFlux(U, iCell_boundary, metadata);
   }
 };
 
