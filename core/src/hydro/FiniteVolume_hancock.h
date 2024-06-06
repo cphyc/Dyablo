@@ -223,7 +223,7 @@ public:
         PrimState qC_half = half_step(qC0, 
                             get_slope(iCell, IX),
                             get_slope(iCell, IY),
-                            get_slope(iCell, IZ),
+                            (ndim==3)?get_slope(iCell, IZ):PrimState{},
                             dt/size_C[IX], 
                             dt/size_C[IY], 
                             dt/size_C[IZ]);
@@ -253,7 +253,7 @@ public:
               PrimState qL_half = half_step(qL0, 
                                   get_slope(iCell_m, IX),
                                   get_slope(iCell_m, IY),
-                                  get_slope(iCell_m, IZ),
+                                  (ndim==3)?get_slope(iCell_m, IZ):PrimState{},
                                   dt/size_L[IX], 
                                   dt/size_L[IY], 
                                   dt/size_L[IZ]);
@@ -298,7 +298,7 @@ public:
               PrimState qR_half = half_step(qR0, 
                                   get_slope(iCell_p, IX),
                                   get_slope(iCell_p, IY),
-                                  get_slope(iCell_p, IZ),
+                                  (ndim==3)?get_slope(iCell_p, IZ):PrimState{},
                                   dt/size_R[IX], 
                                   dt/size_R[IY], 
                                   dt/size_R[IZ]);
