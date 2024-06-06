@@ -17,7 +17,12 @@ struct FiniteVolumePolicy_ConsHydroState {
     Irho_vx,
     Irho_vy,
     Irho_vz
-  };  
+  }; 
+
+  static FieldManager getFieldManager()
+  {
+    return FieldManager( {VarIndex::Irho, VarIndex::Ie_tot, VarIndex::Irho_vx, VarIndex::Irho_vy, VarIndex::Irho_vz } );
+  } 
 
   real_t rho = 0;
   real_t e_tot = 0;
@@ -45,6 +50,11 @@ struct FiniteVolumePolicy_PrimHydroState {
     Iv,
     Iw
   };
+
+  static FieldManager getFieldManager()
+  {
+    return FieldManager( {VarIndex::Irho, VarIndex::Ip, VarIndex::Iu, VarIndex::Iv, VarIndex::Iw } );
+  }
 
   real_t rho = 0;
   real_t p = 0;
