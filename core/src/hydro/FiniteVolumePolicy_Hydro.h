@@ -386,13 +386,12 @@ private:
     real_t smallp;
     real_t smallc;
   } rparams;
-  const FiniteVolumePolicy_State_Hydro& state;
 
 public:
   using PrimState = FiniteVolumePolicy_State::PrimState;
   using ConsState = FiniteVolumePolicy_State::ConsState;
 
-  FiniteVolumePolicy_BoundaryConditions_Hydro( ConfigMap& configMap, const FiniteVolumePolicy_State& state )
+  FiniteVolumePolicy_BoundaryConditions_Hydro( ConfigMap& configMap )
   : bc_min{
       configMap.getValue<BoundaryConditionType>("mesh","boundary_type_xmin", BC_ABSORBING),
       configMap.getValue<BoundaryConditionType>("mesh","boundary_type_ymin", BC_ABSORBING),
@@ -409,16 +408,13 @@ public:
       .smallr = configMap.getValue<real_t>("hydro", "smallr", 1e-10),
       .smallp = configMap.getValue<real_t>("hydro", "smallp", 1e-10),
       .smallc = configMap.getValue<real_t>("hydro", "smallc", 1e-10) 
-    }),
-    state(state)
+    })
   {}
 
   template < typename Array_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryValue( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const 
+  ConsState getBoundaryValue_impl( const FiniteVolumePolicy_State& policy, const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const 
   {
-    const FiniteVolumePolicy_State& policy = this->state;
-
     CellIndex iCell_inside;
     offset_t  offset;    
     iCell_boundary.getBoundaryPosAndOffset(iCell_inside, offset);
@@ -456,13 +452,11 @@ public:
 
   template < typename Array_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryFlux( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const
+  ConsState getBoundaryFlux_impl(const FiniteVolumePolicy_State& policy, const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const
   {
     CellIndex iCell_ref;
     offset_t  offset;    
     iCell_boundary.getBoundaryPosAndOffset(iCell_ref, offset);
-
-    const FiniteVolumePolicy_State& policy = this->state;
 
     ConsState u_in = policy.getConsState( U, iCell_ref );
     PrimState q_in = policy.consToPrim(u_in);
@@ -564,15 +558,32 @@ class FiniteVolumePolicy_Hydro_impl
   : public FiniteVolumePolicy_State_Hydro,
     public FiniteVolumePolicy_RiemannSolver_Hydro_hllc,
     public FiniteVolumePolicy_Slope_dynamic<FiniteVolumePolicy_State_Hydro>,
-    public FiniteVolumePolicy_BoundaryConditions_Hydro
+    protected FiniteVolumePolicy_BoundaryConditions_Hydro
 {
+private:
+  using CellIndex     = ForeachCell::CellIndex;
+  using CellMetaData  = ForeachCell::CellMetaData;
 public:
   FiniteVolumePolicy_Hydro_impl( ConfigMap& configMap )
   : FiniteVolumePolicy_State_Hydro(configMap),
     FiniteVolumePolicy_RiemannSolver_Hydro_hllc(configMap),
     FiniteVolumePolicy_Slope_dynamic<FiniteVolumePolicy_State_Hydro>(configMap),
-    FiniteVolumePolicy_BoundaryConditions_Hydro(configMap, *this)
+    FiniteVolumePolicy_BoundaryConditions_Hydro(configMap)
   {}
+
+  template < typename Array_t >
+  KOKKOS_INLINE_FUNCTION
+  ConsState getBoundaryFlux( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const
+  {
+    return FiniteVolumePolicy_BoundaryConditions_Hydro::getBoundaryFlux_impl(*this,U,iCell_boundary,metadata);
+  }
+
+  template < typename Array_t >
+  KOKKOS_INLINE_FUNCTION
+  ConsState getBoundaryValue( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const 
+  {
+    return FiniteVolumePolicy_BoundaryConditions_Hydro::getBoundaryValue_impl(*this,U,iCell_boundary,metadata);
+  }
 
 };
 
