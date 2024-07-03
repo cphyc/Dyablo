@@ -492,72 +492,36 @@ public:
                   ||  (offset[dir] < 0 && bc_min[dir] == BC_REFLECTING);
     bool absorbing  = (offset[dir] > 0 && bc_max[dir] == BC_ABSORBING)
                   ||  (offset[dir] < 0 && bc_min[dir] == BC_ABSORBING);
-    
-    // TODO : don't break encapsulation here
-    real_t gamma0 = rparams.gamma0;
-    real_t smallr = rparams.smallr;
-    real_t smallp = rparams.smallp;
-    real_t smallc = rparams.smallc;
-    
-    real_t r_in = q_in.rho;
-    real_t p_in = q_in.p;
+
     real_t v_in[3] = {q_in.u, q_in.v, q_in.w};
     real_t v_normal = v_in[dir];
 
-    // Left variables
-    real_t rl = fmax(r_in, smallr);
-    real_t pl = fmax(p_in, rl*smallp);   
-
-    // Right variables
-    real_t rr = fmax(r_in, smallr);
-    real_t pr = fmax(p_in, rr*smallp);
-
-    real_t ul=0, ur=0;
-    if( reflecting )
-    {
-       ul = offset[dir] * v_normal;
-       ur = - ul;
-    }
-    else if( absorbing )
-    {
-       ul = v_normal;
-       ur = v_normal;
-    }
-    
-    real_t ptotl = pl;
-    real_t ptotr = pr;
-      
-    // Find the largest eigenvalues in the normal direction to the interface
-    real_t cfastl = SQRT(fmax(gamma0*pl/rl,smallc*smallc));
-    real_t cfastr = SQRT(fmax(gamma0*pr/rr,smallc*smallc));
-
-    // Compute HLL wave speed
-    real_t SL = fmin(ul,ur) - fmax(cfastl,cfastr);
-    real_t SR = fmax(ul,ur) + fmax(cfastl,cfastr);
-
-    // Compute lagrangian sound speed
-    real_t rcl = rl*(ul-SL);
-    real_t rcr = rr*(SR-ur);
-      
-    // Compute acoustic star state
-    real_t ptotstar = (rcr*ptotl+rcl*ptotr+rcl*rcr*(ul-ur))/(rcr+rcl);
-
     ConsState flux_out {};
+    /**
+     * In the reflecting case, the values in the "ghosts" are supposed to be reflecting the
+     * ones inside the domain, hence reconstruction yields u_norm = 0 at the boundary, simplifying
+     * the calculation of the flux to only the pressure gradient term in the flux.
+     */
     if( reflecting )
     {
-      flux_out.rho_u = ((dir==IX) ? ptotstar : 0);
-      flux_out.rho_v = ((dir==IY) ? ptotstar : 0);
-      flux_out.rho_w = ((dir==IZ) ? ptotstar : 0);
+      flux_out.rho_u = ((dir==IX) ? q_in.p : 0);
+      flux_out.rho_v = ((dir==IY) ? q_in.p : 0);
+      flux_out.rho_w = ((dir==IZ) ? q_in.p : 0);
     }
+    /**
+     * In the absorbing case, the values in the ghosts are supposed to be interpolated from the ones 
+     * inside the domain to provide a null gradient through the boundary. Hence we can take the
+     * reconstructed value at the boundary as the riemann-problem solution.
+     */
     else if( absorbing )
     {
-      real_t f_rho = r_in*v_normal;
+      real_t f_rho = q_in.rho*v_normal;
 
       flux_out.rho = f_rho;
-      flux_out.rho_u = f_rho*q_in.u + ((dir==IX) ? ptotstar : 0);
-      flux_out.rho_v = f_rho*q_in.v + ((dir==IY) ? ptotstar : 0);
-      flux_out.rho_w = f_rho*q_in.w + ((dir==IZ) ? ptotstar : 0);
-      flux_out.e_tot = (ptotstar + u_in.e_tot) * v_normal;
+      flux_out.rho_u = f_rho*q_in.u + ((dir==IX) ? q_in.p : 0);
+      flux_out.rho_v = f_rho*q_in.v + ((dir==IY) ? q_in.p : 0);
+      flux_out.rho_w = f_rho*q_in.w + ((dir==IZ) ? q_in.p : 0);
+      flux_out.e_tot = (q_in.p + u_in.e_tot) * v_normal;
     }
 
     return flux_out;
