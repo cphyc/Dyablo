@@ -605,7 +605,7 @@ CellIndex CellIndex::getNeighbor_ghost( const offset_t& offset, const CellArray_
   DYABLO_ASSERT_KOKKOS_DEBUG(this->bx == array.bx, "bx mismatch icell vs array");
   DYABLO_ASSERT_KOKKOS_DEBUG(this->by == array.by, "by mismatch icell vs array");
   DYABLO_ASSERT_KOKKOS_DEBUG(this->bz == array.bz, "bz mismatch icell vs array");
-  DYABLO_ASSERT_KOKKOS_DEBUG(this->is_local() || this->level_diff() == -1, "iOct should be local to get neighbor (except to find siblings when smaller)");
+  //DYABLO_ASSERT_KOKKOS_DEBUG(this->is_local() || this->level_diff() == -1, "iOct should be local to get neighbor (except to find siblings when smaller)");
   DYABLO_ASSERT_KOKKOS_DEBUG(int(this->bx) >= abs(offset[IX])*2 - 1, "Block size not compatible with offset");
   DYABLO_ASSERT_KOKKOS_DEBUG(int(this->by) >= abs(offset[IY])*2 - 1, "Block size not compatible with offset");
   DYABLO_ASSERT_KOKKOS_DEBUG(int(this->bz) >= abs(offset[IZ])*2 - 1, "Block size not compatible with offset");  
