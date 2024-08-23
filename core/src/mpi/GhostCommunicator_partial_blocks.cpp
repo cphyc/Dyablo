@@ -264,10 +264,4 @@ void GhostCommunicator_partial_blocks::init( const AMRmesh_hashmap_new& amr_mesh
   this->m_local_ghost_octants = local_octant_count;
 }
 
-// /**
-//  * TODO : doc
-//  **/
-// void GhostCommunicator_partial_blocks::reduce_ghosts( UserData::FieldAccessor& U) const
-// {}
-
 } // namespace dyablo
