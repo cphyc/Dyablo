@@ -28,7 +28,7 @@ Etape par étape :
 
 * Compiler le code pour l'architecture cible (voir readme de Dyablo et wiki "Build commands on specific systems"). Attention de bien utiliser les mêmes modules que dans les templates du dossier `run_scripts`
 
-* Créer un lien symbolique pour l'executable (`build/dyablo/test/solver/test_solver`) sous la forme `dyablo_<target>` dans le dossier `benchmarks/convection` (voir `executable_path` pour votre cible dans `bench.py`. ex : dyablo_v100 pour Jean Zay V100)
+* Créer un lien symbolique pour l'executable (`build/dyablo/bin/dyablo`) sous la forme `dyablo_<target>` dans le dossier `benchmarks/convection` (voir `executable_path` pour votre cible dans `bench.py`. ex : dyablo_v100 pour Jean Zay V100)
 
 * Vérifier les runs que vous voulez executer, les allocations et les comptes sur les machines dans `bench.py`
 
@@ -42,7 +42,7 @@ $ module load cmake/ gcc/8.5.0 cuda/12.1.0 openmpi/4.0.5-cuda hdf5/1.12.0-mpi-cu
 $ cmake -DCMAKE_BUILD_TYPE=Release -DKokkos_ENABLE_CUDA=ON -DKokkos_ARCH="VOLTA70" -DDYABLO_CMAKE_ARGS="-DCMAKE_EXE_LINKER_FLAGS=-lstdc++fs" ..
 $ make -j5 
 $ cd ../benchmarks/convection/
-$ ln -s ../../build_v100/dyablo/test/solver/test_solver dyablo_v100
+$ ln -s ../../build_v100/dyablo/bin/dyablo dyablo_v100
 $ emacs run_scripts/bench.py 
 <read and verify bench.py>
 $ python3 run_scripts/bench.py JZ_v100
