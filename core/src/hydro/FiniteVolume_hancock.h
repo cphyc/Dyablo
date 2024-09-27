@@ -123,9 +123,9 @@ public:
     // Create abstract temporary ghosted arrays for patches 
     using PatchArray = ForeachCell::CellArray_patch;
     FieldManager fm_prim = Policy::PrimState::getFieldManager();
-    PatchArray::Ref HalfStep_ = foreach_cell.reserve_patch_tmp("HalfStep", 1, 1, 1, fm_prim.get_id2index(), fm_prim.nbfields());
-    PatchArray::Ref SlopesX_ = foreach_cell.reserve_patch_tmp("SlopesX", 1, 1, 1, fm_prim.get_id2index(), fm_prim.nbfields());
-    PatchArray::Ref SlopesY_ = foreach_cell.reserve_patch_tmp("SlopesY", 1, 1, 1, fm_prim.get_id2index(), fm_prim.nbfields());
+    PatchArray::Ref HalfStep_ = foreach_cell.reserve_patch_tmp("HalfStep", 1, 1, (ndim==3)?1:0, fm_prim.get_id2index(), fm_prim.nbfields());
+    PatchArray::Ref SlopesX_ = foreach_cell.reserve_patch_tmp("SlopesX", 1, 1, (ndim==3)?1:0, fm_prim.get_id2index(), fm_prim.nbfields());
+    PatchArray::Ref SlopesY_ = foreach_cell.reserve_patch_tmp("SlopesY", 1, 1, (ndim==3)?1:0, fm_prim.get_id2index(), fm_prim.nbfields());
     PatchArray::Ref SlopesZ_;
     if( ndim == 3 )
       SlopesZ_ = foreach_cell.reserve_patch_tmp("SlopesZ", 1, 1, 1, fm_prim.get_id2index(), fm_prim.nbfields());
@@ -136,7 +136,9 @@ public:
     {
       PatchArray SlopesX = patch.allocate_tmp(SlopesX_);
       PatchArray SlopesY = patch.allocate_tmp(SlopesY_);
-      PatchArray SlopesZ = patch.allocate_tmp(SlopesZ_);
+      PatchArray SlopesZ;
+      if( ndim == 3 )
+        SlopesZ = patch.allocate_tmp(SlopesZ_);
       PatchArray HalfStep = patch.allocate_tmp(HalfStep_);
 
       patch.foreach_cell( HalfStep.getShape(),
@@ -241,7 +243,9 @@ public:
 
           PrimState sx = compute_slope(iCell_Uin, IX);
           PrimState sy = compute_slope(iCell_Uin, IY);
-          PrimState sz = compute_slope(iCell_Uin, IZ);
+          PrimState sz {};
+          if(ndim == 3)
+            sz = compute_slope(iCell_Uin, IZ);
 
           PrimState q_half = compute_half_step( q, 
                                         sx, sy, sz, 
@@ -249,7 +253,8 @@ public:
 
           policy.setPrimState( SlopesX, iCell_tmp, sx );
           policy.setPrimState( SlopesY, iCell_tmp, sy );
-          policy.setPrimState( SlopesZ, iCell_tmp, sz );
+          if(ndim == 3)
+            policy.setPrimState( SlopesZ, iCell_tmp, sz );
           policy.setPrimState( HalfStep, iCell_tmp, q_half );
         }
       });
