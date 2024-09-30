@@ -167,11 +167,14 @@ public:
           offset_t off_p{}; off_p[dir] =  1;
           const PrimState qR = policy.getPrimState(Qpatch, iCell_Qpatch + off_p); 
         
+          //!\ Neighbor cells in Qpatch are averaged cells -> size iCell_L != size iCell_Qpatch_L
           CellIndex iCell_L = iCell_Uin.getNeighbor_ghost(off_m, Uout.getShape());
           CellIndex iCell_R = iCell_Uin.getNeighbor_ghost(off_p, Uout.getShape());   
 
           // Getting the length right and left
-          constexpr real_t sizes[] = {0.75, 1.0, 1.5};
+          // Smaller -> use averaged same-size cell -> 1*dx
+          // Bigger -> same-size cell in Qpatch has vame value as actual bigger cell -> dx/2 + dx             
+          constexpr real_t sizes[] = {1.0, 1.0, 1.5}; 
           const real_t dL = sizes[iCell_L.level_diff()+1];
           const real_t dR = sizes[iCell_R.level_diff()+1];  
 
