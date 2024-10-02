@@ -301,7 +301,7 @@ public:
     else
       m_gravity_type = GRAVITY_NONE;
 
-    std::string gravity_update_id = configMap.getValue<std::string>("gravity", "update", m_gravity_type==GRAVITY_NONE?"none":"HydroUpdate_gravity");
+    std::string gravity_update_id = configMap.getValue<std::string>("gravity", "hydro_update", m_gravity_type==GRAVITY_NONE?"none":"HydroUpdate_gravity");
     this->gravity_update = HydroUpdateFactory::make_instance( gravity_update_id,
         configMap,
         m_foreach_cell,
