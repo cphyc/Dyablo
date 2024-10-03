@@ -123,6 +123,7 @@ public:
     // Create abstract temporary ghosted arrays for patches 
     using PatchArray = ForeachCell::CellArray_patch;
     FieldManager fm_prim = Policy::PrimState::getFieldManager();
+    PatchArray::Ref Qpatch_ = foreach_cell.reserve_patch_tmp("Qpatch", 2, 2, (ndim == 3)?2:0, fm_prim.get_id2index(), fm_prim.nbfields());
     PatchArray::Ref HalfStep_ = foreach_cell.reserve_patch_tmp("HalfStep", 1, 1, (ndim==3)?1:0, fm_prim.get_id2index(), fm_prim.nbfields());
     PatchArray::Ref SlopesX_ = foreach_cell.reserve_patch_tmp("SlopesX", 1, 1, (ndim==3)?1:0, fm_prim.get_id2index(), fm_prim.nbfields());
     PatchArray::Ref SlopesY_ = foreach_cell.reserve_patch_tmp("SlopesY", 1, 1, (ndim==3)?1:0, fm_prim.get_id2index(), fm_prim.nbfields());
@@ -134,6 +135,32 @@ public:
     foreach_cell.foreach_patch( "FiniteVolume_euler::update",
       PATCH_LAMBDA(const ForeachCell::Patch& patch)
     {
+      PatchArray Qpatch = patch.allocate_tmp(Qpatch_);
+
+      patch.foreach_cell( Qpatch, 
+        CELL_LAMBDA( const CellIndex& iCell_Qpatch )
+      {
+        CellIndex iCell_Uin = Uin.getShape().convert_index_ghost(iCell_Qpatch);
+        int level_diff = iCell_Uin.level_diff();
+        ConsState u = {};
+        if (iCell_Uin.is_boundary())
+          u = policy.getBoundaryValue(Uin, iCell_Uin, cellmetadata);
+        else if (level_diff < 0) {
+          int subcell_count = 
+          foreach_sibling(ndim, iCell_Uin, Uin.getShape(),
+            [&](const CellIndex& iCell_neigh) {
+              ConsState uloc = policy.getConsState(Uin, iCell_neigh);
+              u += uloc;
+            });
+          u /= subcell_count;
+        }
+        else
+          u = policy.getConsState(Uin, iCell_Uin);
+        
+        const PrimState q = policy.consToPrim( u );
+        policy.setPrimState( Qpatch, iCell_Qpatch, q );
+      });
+
       PatchArray SlopesX = patch.allocate_tmp(SlopesX_);
       PatchArray SlopesY = patch.allocate_tmp(SlopesY_);
       PatchArray SlopesZ;
@@ -145,48 +172,30 @@ public:
         CELL_LAMBDA(const CellIndex& iCell_tmp)
       {
         // Return Slope at position iCell
-        auto compute_slope = [&](const CellIndex &iCell, ComponentIndex3D dir) 
-        {       
-          auto get_neighbor_prim_value = [&]( const CellIndex& iCell_n, const CellIndex::offset_t& off )
-          {
-            ConsState u {};
-            // Getting left value
-            int level_diff = iCell_n.level_diff();
-            if (iCell_n.is_boundary())
-              u = policy.getBoundaryValue(Uin, iCell_n, cellmetadata);
-            else if (level_diff < 0) {
-              int subcell_count = 
-              foreach_smaller_neighbor(ndim, iCell_n, off, Uin.getShape(),
-                [&](const CellIndex& iCell_neigh) {
-                  ConsState uloc = policy.getConsState(Uin, iCell_neigh);
-                  u += uloc;
-                });
-              u /= subcell_count;
-            }
-            else
-              u = policy.getConsState(Uin, iCell_n);
-
-            return policy.consToPrim(u);
-          };
-
-          ConsState uC = policy.getConsState(Uin, iCell);
-          const PrimState qC = policy.consToPrim( uC );
+        auto compute_slope = [&](const CellIndex &iCell_Uin, const CellIndex &iCell_Qpatch, ComponentIndex3D dir) 
+        {        
+          const PrimState qC = policy.getPrimState(Qpatch, iCell_Qpatch );
           offset_t off_m{}; off_m[dir] = -1;
-          CellIndex iCell_L = iCell.getNeighbor_ghost(off_m, Uout.getShape());
-          const PrimState qL = get_neighbor_prim_value(iCell_L, off_m);
+          const PrimState qL = policy.getPrimState(Qpatch, iCell_Qpatch + off_m); 
           offset_t off_p{}; off_p[dir] =  1;
-          CellIndex iCell_R = iCell.getNeighbor_ghost(off_p, Uout.getShape());
-          const PrimState qR = get_neighbor_prim_value(iCell_R, off_p);    
+          const PrimState qR = policy.getPrimState(Qpatch, iCell_Qpatch + off_p); 
+        
+          // //!\ Neighbor cells in Qpatch are averaged cells -> size iCell_L != size iCell_Qpatch_L
+          // CellIndex iCell_L = iCell_Uin.getNeighbor_ghost(off_m, Uout.getShape());
+          // CellIndex iCell_R = iCell_Uin.getNeighbor_ghost(off_p, Uout.getShape());   
 
-          // Getting the length right and left
-          constexpr real_t sizes[] = {0.75, 1.0, 1.5};
-          const real_t dL = sizes[iCell_L.level_diff()+1];
-          const real_t dR = sizes[iCell_R.level_diff()+1];  
+          // // Getting the length right and left
+          // // Smaller -> use averaged same-size cell -> 1*dx
+          // // Bigger -> same-size cell in Qpatch has vame value as actual bigger cell -> dx/2 + dx             
+          // constexpr real_t sizes[] = {1.0, 1.0, 1.5}; 
+          // const real_t dL = sizes[iCell_L.level_diff()+1];
+          // const real_t dR = sizes[iCell_R.level_diff()+1];  
+          real_t dL = 1, dR = 1;
 
           // Computing minmod slope for the direction
           PrimState slope = policy.compute_slope( qL, qC, qR, dL, dR);
           return slope;
-        };
+        }; // compute_slope
 
         auto compute_half_step = [&]  ( PrimState q,
                               PrimState sx,
@@ -236,16 +245,17 @@ public:
 
         if( iCell_Uin.is_valid() && iCell_Uin.level_diff() >= 0 )
         { //Compute slopes only inside of domain and skip smaller neighbors
-          ConsState u = policy.getConsState( Uin, iCell_Uin );
-          PrimState q = policy.consToPrim(u);
+          CellIndex iCell_Qpatch = Qpatch.getShape().convert_index_ghost(iCell_tmp);
+
+          const PrimState q = policy.getPrimState(Qpatch, iCell_Qpatch );
 
           auto size = cellmetadata.getCellSize(iCell_Uin);
 
-          PrimState sx = compute_slope(iCell_Uin, IX);
-          PrimState sy = compute_slope(iCell_Uin, IY);
+          PrimState sx = compute_slope(iCell_Uin, iCell_Qpatch, IX);
+          PrimState sy = compute_slope(iCell_Uin, iCell_Qpatch, IY);
           PrimState sz {};
           if(ndim == 3)
-            sz = compute_slope(iCell_Uin, IZ);
+            sz = compute_slope(iCell_Uin, iCell_Qpatch, IZ);
 
           PrimState q_half = compute_half_step( q, 
                                         sx, sy, sz, 
