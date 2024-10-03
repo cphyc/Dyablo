@@ -160,7 +160,6 @@ public:
         // Return Slope at position iCell
         auto get_slope = [&](const CellIndex &iCell_Uin, const CellIndex &iCell_Qpatch, ComponentIndex3D dir) 
         {        
-          return PrimState{};
           const PrimState qC = policy.getPrimState(Qpatch, iCell_Qpatch );
           offset_t off_m{}; off_m[dir] = -1;
           const PrimState qL = policy.getPrimState(Qpatch, iCell_Qpatch + off_m); 
