@@ -274,9 +274,9 @@ public:
 
         ConsState du{};
         du += process_dir(iCell_Uout, iCell_Qpatch, IX);
-      //   du += process_dir(iCell_Uout, iCell_Qpatch, IY);
-      //   if (ndim == 3)
-      //     du += process_dir(iCell_Uout, iCell_Qpatch, IZ);
+        du += process_dir(iCell_Uout, iCell_Qpatch, IY);
+        if (ndim == 3)
+           du += process_dir(iCell_Uout, iCell_Qpatch, IZ);
         policy.atomic_addConsState(Uout, iCell_Uout, du);
       });
     });
