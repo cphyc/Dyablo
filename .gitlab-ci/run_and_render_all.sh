@@ -43,7 +43,9 @@ run_and_render test_blast_2D.ini visu_blast_2D_cell.pvsm blast_2d_cell
 run_and_render test_riemann_2D.ini visu_riemann_2D_cell.pvsm riemann_2d_cell
 run_and_render test_riemann_2D_block.ini visu_riemann_2D_block.pvsm riemann_2d_block
 
-run_and_render test_gravity_spheres_3D.ini visu_gravity_spheres_3D.pvsm gravity_3D 
+run_and_render test_gravity_spheres_3D.ini visu_gravity_spheres_3D.pvsm gravity_3D
+
+run_and_render test_sod_3D.ini visu_sod_3D.pvsm sod_3D 
 
 echo "${err_count}/${run_count} runs failed"
 
