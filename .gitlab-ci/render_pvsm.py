@@ -11,4 +11,4 @@ image_filename = sys.argv[2]
 servermanager.LoadState(pvsm_filename)
 SetActiveView(GetRenderView())
 #Render()
-WriteImage(image_filename)
+SaveScreenshot(image_filename, layout=GetLayout())
