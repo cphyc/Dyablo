@@ -2,7 +2,7 @@
 # validate this script with:
 # https://gitlab.maisondelasimulation.fr/pkestene/dyablo/-/ci/lint
 #
-image: "arnodurocher/dyablo-ci:cuda-11.2-visu"
+image: "arnodurocher/dyablo-ci:cuda-12.6.2-ubuntu-24.04"
 
 stages:
   - build
@@ -80,16 +80,6 @@ build::openmp:
 build::cuda:
   extends: .build_cuda_template
 
-build::cuda-10.2:
-  extends: .build_cuda_template
-  image: "arnodurocher/dyablo-ci:cuda-10.2"
-  when: manual
-
-build::cuda-9.2:
-  extends: .build_cuda_template
-  image: "arnodurocher/dyablo-ci:cuda-9.2"
-  when: manual
-
 # Run unit tests
 .test_template:
   extends: .rules_mr_always_branch_always
@@ -134,7 +124,6 @@ test::cuda:
 # ===============================
 .run_template:
   stage: run
-  image: "arnodurocher/dyablo-ci:cuda-11.2-visu"
   artifacts:
     when: always
     paths:
