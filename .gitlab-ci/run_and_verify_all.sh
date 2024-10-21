@@ -24,7 +24,7 @@ run_and_verify(){
 	    echo "run ${ini_file} success"
         echo "Validate : $verification_script"
         cd build/dyablo/bin
-        python $verification_script &> ../../../$verification_stdout_filename
+        python3 $verification_script &> ../../../$verification_stdout_filename
         if [ $? -eq 0 ]
         then
             success_list+=(${reason_success})
