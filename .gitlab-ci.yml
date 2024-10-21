@@ -52,6 +52,7 @@ after_script:
   artifacts:
     paths:
       - build/dyablo/bin/dyablo
+      - build/dyablo/bin/*.py
       - build/dyablo/bin/*.ini
       - build/dyablo/bin/*.pvsm
       - build/dyablo/unit_test/utest_*
