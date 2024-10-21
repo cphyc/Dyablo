@@ -129,10 +129,11 @@ test::cuda:
   artifacts:
     when: always
     paths:
+      - "run_*.txt"
+      - "**/run.txt"
+      - "**/verification.txt"
       - "*.png"
-      - "*.txt"
-      - "**/*.txt"
-      - "**/*.png"
+      - "*/*.png"
       - "report.xml"
     reports:
       junit: 
@@ -170,7 +171,7 @@ verify_all::openmp_1mpi:
   script: 
     - .gitlab-ci/run_and_verify_all.sh
 
-verify_all::openmp_1mpi:
+verify_all::cuda_1mpi:
   extends:  
     - .rules_mr_always_branch_always
     - .run_template
