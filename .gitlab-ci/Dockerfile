@@ -17,7 +17,13 @@ RUN export DEBIAN_FRONTEND=noninteractive; apt install -y xvfb
 #See https://github.com/open-mpi/ompi/issues/4948
 ENV OMPI_MCA_btl="^vader"
 
+RUN apt install -y python3-setuptools python3-pybind11
 
 RUN useradd -ms /bin/bash gitlab
 USER gitlab
 WORKDIR /home/gitlab
+
+RUN git clone --recurse-submodules https://oauth2:<auth token>@drf-gitlab.cea.fr/dyablo/pyablo.git
+RUN mkdir pyablo/build; cd pyablo/build; CC=mpicc CXX=mpicxx cmake -DCMAKE_BUILD_TYPE=Release ..; make -j
+ENV PYTHONPATH=/home/gitlab/pyablo/build/
+
