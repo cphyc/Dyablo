@@ -6,9 +6,11 @@ image: "arnodurocher/dyablo-ci:cuda-12.6.2-ubuntu-24.04"
 
 stages:
   - build
-  - run_all
-  - run
   - test
+  - run_all
+  - verify
+  - run
+  
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
@@ -128,7 +130,9 @@ test::cuda:
     when: always
     paths:
       - "*.png"
-      - "run_*.txt"
+      - "*.txt"
+      - "**/*.txt"
+      - "**/*.png"
       - "report.xml"
     reports:
       junit: 
@@ -154,6 +158,26 @@ run_all::cuda_4mpi:
   stage: run_all
   script: 
     - .gitlab-ci/run_and_render_all.sh
+
+# Run verification testcases
+# -------------------------
+verify_all::openmp_1mpi:
+  extends:  
+    - .rules_mr_always_branch_always
+    - .run_template
+    - .openmp_template
+  stage: verify
+  script: 
+    - .gitlab-ci/run_and_verify_all.sh
+
+verify_all::openmp_1mpi:
+  extends:  
+    - .rules_mr_always_branch_always
+    - .run_template
+    - .cuda_template
+  stage: verify
+  script: 
+    - .gitlab-ci/run_and_verify_all.sh
 
 # Run separate testcases
 # -------------------------
