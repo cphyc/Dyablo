@@ -79,7 +79,8 @@ public:
     policy(configMap),
     ndim(configMap.getValue<int>("mesh", "ndim", 3)),
     smallr( configMap.getValue<real_t>("hydro","smallr", 1e-10) ),
-    smallp( configMap.getValue<real_t>("hydro","smallp", 1e-10) )
+    smallp( configMap.getValue<real_t>("hydro","smallp", 1e-10) ),
+    slope_enabled( configMap.getValue<bool>("hydro","slope_enabled", true) )
   { }
 
   /**
@@ -92,6 +93,7 @@ public:
   {
     real_t dt = scalar_data.get<real_t>("dt");
     int ndim = this->ndim;
+    bool slope_enabled = this->slope_enabled;
 
     const Policy& policy = this->policy; 
     Timers& timers = this->timers; 
@@ -129,7 +131,9 @@ public:
       CELL_LAMBDA(const CellIndex &iCell)
     {
       // Return Slope at position iCell
-      auto get_slope = [&](const CellIndex &iCell, ComponentIndex3D dir) {        
+      auto get_slope = [&](const CellIndex &iCell, ComponentIndex3D dir) { 
+        if(!slope_enabled)
+            return PrimState{};       
 
         auto get_neighbor_prim_value = [&]( const CellIndex& iCell_n, const CellIndex::offset_t& off )
         {
@@ -290,6 +294,7 @@ private:
 
   int ndim;
   real_t smallr, smallp;
+  bool slope_enabled;
 };
 
 } // namespace dyablo

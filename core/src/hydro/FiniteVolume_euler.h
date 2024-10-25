@@ -78,7 +78,8 @@ public:
     policy(configMap),
     ndim(configMap.getValue<int>("mesh", "ndim", 3)),
     smallr( configMap.getValue<real_t>("hydro","smallr", 1e-10) ),
-    smallp( configMap.getValue<real_t>("hydro","smallp", 1e-10) )
+    smallp( configMap.getValue<real_t>("hydro","smallp", 1e-10) ),
+    slope_enabled( configMap.getValue<bool>("hydro","slope_enabled", true) )
   { }
 
   /**
@@ -91,6 +92,7 @@ public:
   {
     real_t dt = scalar_data.get<real_t>("dt");
     int ndim = this->ndim;
+    bool slope_enabled = this->slope_enabled;
 
     const Policy& policy = this->policy; 
     Timers& timers = this->timers; 
@@ -123,7 +125,8 @@ public:
     });
 
     auto fm_prim = PrimState::getFieldManager().get_id2index();
-    PatchArray::Ref Qpatch_ = foreach_cell.reserve_patch_tmp("Qpatch", 2, 2, (ndim == 3)?2:0, fm_prim, State_traits<PrimState>::nvars);
+    int nb_ghosts = slope_enabled ? 2 : 1;
+    PatchArray::Ref Qpatch_ = foreach_cell.reserve_patch_tmp("Qpatch", nb_ghosts, nb_ghosts, (ndim == 3)?nb_ghosts:0, fm_prim, State_traits<PrimState>::nvars);
 
     foreach_cell.foreach_patch( "FiniteVolume_euler::update", 
       PATCH_LAMBDA( const ForeachCell::Patch& patch )
@@ -159,7 +162,10 @@ public:
       {
         // Return Slope at position iCell
         auto get_slope = [&](const CellIndex &iCell_Uin, const CellIndex &iCell_Qpatch, ComponentIndex3D dir) 
-        {        
+        {
+          if(!slope_enabled)
+            return PrimState{};
+
           const PrimState qC = policy.getPrimState(Qpatch, iCell_Qpatch );
           offset_t off_m{}; off_m[dir] = -1;
           const PrimState qL = policy.getPrimState(Qpatch, iCell_Qpatch + off_m); 
@@ -303,6 +309,7 @@ private:
 
   int ndim;
   real_t smallr, smallp;
+  bool slope_enabled;
 };
 
 } // namespace dyablo
