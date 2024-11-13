@@ -12,7 +12,7 @@
 
 module purge
 module load PrgEnv-amd 
-module load amd/5.5.1 cray-mpich cray-hdf5-parallel
+module load amd/6.0.0 cray-mpich cray-hdf5-parallel
 
 export OMP_NUM_THREADS=<nb_threads>
 export OMP_PROC_BIND=true 
