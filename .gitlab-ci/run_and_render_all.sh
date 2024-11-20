@@ -46,6 +46,7 @@ run_and_render test_riemann_2D_block.ini visu_riemann_2D_block.pvsm riemann_2d_b
 run_and_render test_gravity_spheres_3D.ini visu_gravity_spheres_3D.pvsm gravity_3D
 
 run_and_render test_sod_3D.ini visu_sod_3D.pvsm sod_3D 
+run_and_render test_zeldovitch.ini visu_zeldovitch.pvsm zeldovitch 
 
 echo "${err_count}/${run_count} runs failed"
 
