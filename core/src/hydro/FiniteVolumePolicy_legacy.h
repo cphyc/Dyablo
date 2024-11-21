@@ -198,9 +198,16 @@ public:
   
   Kokkos::Array<BoundaryConditionType, 3> bc_min, bc_max;
 
+  struct PolicyScalarData {};
+
+  static PolicyScalarData getScalarData( const ScalarSimulationData& scalar_data )
+  {
+    return {};
+  }
+
   template < typename Array_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryValue( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const 
+  ConsState getBoundaryValue( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata, const PolicyScalarData& ) const 
   {
     const FiniteVolumePolicy_impl& policy = *this;
 
@@ -241,7 +248,7 @@ public:
   
   template < typename Array_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryFlux( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const
+  ConsState getBoundaryFlux( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata, const PolicyScalarData& ) const
   {
     CellIndex iCell_ref;
     offset_t  offset;    

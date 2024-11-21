@@ -100,6 +100,7 @@ public:
     timers.get("FiniteVolume_hancock").start();
 
     ForeachCell::CellMetaData cellmetadata = foreach_cell.getCellMetaData();
+    auto policy_scalar_data = policy.getScalarData( scalar_data );
 
     // Initializing output array 
     // TODO : remove this and copy Uin->Uout in timeloop or field creation logic
@@ -144,7 +145,7 @@ public:
         int level_diff = iCell_Uin.level_diff();
         ConsState u = {};
         if (iCell_Uin.is_boundary())
-          u = policy.getBoundaryValue(Uin, iCell_Uin, cellmetadata);
+          u = policy.getBoundaryValue(Uin, iCell_Uin, cellmetadata, policy_scalar_data);
         else if (level_diff < 0) {
           int subcell_count = 
           foreach_sibling(ndim, iCell_Uin, Uin.getShape(),
@@ -299,7 +300,7 @@ public:
             const CellIndex iCell_m_U = iCell_U.getNeighbor_ghost(off_m, Uin.getShape());
             if( iCell_m_U.is_boundary() )
             {
-              fluxL = policy.getBoundaryFlux(Uin, iCell_m_U, cellmetadata);
+              fluxL = policy.getBoundaryFlux(Uin, iCell_m_U, cellmetadata, policy_scalar_data);
             }
             else
             {  
@@ -338,7 +339,7 @@ public:
             const CellIndex iCell_p_U = iCell_U.getNeighbor_ghost(off_p, Uin.getShape());
             if( iCell_p_U.is_boundary() )
             {
-              fluxR = policy.getBoundaryFlux(Uin, iCell_p_U, cellmetadata);
+              fluxR = policy.getBoundaryFlux(Uin, iCell_p_U, cellmetadata, policy_scalar_data);
             }
             else
             {

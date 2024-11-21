@@ -100,8 +100,8 @@ public:
     auto Ustar = foreach_cell.allocate_ghosted_array("U*", fm_cons);
 
     // Performing two steps
-    update_once(Uin, Ustar, dt, true);
-    update_once(Ustar, Uout, dt, false);
+    update_once(Uin, Ustar, dt, true, scalar_data);
+    update_once(Ustar, Uout, dt, false, scalar_data);
 
     // And correcting
     foreach_cell.foreach_ghost_cell( "FiniteVolume_RK2::resetting_ghosts",
@@ -130,7 +130,7 @@ public:
    */
   template < typename ArrayIn_t,
              typename ArrayOut_t >
-  void update_once( ArrayIn_t& Uin, ArrayOut_t& Uout, real_t dt, bool sync_Uout )
+  void update_once( ArrayIn_t& Uin, ArrayOut_t& Uout, real_t dt, bool sync_Uout, const ScalarSimulationData& scalar_data )
   {
     int ndim = this->ndim;
 
@@ -138,6 +138,7 @@ public:
     ForeachCell& foreach_cell = this->foreach_cell;
 
     ForeachCell::CellMetaData cellmetadata = foreach_cell.getCellMetaData();
+    auto policy_scalar_data = policy.getScalarData( scalar_data );
 
     // Initializing output array 
     // TODO : remove this and copy Uin->Uout in timeloop or field creation logic
@@ -173,7 +174,7 @@ public:
         int level_diff = iCell_Uin.level_diff();
         ConsState u = {};
         if (iCell_Uin.is_boundary())
-          u = policy.getBoundaryValue(Uin, iCell_Uin, cellmetadata);
+          u = policy.getBoundaryValue(Uin, iCell_Uin, cellmetadata, policy_scalar_data);
         else if (level_diff < 0) {
           int subcell_count = 
           foreach_sibling(ndim, iCell_Uin, Uin.getShape(),
@@ -235,7 +236,7 @@ public:
             const CellIndex iCell_Uin_m = iCell_Uin.getNeighbor_ghost(off_m, Uin.getShape());
             if( iCell_Uin_m.is_boundary() )
             {
-              fluxL = policy.getBoundaryFlux(Uin, iCell_Uin_m, cellmetadata);
+              fluxL = policy.getBoundaryFlux(Uin, iCell_Uin_m, cellmetadata, policy_scalar_data);
             }
             else
             {  
@@ -272,7 +273,7 @@ public:
             const CellIndex iCell_Uin_p = iCell_Uin.getNeighbor_ghost(off_p, Uin.getShape());
             if( iCell_Uin_p.is_boundary() )
             {
-              fluxR = policy.getBoundaryFlux(Uin, iCell_Uin_p, cellmetadata);
+              fluxR = policy.getBoundaryFlux(Uin, iCell_Uin_p, cellmetadata, policy_scalar_data);
             }
             else
             {

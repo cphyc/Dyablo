@@ -1,6 +1,7 @@
 #pragma once
 
 #include "UserData.h"
+#include "ScalarSimulationData.h"
 #include "foreach_cell/ForeachCell.h"
 
 namespace dyablo{
@@ -181,6 +182,22 @@ public:
   }
 
   /**
+   * Structure to contain variables extracted from ScalarData that are used in the policy
+   * This structure is specific to the policy because every policy may need different scalar_data variables
+   **/
+  using PolicyScalarData = typename FiniteVolumePolicy_impl::PolicyScalarData;
+
+  /** 
+   * Extract variables from ScalarData into a GPU compatible structure
+   * Only useful variables should be extracted
+   * Cannot be called inside Kokkos kernels
+   **/
+  static PolicyScalarData getScalarData( const ScalarSimulationData& scalar_data )
+  {
+    return FiniteVolumePolicy_impl::getScalarData(scalar_data);
+  }
+
+  /**
    * \brief Get field values for a cell outside of the simulation domain
    * 
    * This method is usually called by kernels when trying to access neighbors outside
@@ -196,9 +213,9 @@ public:
    */
   template < typename Array_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryValue( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const 
+  ConsState getBoundaryValue( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata, const PolicyScalarData& policy_scalar_data) const 
   {
-    return impl.getBoundaryValue(U, iCell_boundary, metadata);
+    return impl.getBoundaryValue(U, iCell_boundary, metadata, policy_scalar_data);
   }
   
   /**
@@ -218,9 +235,9 @@ public:
    */
   template < typename Array_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryFlux( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const
+  ConsState getBoundaryFlux( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata, const PolicyScalarData& policy_scalar_data) const
   {
-    return impl.getBoundaryFlux(U, iCell_boundary, metadata);
+    return impl.getBoundaryFlux(U, iCell_boundary, metadata, policy_scalar_data);
   }
 };
 

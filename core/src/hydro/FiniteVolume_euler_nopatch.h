@@ -105,6 +105,7 @@ public:
     timers.get("HydroUpdate_euler").start();
 
     ForeachCell::CellMetaData cellmetadata = foreach_cell.getCellMetaData();
+    auto policy_scalar_data = policy.getScalarData( scalar_data );
 
     // Initializing output array 
     // TODO : remove this and copy Uin->Uout in timeloop or field creation logic
@@ -141,7 +142,7 @@ public:
           // Getting left value
           int level_diff = iCell_n.level_diff();
           if (iCell_n.is_boundary())
-            u = policy.getBoundaryValue(Uin, iCell_n, cellmetadata);
+            u = policy.getBoundaryValue(Uin, iCell_n, cellmetadata, policy_scalar_data);
           else if (level_diff < 0) {
             int subcell_count = 
             foreach_smaller_neighbor(ndim, iCell_n, off, Uin.getShape(),
@@ -194,7 +195,7 @@ public:
           const CellIndex iCell_m = iCell.getNeighbor_ghost(off_m, Uin.getShape());
           if( iCell_m.is_boundary() )
           {
-            fluxL = policy.getBoundaryFlux(Uin, iCell_m, cellmetadata);
+            fluxL = policy.getBoundaryFlux(Uin, iCell_m, cellmetadata, policy_scalar_data);
           }
           else
           {  
@@ -231,7 +232,7 @@ public:
           const CellIndex iCell_p = iCell.getNeighbor_ghost(off_p, Uin.getShape());
           if( iCell_p.is_boundary() )
           {
-            fluxR = policy.getBoundaryFlux(Uin, iCell_p, cellmetadata);
+            fluxR = policy.getBoundaryFlux(Uin, iCell_p, cellmetadata, policy_scalar_data);
           }
           else
           {
