@@ -69,7 +69,7 @@ public:
         hdf5_file.collective_write( std::string("particles/")+particle_array+"/pos/y", Kokkos::subview( pos, Kokkos::ALL(), (int)IY ) );
         hdf5_file.collective_write( std::string("particles/")+particle_array+"/pos/z", Kokkos::subview( pos, Kokkos::ALL(), (int)IZ ) );
         for( const std::string& attr : U.getEnabledParticleAttributes( particle_array ) )
-          hdf5_file.collective_write( std::string("particles/")+particle_array+"/attributes/"+attr, U.getParticleAttribute(particle_array, attr).particle_data );
+          hdf5_file.collective_write( std::string("particles/")+particle_array+"/attributes/"+attr, Kokkos::subview( U.getParticleAttribute(particle_array, attr).particle_data, Kokkos::ALL(), 0) );
       }
 
       // Select subview containing local octants
