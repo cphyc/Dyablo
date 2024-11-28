@@ -23,7 +23,7 @@ size_t tuple_find_name( std::string name, const std::tuple<Ts...>& t)
   };
 
   bool found = tuple_foreach_until( find_name, t, std::index_sequence_for<Ts...>{} );
-  DYABLO_ASSERT_HOST_RELEASE( found, "Could not find slope limiter '" << name << "'" );
+  DYABLO_ASSERT_HOST_RELEASE( found, "Could not find tuple element '" << name << "'" );
 
   return res;
 }
