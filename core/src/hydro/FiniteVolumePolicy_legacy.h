@@ -205,12 +205,10 @@ public:
     return {};
   }
 
-  template < typename Array_t >
+  template < typename Array_t, typename Policy_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryValue( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata, const PolicyScalarData& ) const 
+  ConsState getBoundaryValue( const Policy_t &policy, const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata, const PolicyScalarData& ) const 
   {
-    const FiniteVolumePolicy_impl& policy = *this;
-
     CellIndex iCell_inside;
     offset_t  offset;    
     iCell_boundary.getBoundaryPosAndOffset(iCell_inside, offset);
@@ -246,15 +244,13 @@ public:
     return res;
   }
   
-  template < typename Array_t >
+  template < typename Array_t, typename Policy_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryFlux( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata, const PolicyScalarData& ) const
+  ConsState getBoundaryFlux( const Policy_t &policy,  const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata, const PolicyScalarData& ) const
   {
     CellIndex iCell_ref;
     offset_t  offset;    
     iCell_boundary.getBoundaryPosAndOffset(iCell_ref, offset);
-
-    const FiniteVolumePolicy_impl& policy = *this;
 
     ConsState u_in = policy.getConsState( U, iCell_ref );
     PrimState q_in = policy.consToPrim(u_in);

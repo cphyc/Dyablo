@@ -21,6 +21,7 @@ class AnalyticalFormula_KelvinHelmholtz;
 class AnalyticalFormula_RayleighTaylor;
 class AnalyticalFormula_sod;
 class AnalyticalFormula_Zeldovitch_pancake;
+class AnalyticalFormula_double_mach;
 
 // MHD
 template<typename State> class AnalyticalFormula_OrszagTang;
@@ -59,6 +60,7 @@ bool dyablo::InitialConditionsFactory::init()
   DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_riemann2d> );
   DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_KelvinHelmholtz> );
   DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_RayleighTaylor> );
+  DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_double_mach> );
 
   DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_OrszagTang<dyablo::MHDState> > );
   DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_OrszagTang<dyablo::GLMMHDState> > );

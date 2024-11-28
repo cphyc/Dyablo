@@ -215,7 +215,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   ConsState getBoundaryValue( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata, const PolicyScalarData& policy_scalar_data) const 
   {
-    return impl.getBoundaryValue(U, iCell_boundary, metadata, policy_scalar_data);
+    return impl.getBoundaryValue(*this, U, iCell_boundary, metadata, policy_scalar_data);
   }
   
   /**
@@ -237,7 +237,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   ConsState getBoundaryFlux( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata, const PolicyScalarData& policy_scalar_data) const
   {
-    return impl.getBoundaryFlux(U, iCell_boundary, metadata, policy_scalar_data);
+    return impl.getBoundaryFlux(*this, U, iCell_boundary, metadata, policy_scalar_data);
   }
 };
 

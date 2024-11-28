@@ -3,6 +3,7 @@
 #include "states/State_Ops.h"
 #include "FiniteVolumePolicy_base.h"
 #include "FiniteVolumePolicy_Slope.h"
+#include "FiniteVolumePolicy_BoundaryConditions.h"
 
 namespace dyablo{
 
@@ -381,158 +382,11 @@ private:
 
 };
 
-class FiniteVolumePolicy_BoundaryConditions_Hydro
-{
-private:
-  using FiniteVolumePolicy_State = FiniteVolumePolicy_State_Hydro;
-  using CellIndex     = ForeachCell::CellIndex;
-  using CellMetaData  = ForeachCell::CellMetaData;
-  using offset_t      = CellIndex::offset_t;
-
-  Kokkos::Array<BoundaryConditionType, 3> bc_min, bc_max;
-  struct Rparams {
-    real_t gamma0;
-    real_t smallr;
-    real_t smallp;
-    real_t smallc;
-  } rparams;
-
-public:
-  using PrimState = FiniteVolumePolicy_State::PrimState;
-  using ConsState = FiniteVolumePolicy_State::ConsState;
-
-  FiniteVolumePolicy_BoundaryConditions_Hydro( ConfigMap& configMap )
-  : bc_min{
-      configMap.getValue<BoundaryConditionType>("mesh","boundary_type_xmin", BC_ABSORBING),
-      configMap.getValue<BoundaryConditionType>("mesh","boundary_type_ymin", BC_ABSORBING),
-      configMap.getValue<BoundaryConditionType>("mesh","boundary_type_zmin", BC_ABSORBING)
-    },
-    bc_max{
-      configMap.getValue<BoundaryConditionType>("mesh","boundary_type_xmax", BC_ABSORBING),
-      configMap.getValue<BoundaryConditionType>("mesh","boundary_type_ymax", BC_ABSORBING),
-      configMap.getValue<BoundaryConditionType>("mesh","boundary_type_zmax", BC_ABSORBING)
-    },
-    rparams( 
-    {
-      .gamma0 = configMap.getValue<real_t>("hydro", "gamma0", 1.4),
-      .smallr = configMap.getValue<real_t>("hydro", "smallr", 1e-10),
-      .smallp = configMap.getValue<real_t>("hydro", "smallp", 1e-10),
-      .smallc = configMap.getValue<real_t>("hydro", "smallc", 1e-10) 
-    })
-  {}
-
-  template < typename Array_t >
-  KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryValue_impl( const FiniteVolumePolicy_State& policy, const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const 
-  {
-    CellIndex iCell_inside;
-    offset_t  offset;    
-    iCell_boundary.getBoundaryPosAndOffset(iCell_inside, offset);
-
-    auto sign = [](int x){return (x>0)-(x<0);};
-
-    CellIndex::offset_t symmetric_offset {
-      (int16_t)(-offset[IX] + sign(offset[IX])), 
-      (int16_t)(-offset[IY] + sign(offset[IY])), 
-      (int16_t)(-offset[IZ] + sign(offset[IZ]))
-    }; 
-
-    CellIndex iCell_sym = iCell_inside.getNeighbor(symmetric_offset);
-    ConsState u_sym = policy.getConsState( U, iCell_sym );    
-    ConsState res = u_sym;
-
-    if ( (offset[IX] > 0 && bc_max[IX] == BC_REFLECTING)
-      || (offset[IX] < 0 && bc_min[IX] == BC_REFLECTING) )
-    {
-        res.rho_u = -u_sym.rho_u;
-    }
-    if ( (offset[IY] > 0 && bc_max[IY] == BC_REFLECTING)
-      || (offset[IY] < 0 && bc_min[IY] == BC_REFLECTING) )
-    {
-        res.rho_v = -u_sym.rho_v;
-    }
-    if ( (offset[IZ] > 0 && bc_max[IZ] == BC_REFLECTING)
-      || (offset[IZ] < 0 && bc_min[IZ] == BC_REFLECTING) )
-    {
-        res.rho_w = -u_sym.rho_w;
-    }
-
-    return res;
-  }
-
-  template < typename Array_t >
-  KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryFlux_impl(const FiniteVolumePolicy_State& policy, const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const
-  {
-    CellIndex iCell_ref;
-    offset_t  offset;    
-    iCell_boundary.getBoundaryPosAndOffset(iCell_ref, offset);
-
-    ConsState u_in = policy.getConsState( U, iCell_ref );
-    PrimState q_in = policy.consToPrim(u_in);
-
-    
-    bool dir_IX = offset[IX] == -1 || offset[IX] == 1;
-    bool dir_IY = offset[IY] == -1 || offset[IY] == 1;
-    bool dir_IZ = offset[IZ] == -1 || offset[IZ] == 1;
-    DYABLO_ASSERT_KOKKOS_DEBUG( (int)dir_IX + (int)dir_IY + (int)dir_IZ == 1
-                              , "offset is not compatible with getBoundaryFlux" );
-
-    ComponentIndex3D dir = IZ;
-    if( dir_IX )
-      dir = IX;
-    else if( dir_IY )
-      dir = IY;
-    else if( dir_IZ )
-      dir = IZ;
-    else
-      DYABLO_ASSERT_KOKKOS_DEBUG(false, "Internal error! Should not happen");
-
-    bool reflecting = (offset[dir] > 0 && bc_max[dir] == BC_REFLECTING)
-                  ||  (offset[dir] < 0 && bc_min[dir] == BC_REFLECTING);
-    bool absorbing  = (offset[dir] > 0 && bc_max[dir] == BC_ABSORBING)
-                  ||  (offset[dir] < 0 && bc_min[dir] == BC_ABSORBING);
-
-    real_t v_in[3] = {q_in.u, q_in.v, q_in.w};
-    real_t v_normal = v_in[dir];
-
-    ConsState flux_out {};
-    /**
-     * In the reflecting case, the values in the "ghosts" are supposed to be reflecting the
-     * ones inside the domain, hence reconstruction yields u_norm = 0 at the boundary, simplifying
-     * the calculation of the flux to only the pressure gradient term in the flux.
-     */
-    if( reflecting )
-    {
-      flux_out.rho_u = ((dir==IX) ? q_in.p : 0);
-      flux_out.rho_v = ((dir==IY) ? q_in.p : 0);
-      flux_out.rho_w = ((dir==IZ) ? q_in.p : 0);
-    }
-    /**
-     * In the absorbing case, the values in the ghosts are supposed to be interpolated from the ones 
-     * inside the domain to provide a null gradient through the boundary. Hence we can take the
-     * reconstructed value at the boundary as the riemann-problem solution.
-     */
-    else if( absorbing )
-    {
-      real_t f_rho = q_in.rho*v_normal;
-
-      flux_out.rho = f_rho;
-      flux_out.rho_u = f_rho*q_in.u + ((dir==IX) ? q_in.p : 0);
-      flux_out.rho_v = f_rho*q_in.v + ((dir==IY) ? q_in.p : 0);
-      flux_out.rho_w = f_rho*q_in.w + ((dir==IZ) ? q_in.p : 0);
-      flux_out.e_tot = (q_in.p + u_in.e_tot) * v_normal;
-    }
-
-    return flux_out;
-  }
-};
-
 class FiniteVolumePolicy_Hydro_impl
   : public FiniteVolumePolicy_State_Hydro,
     public FiniteVolumePolicy_RiemannSolver_Hydro_hllc,
     public FiniteVolumePolicy_Slope_dynamic<FiniteVolumePolicy_State_Hydro>,
-    protected FiniteVolumePolicy_BoundaryConditions_Hydro
+    public FiniteVolumePolicy_BoundaryConditions_dynamic<FiniteVolumePolicy_State_Hydro>
 {
 private:
   using CellIndex     = ForeachCell::CellIndex;
@@ -546,29 +400,21 @@ public:
   : FiniteVolumePolicy_State_Hydro(configMap),
     FiniteVolumePolicy_RiemannSolver_Hydro_hllc(configMap),
     FiniteVolumePolicy_Slope_dynamic<FiniteVolumePolicy_State_Hydro>(configMap),
-    FiniteVolumePolicy_BoundaryConditions_Hydro(configMap)
+    FiniteVolumePolicy_BoundaryConditions_dynamic<FiniteVolumePolicy_State_Hydro>(configMap)
   {}
 
-  struct PolicyScalarData {};
+  struct PolicyScalarData {
+    real_t sim_time;
+  };
 
   static PolicyScalarData getScalarData( const ScalarSimulationData& scalar_data )
   {
-    return {};
+    return {
+      scalar_data.get<real_t>("time")
+    };
   }
 
-  template < typename Array_t >
-  KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryFlux( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata, const PolicyScalarData& ) const
-  {
-    return FiniteVolumePolicy_BoundaryConditions_Hydro::getBoundaryFlux_impl(*this,U,iCell_boundary,metadata);
-  }
 
-  template < typename Array_t >
-  KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryValue( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata, const PolicyScalarData& ) const 
-  {
-    return FiniteVolumePolicy_BoundaryConditions_Hydro::getBoundaryValue_impl(*this,U,iCell_boundary,metadata);
-  }
 
 };
 
