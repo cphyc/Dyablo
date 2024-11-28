@@ -100,11 +100,16 @@ public:
     auto Ustar = foreach_cell.allocate_ghosted_array("U*", fm_cons);
 
     // Performing two steps
+    real_t old_t = scalar_data.get<real_t>("time");
     update_once(Uin, Ustar, dt, true, scalar_data);
+    scalar_data.set("time", old_t+dt);
     update_once(Ustar, Uout, dt, false, scalar_data);
 
+    // Reversing time to initial value
+    scalar_data.set("time", old_t);
+
     // And correcting
-    foreach_cell.foreach_ghost_cell( "FiniteVolume_RK2::resetting_ghosts",
+    foreach_cell.foreach_cell( "FiniteVolume_RK2::resetting_ghosts",
       Uout.getShape(),
       CELL_LAMBDA(const CellIndex &iCell) 
     {
