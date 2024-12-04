@@ -41,10 +41,10 @@ public:
     },
     rparams( 
     {
-      .gamma0 = configMap.getValue<real_t>("hydro", "gamma0", 1.4),
-      .smallr = configMap.getValue<real_t>("hydro", "smallr", 1e-10),
-      .smallp = configMap.getValue<real_t>("hydro", "smallp", 1e-10),
-      .smallc = configMap.getValue<real_t>("hydro", "smallc", 1e-10),
+      configMap.getValue<real_t>("hydro", "gamma0", 1.4),
+      configMap.getValue<real_t>("hydro", "smallr", 1e-10),
+      configMap.getValue<real_t>("hydro", "smallp", 1e-10),
+      configMap.getValue<real_t>("hydro", "smallc", 1e-10)
     })
   {}
 
@@ -191,14 +191,15 @@ public:
   : 
     rparams( 
     {
-      .x0       = configMap.getValue<real_t>("double_mach", "x0", 0.666666667),
-      .alpha    = configMap.getValue<real_t>("double_mach", "alpha", 1.0471975511965976),
-      .post_rho = configMap.getValue<real_t>("double_mach", "rho_left", 8.0),
-      .post_vel = configMap.getValue<real_t>("double_mach", "vel_left", 8.25),
-      .post_p   = configMap.getValue<real_t>("double_mach", "p_left", 116.5),
-      .pre_rho  = configMap.getValue<real_t>("double_mach", "rho_right", 1.4),
-      .pre_vel  = configMap.getValue<real_t>("double_mach", "vel_right", 0.0),
-      .pre_p    = configMap.getValue<real_t>("double_mach", "p_right", 1.0),
+      configMap.getValue<real_t>("hydro", "gamma0", 1.4),
+      configMap.getValue<real_t>("double_mach", "x0", 0.666666667),
+      configMap.getValue<real_t>("double_mach", "alpha", 1.0471975511965976),
+      configMap.getValue<real_t>("double_mach", "rho_left", 8.0),
+      configMap.getValue<real_t>("double_mach", "vel_left", 8.25),
+      configMap.getValue<real_t>("double_mach", "p_left", 116.5),
+      configMap.getValue<real_t>("double_mach", "rho_right", 1.4),
+      configMap.getValue<real_t>("double_mach", "vel_right", 0.0),
+      configMap.getValue<real_t>("double_mach", "p_right", 1.0)
 
     })
   {}
