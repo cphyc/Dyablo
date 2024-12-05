@@ -1,7 +1,7 @@
 #pragma once
 
-#include "hydro/HyperbolicPolicy_base.h"
-#include "hydro/HyperbolicPolicy_tools.h"
+#include "hyperbolic/HyperbolicPolicy_base.h"
+#include "hyperbolic/HyperbolicPolicy_tools.h"
 
 namespace dyablo{
 

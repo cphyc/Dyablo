@@ -26,7 +26,7 @@ using CellIndex = ForeachCell::CellIndex;
 }// namespace
 }
 
-#include "hydro/CopyGhostBlockCellData.h"
+#include "hyperbolic/CopyGhostBlockCellData.h"
 
 namespace dyablo {
 /**

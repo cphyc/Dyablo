@@ -1,4 +1,4 @@
-#include "hydro/HydroUpdate_legacy.h"
+#include "hyperbolic/HydroUpdate_legacy.h"
 
 #include "legacy/utils_block.h"
 #include "legacy/CopyInnerBlockCellData.h"

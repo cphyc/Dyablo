@@ -5,7 +5,7 @@
 #include "kokkos_shared.h"
 #include "FieldManager.h"
 #include "amr/LightOctree.h"
-#include "hydro/HyperbolicUpdate_base.h"
+#include "hyperbolic/HyperbolicUpdate_base.h"
 
 class Timers;
 class ConfigMap;

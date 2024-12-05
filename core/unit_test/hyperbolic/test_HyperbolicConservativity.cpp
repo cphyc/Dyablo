@@ -18,7 +18,7 @@
 #include "foreach_cell/ForeachCell.h"
 #include "compute_dt/Compute_dt.h"
 #include "init/InitialConditions.h"
-#include "hydro/HyperbolicUpdate.h"
+#include "hyperbolic/HyperbolicUpdate.h"
 #include "utils_hydro.h"
 #include "io/IOManager.h"
 #include "states/State_hydro.h"

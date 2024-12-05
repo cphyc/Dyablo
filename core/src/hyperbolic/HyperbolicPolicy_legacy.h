@@ -2,7 +2,7 @@
 
 #include "RiemannSolvers.h"
 #include "foreach_cell/ForeachCell.h"
-#include "hydro/HyperbolicPolicy_Slope.h"
+#include "hyperbolic/HyperbolicPolicy_Slope.h"
 #include "HyperbolicPolicy_base.h"
 
 namespace dyablo{

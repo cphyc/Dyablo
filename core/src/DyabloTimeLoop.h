@@ -13,7 +13,7 @@
 #include "init/InitialConditions.h"
 #include "io/IOManager.h"
 #include "gravity/GravitySolver.h"
-#include "hydro/HyperbolicUpdate.h"
+#include "hyperbolic/HyperbolicUpdate.h"
 #include "particles/ParticleUpdate.h"
 #include "amr/MapUserData.h"
 #include "parabolic/ParabolicUpdate.h"

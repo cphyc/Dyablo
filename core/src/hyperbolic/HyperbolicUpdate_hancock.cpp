@@ -229,7 +229,7 @@ namespace {
 } // namespace
 } // namespace dyablo
 
-#include "hydro/CopyGhostBlockCellData.h"
+#include "hyperbolic/CopyGhostBlockCellData.h"
 
 namespace dyablo {
 

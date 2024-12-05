@@ -11,7 +11,7 @@
 
 #include "init/InitialConditions.h"
 
-#include "hydro/HyperbolicUpdate.h"
+#include "hyperbolic/HyperbolicUpdate.h"
 #include "legacy/ComputeDtHydroFunctor.h"
 
 using Device = Kokkos::DefaultExecutionSpace;
