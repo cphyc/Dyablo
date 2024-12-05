@@ -1,4 +1,4 @@
-#include "HyperbolicUpdate_base.h"
+#include "scheme/HyperbolicUpdate_base.h"
 
 namespace dyablo {
 

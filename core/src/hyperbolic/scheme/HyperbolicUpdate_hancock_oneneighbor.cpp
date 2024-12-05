@@ -3,7 +3,7 @@
 #include "kokkos_shared.h"
 #include "FieldManager.h"
 #include "amr/LightOctree.h"
-#include "hyperbolic/HyperbolicUpdate_base.h"
+#include "HyperbolicUpdate_base.h"
 
 #include "foreach_cell/ForeachCell.h"
 #include "foreach_cell/ForeachCell_utils.h"
@@ -11,7 +11,7 @@
 #include "RiemannSolvers.h"
 #include "utils/config/ConfigMap.h"
 
-#include "hyperbolic/HyperbolicUpdate_utils.h"
+#include "HyperbolicUpdate_utils.h"
 
 #include "states/State_forward.h"
 #include "mpi/GhostCommunicator.h"

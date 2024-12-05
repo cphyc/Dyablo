@@ -1,6 +1,6 @@
 #pragma once
 
-#include "hyperbolic/HyperbolicPolicy_tools.h"
+#include "HyperbolicPolicy_tools.h"
 
 namespace dyablo{
 

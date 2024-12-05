@@ -1,8 +1,8 @@
 #include "states/State_hydro.h"
 
-#include "hyperbolic/HyperbolicPolicy_Hydro.h"
+#include "hyperbolic/policy/HyperbolicPolicy_Hydro.h"
 
-#include "hyperbolic/Hyperbolic_hancock.h"
+#include "hyperbolic/scheme/Hyperbolic_hancock.h"
 
 namespace dyablo{
 
