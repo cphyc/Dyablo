@@ -1,7 +1,6 @@
 #pragma once
 
 #include "foreach_cell/ForeachCell_utils.h"
-#include "scheme/HyperbolicUpdate_utils.h"
 
 namespace dyablo { 
 

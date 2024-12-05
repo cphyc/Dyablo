@@ -4,14 +4,10 @@ set( core_src
     ${CMAKE_CURRENT_SOURCE_DIR}/amr/AMRmesh_hashmap_new.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/amr/AMRmesh.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/amr/MapUserData_mean.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/scheme/HyperbolicUpdate_hancock.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/scheme/HyperbolicUpdate_hancock_oneneighbor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/scheme/HyperbolicUpdate_euler.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/scheme/HyperbolicUpdate_RK2.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/HydroUpdate_gravity.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/HydroUpdate_FV_euler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/HydroUpdate_FV_euler_nopatch.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/HydroUpdate_FV_euler_legacy.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/HydroUpdate_FV_hancock.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/HydroUpdate_FV_RK2.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/gravity/GravitySolver_point_mass.cpp
@@ -57,7 +53,6 @@ set( legacy_src
     ${CMAKE_CURRENT_SOURCE_DIR}/legacy/CopyGhostBlockCellData.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/legacy/MarkOctantsHydroFunctor.cpp
     # ${CMAKE_CURRENT_SOURCE_DIR}/legacy/io_utils.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/scheme/HydroUpdate_legacy.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/compute_dt/Compute_dt_legacy.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/refine_condition/RefineCondition_legacy.cpp
     #${CMAKE_CURRENT_SOURCE_DIR}/legacy/MapUserData_legacy.cpp

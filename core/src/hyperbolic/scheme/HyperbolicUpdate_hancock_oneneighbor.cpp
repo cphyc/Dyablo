@@ -523,6 +523,3 @@ public:
 FACTORY_REGISTER( dyablo::HyperbolicUpdateFactory, 
                   dyablo::HyperbolicUpdate_hancock_oneneighbor<dyablo::HydroState>, 
                   "HydroUpdate_hancock_oneneighbor")
-FACTORY_REGISTER( dyablo::HyperbolicUpdateFactory, 
-                  dyablo::HyperbolicUpdate_hancock_oneneighbor<dyablo::MHDState>, 
-                  "MHDUpdate_hancock_oneneighbor")
