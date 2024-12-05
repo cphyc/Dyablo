@@ -1,15 +1,15 @@
 #pragma once
 
-#include "hydro/FiniteVolumePolicy_base.h"
-#include "hydro/FiniteVolumePolicy_tools.h"
+#include "hydro/HyperbolicPolicy_base.h"
+#include "hydro/HyperbolicPolicy_tools.h"
 
 namespace dyablo{
 
 template< typename LegacyState_t >
-class FiniteVolumePolicy_BoundaryConditions_Hydro
+class HyperbolicPolicy_BoundaryConditions_Default
 {
 private:
-  using FiniteVolumePolicy_State = LegacyState_t;
+  using HyperbolicPolicy_State = LegacyState_t;
   using CellIndex     = ForeachCell::CellIndex;
   using CellMetaData  = ForeachCell::CellMetaData;
   using offset_t      = CellIndex::offset_t;
@@ -23,12 +23,12 @@ private:
   } rparams;
 
 public:
-  using PrimState = typename FiniteVolumePolicy_State::PrimState;
-  using ConsState = typename FiniteVolumePolicy_State::ConsState;
+  using PrimState = typename HyperbolicPolicy_State::PrimState;
+  using ConsState = typename HyperbolicPolicy_State::ConsState;
 
   static std::string name() {return "default";}
 
-  FiniteVolumePolicy_BoundaryConditions_Hydro( ConfigMap& configMap )
+  HyperbolicPolicy_BoundaryConditions_Default( ConfigMap& configMap )
   : bc_min{
       configMap.getValue<BoundaryConditionType>("mesh","boundary_type_xmin", BC_ABSORBING),
       configMap.getValue<BoundaryConditionType>("mesh","boundary_type_ymin", BC_ABSORBING),
@@ -165,10 +165,10 @@ public:
 
 
 template<typename LegacyState_t>
-class FiniteVolumePolicy_BoundaryConditions_DoubleMach
+class HyperbolicPolicy_BoundaryConditions_DoubleMach
 {
 private:
-  using FiniteVolumePolicy_State = LegacyState_t;
+  using HyperbolicPolicy_State = LegacyState_t;
   using CellIndex     = ForeachCell::CellIndex;
   using CellMetaData  = ForeachCell::CellMetaData;
   using offset_t      = CellIndex::offset_t;
@@ -182,12 +182,12 @@ private:
   } rparams;
 
 public:
-  using PrimState = typename FiniteVolumePolicy_State::PrimState;
-  using ConsState = typename FiniteVolumePolicy_State::ConsState;
+  using PrimState = typename HyperbolicPolicy_State::PrimState;
+  using ConsState = typename HyperbolicPolicy_State::ConsState;
 
   static std::string name() {return "double_mach";}
 
-  FiniteVolumePolicy_BoundaryConditions_DoubleMach( ConfigMap& configMap )
+  HyperbolicPolicy_BoundaryConditions_DoubleMach( ConfigMap& configMap )
   : 
     rparams( 
     {
@@ -316,14 +316,14 @@ public:
 };
 
 /***
- * Dynamic Implementation for FiniteVolume_BoundaryConditions
- * Merge multiple implementations of FiniteVolume_BoundaryConditions and 
+ * Dynamic Implementation for Hyperbolic_BoundaryConditions
+ * Merge multiple implementations of Hyperbolic_BoundaryConditions and 
  * choose which version to use at runtime
  * @tparam LegacyState_t input/output state used for the boundaries values
- * @tparam Ts... FiniteVolume_BoundaryConditions types to choose from
+ * @tparam Ts... Hyperbolic_BoundaryConditions types to choose from
  ***/
 template< typename LegacyState_t, typename... Ts >
-class FiniteVolumePolicy_BoundaryConditions_dynamic_impl
+class HyperbolicPolicy_BoundaryConditions_dynamic_impl
 {
   std::tuple<Ts...> boundary_conditions;
   size_t selected_bc;
@@ -333,7 +333,7 @@ class FiniteVolumePolicy_BoundaryConditions_dynamic_impl
 public:
   using ConsState = typename LegacyState_t::ConsState;
 
-  FiniteVolumePolicy_BoundaryConditions_dynamic_impl( ConfigMap& configMap )
+  HyperbolicPolicy_BoundaryConditions_dynamic_impl( ConfigMap& configMap )
   : boundary_conditions(Ts(configMap)...)
   {
     std::string bc_name = configMap.getValue<std::string>("hydro", "boundary_conditions_class", "default");
@@ -358,9 +358,9 @@ public:
 };
 
 template<typename LegacyState_t>
-using FiniteVolumePolicy_BoundaryConditions_dynamic = FiniteVolumePolicy_BoundaryConditions_dynamic_impl< LegacyState_t,
-  FiniteVolumePolicy_BoundaryConditions_Hydro<LegacyState_t>,
-  FiniteVolumePolicy_BoundaryConditions_DoubleMach<LegacyState_t>
+using HyperbolicPolicy_BoundaryConditions_dynamic = HyperbolicPolicy_BoundaryConditions_dynamic_impl< LegacyState_t,
+  HyperbolicPolicy_BoundaryConditions_Default<LegacyState_t>,
+  HyperbolicPolicy_BoundaryConditions_DoubleMach<LegacyState_t>
 >;
 
 } //namespace dyablo

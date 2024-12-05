@@ -1,6 +1,6 @@
-#include "HydroUpdate_base.h"
+#include "HyperbolicUpdate_base.h"
 #include "RiemannSolvers.h"
-#include "HydroUpdate_utils.h"
+#include "HyperbolicUpdate_utils.h"
 
 #include "boundary_conditions/BoundaryConditions.h"
 #include "mpi/GhostCommunicator.h"
@@ -23,13 +23,13 @@ namespace dyablo {
 
 
 template<typename State_>
-class HydroUpdate_RK2: public HydroUpdate {
+class HyperbolicUpdate_RK2: public HyperbolicUpdate {
 public:
   using State = State_;
   using PrimState = typename State::PrimState;
   using ConsState = typename State::ConsState;
 
-  HydroUpdate_RK2(
+  HyperbolicUpdate_RK2(
           ConfigMap& configMap,
           ForeachCell& foreach_cell,
           Timers& timers) 
@@ -90,13 +90,13 @@ public:
     auto Ustar = foreach_cell.allocate_ghosted_array("U*", fm_cons);
     
     // Two update stages and one correction stage
-    timers.get("HydroUpdate_RK2").start();
+    timers.get("HyperbolicUpdate_RK2").start();
     rk_update<ndim>(Uin, Ustar, dt);
     ghost_comm.exchange_ghosts(Ustar);
     rk_update<ndim>(Ustar, Uout, dt);
     rk_correct<ndim>(Uin, Uout);
 
-    timers.get("HydroUpdate_RK2").stop();
+    timers.get("HyperbolicUpdate_RK2").stop();
   }
 
 
@@ -134,7 +134,7 @@ public:
       "If gravity is on it must either use the force field from U or a constant scalar force field"  );
 
     // Iterate over patches
-    foreach_cell.foreach_patch( "HydroUpdate_euler::update",
+    foreach_cell.foreach_patch( "HyperbolicUpdate_RK2::update",
       PATCH_LAMBDA( const ForeachCell::Patch& patch )
     {
       PatchArray Ugroup = patch.allocate_tmp(Ugroup_);
@@ -176,7 +176,7 @@ public:
   void rk_correct(const FieldArray& Uin, 
                   const FieldArray& Uout) 
   {
-    foreach_cell.foreach_patch("HydroUpdate_RK2::correct",
+    foreach_cell.foreach_patch("HyperbolicUpdate_RK2::correct",
       PATCH_LAMBDA( const ForeachCell::Patch& patch )
     {
       patch.foreach_cell( Uout.getShape(), CELL_LAMBDA(const CellIndex &iCell_Uout) {
@@ -207,15 +207,15 @@ private:
 }
 
 
-FACTORY_REGISTER( dyablo::HydroUpdateFactory, 
-                  dyablo::HydroUpdate_RK2<dyablo::HydroState>, 
+FACTORY_REGISTER( dyablo::HyperbolicUpdateFactory, 
+                  dyablo::HyperbolicUpdate_RK2<dyablo::HydroState>, 
                   "HydroUpdate_RK2")
 
-FACTORY_REGISTER( dyablo::HydroUpdateFactory, 
-                  dyablo::HydroUpdate_RK2<dyablo::MHDState>, 
+FACTORY_REGISTER( dyablo::HyperbolicUpdateFactory, 
+                  dyablo::HyperbolicUpdate_RK2<dyablo::MHDState>, 
                   "MHDUpdate_RK2")
 
-FACTORY_REGISTER( dyablo::HydroUpdateFactory, 
-                  dyablo::HydroUpdate_RK2<dyablo::GLMMHDState>, 
+FACTORY_REGISTER( dyablo::HyperbolicUpdateFactory, 
+                  dyablo::HyperbolicUpdate_RK2<dyablo::GLMMHDState>, 
                   "GLMMHDUpdate_RK2")
 

@@ -1,20 +1,20 @@
 #include "states/State_hydro.h"
 
-#include "hydro/FiniteVolumePolicy_legacy.h"
+#include "hydro/HyperbolicPolicy_legacy.h"
 
-#include "hydro/FiniteVolume_euler.h"
+#include "hydro/Hyperbolic_euler.h"
 
 namespace dyablo{
 
 class HydroUpdate_FV_euler_legacy 
-  : public FiniteVolume_euler<FiniteVolumePolicy_legacy<HydroState>>
+  : public Hyperbolic_euler<HyperbolicPolicy_legacy<HydroState>>
 {
 public:
-  using FiniteVolume_euler<FiniteVolumePolicy_legacy<HydroState>>::FiniteVolume_euler;
+  using Hyperbolic_euler<HyperbolicPolicy_legacy<HydroState>>::Hyperbolic_euler;
 };
 
 } //namespace dyablo
 
-FACTORY_REGISTER( dyablo::HydroUpdateFactory, 
+FACTORY_REGISTER( dyablo::HyperbolicUpdateFactory, 
                   dyablo::HydroUpdate_FV_euler_legacy, 
                   "HydroUpdate_FV_euler_legacy")

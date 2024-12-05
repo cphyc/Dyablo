@@ -1,7 +1,7 @@
 #pragma once
 
-#include "HydroUpdate_base.h"
-#include "HydroUpdate_utils.h"
+#include "HyperbolicUpdate_base.h"
+#include "HyperbolicUpdate_utils.h"
 #include "mpi/GhostCommunicator_partial_blocks.h"
 
 namespace dyablo {
@@ -60,16 +60,16 @@ void clean_negative_primitive_values(const Policy& policy, const ForeachCell& fo
  * @tparam State the type of state to treat
  */
 template<typename Policy>
-class FiniteVolume_euler : public HydroUpdate {
-  static_assert( is_FiniteVolumePolicy_v<Policy>,
-  "Policy must be wrapped in FiniteVolumePolicy_base");
+class Hyperbolic_euler : public HyperbolicUpdate {
+  static_assert( is_HyperbolicPolicy_v<Policy>,
+  "Policy must be wrapped in HyperbolicPolicy_base");
 
 public:
   using PrimState = typename Policy::PrimState;
   using ConsState = typename Policy::ConsState;
 
 public:
-  FiniteVolume_euler(
+  Hyperbolic_euler(
           ConfigMap& configMap,
           ForeachCell& foreach_cell,
           Timers& timers) 
@@ -101,14 +101,14 @@ public:
     FieldAccessor Uin = policy.getUin(U);
     FieldAccessor Uout = policy.getUout(U);
     
-    timers.get("HydroUpdate_euler").start();
+    timers.get("HyperbolicUpdate_euler").start();
 
     ForeachCell::CellMetaData cellmetadata = foreach_cell.getCellMetaData();
     auto policy_scalar_data = policy.getScalarData( scalar_data );
 
     // Initializing output array 
     // TODO : remove this and copy Uin->Uout in timeloop or field creation logic
-    foreach_cell.foreach_cell( "FiniteVolume_euler::init",
+    foreach_cell.foreach_cell( "Hyperbolic_euler::init",
       Uout.getShape(),
       CELL_LAMBDA(const CellIndex &iCell) 
     {
@@ -117,7 +117,7 @@ public:
     });
 
     // Setting the ghosts to 0 to accumulate fluxes
-    foreach_cell.foreach_ghost_cell( "FiniteVolume_euler::resetting_ghosts",
+    foreach_cell.foreach_ghost_cell( "Hyperbolic_euler::resetting_ghosts",
       Uout.getShape(),
       CELL_LAMBDA(const CellIndex &iCell) 
     {
@@ -129,7 +129,7 @@ public:
     int nb_ghosts = slope_enabled ? 2 : 1;
     PatchArray::Ref Qpatch_ = foreach_cell.reserve_patch_tmp("Qpatch", nb_ghosts, nb_ghosts, (ndim == 3)?nb_ghosts:0, fm_prim, State_traits<PrimState>::nvars);
 
-    foreach_cell.foreach_patch( "FiniteVolume_euler::update", 
+    foreach_cell.foreach_patch( "Hyperbolic_euler::update", 
       PATCH_LAMBDA( const ForeachCell::Patch& patch )
     {
       PatchArray Qpatch = patch.allocate_tmp(Qpatch_);
@@ -299,7 +299,7 @@ public:
 
     clean_negative_primitive_values(policy, foreach_cell, Uout, smallr, smallp);
 
-    timers.get("HydroUpdate_euler").stop();
+    timers.get("HyperbolicUpdate_euler").stop();
   }
 
 private:

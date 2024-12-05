@@ -1,16 +1,16 @@
 #pragma once
 
 #include "states/State_Ops.h"
-#include "FiniteVolumePolicy_base.h"
-#include "FiniteVolumePolicy_Slope.h"
-#include "FiniteVolumePolicy_BoundaryConditions.h"
+#include "HyperbolicPolicy_base.h"
+#include "HyperbolicPolicy_Slope.h"
+#include "HyperbolicPolicy_BoundaryConditions.h"
 
 namespace dyablo{
 
 /**
  * @brief Structure holding conservative hydrodynamics variables
  **/ 
-struct FiniteVolumePolicy_ConsHydroState {
+struct HyperbolicPolicy_ConsHydroState {
   enum VarIndex : dyablo::VarIndex
   {
     Irho,
@@ -32,17 +32,17 @@ struct FiniteVolumePolicy_ConsHydroState {
   real_t rho_w = 0;
 };
 
-DECLARE_STATE_TYPE( FiniteVolumePolicy_ConsHydroState, 5 );
-DECLARE_STATE_GET( FiniteVolumePolicy_ConsHydroState, 0, rho );
-DECLARE_STATE_GET( FiniteVolumePolicy_ConsHydroState, 1, e_tot );
-DECLARE_STATE_GET( FiniteVolumePolicy_ConsHydroState, 2, rho_u );
-DECLARE_STATE_GET( FiniteVolumePolicy_ConsHydroState, 3, rho_v );
-DECLARE_STATE_GET( FiniteVolumePolicy_ConsHydroState, 4, rho_w );
+DECLARE_STATE_TYPE( HyperbolicPolicy_ConsHydroState, 5 );
+DECLARE_STATE_GET( HyperbolicPolicy_ConsHydroState, 0, rho );
+DECLARE_STATE_GET( HyperbolicPolicy_ConsHydroState, 1, e_tot );
+DECLARE_STATE_GET( HyperbolicPolicy_ConsHydroState, 2, rho_u );
+DECLARE_STATE_GET( HyperbolicPolicy_ConsHydroState, 3, rho_v );
+DECLARE_STATE_GET( HyperbolicPolicy_ConsHydroState, 4, rho_w );
 
 /**
  * @brief Structure holding primitive hydrodynamics variables
  */
-struct FiniteVolumePolicy_PrimHydroState {
+struct HyperbolicPolicy_PrimHydroState {
   enum VarIndex : dyablo::VarIndex
   {
     Irho,
@@ -64,15 +64,15 @@ struct FiniteVolumePolicy_PrimHydroState {
   real_t w = 0;
 };
 
-DECLARE_STATE_TYPE( FiniteVolumePolicy_PrimHydroState, 5 );
-DECLARE_STATE_GET( FiniteVolumePolicy_PrimHydroState, 0, rho );
-DECLARE_STATE_GET( FiniteVolumePolicy_PrimHydroState, 1, p );
-DECLARE_STATE_GET( FiniteVolumePolicy_PrimHydroState, 2, u );
-DECLARE_STATE_GET( FiniteVolumePolicy_PrimHydroState, 3, v );
-DECLARE_STATE_GET( FiniteVolumePolicy_PrimHydroState, 4, w );
+DECLARE_STATE_TYPE( HyperbolicPolicy_PrimHydroState, 5 );
+DECLARE_STATE_GET( HyperbolicPolicy_PrimHydroState, 0, rho );
+DECLARE_STATE_GET( HyperbolicPolicy_PrimHydroState, 1, p );
+DECLARE_STATE_GET( HyperbolicPolicy_PrimHydroState, 2, u );
+DECLARE_STATE_GET( HyperbolicPolicy_PrimHydroState, 3, v );
+DECLARE_STATE_GET( HyperbolicPolicy_PrimHydroState, 4, w );
 
 
-class FiniteVolumePolicy_State_Hydro
+class HyperbolicPolicy_State_Hydro
 {
 private:
   int ndim;
@@ -81,15 +81,15 @@ private:
   using CellIndex = ForeachCell::CellIndex;
   using FieldAccessor = UserData::FieldAccessor;
 public:
-  using PrimState = FiniteVolumePolicy_PrimHydroState;
-  using ConsState = FiniteVolumePolicy_ConsHydroState;
+  using PrimState = HyperbolicPolicy_PrimHydroState;
+  using ConsState = HyperbolicPolicy_ConsHydroState;
 
-  FiniteVolumePolicy_State_Hydro( ConfigMap& configMap )
+  HyperbolicPolicy_State_Hydro( ConfigMap& configMap )
   : ndim(configMap.getValue<int>("mesh", "ndim", 3)),
     gamma0(configMap.getValue<real_t>("hydro","gamma0", 1.4))
   {}
 
-  using ConsVarIndex = FiniteVolumePolicy_ConsHydroState::VarIndex;
+  using ConsVarIndex = HyperbolicPolicy_ConsHydroState::VarIndex;
 
   FieldAccessor getUin( UserData& U ) const
   {
@@ -207,7 +207,7 @@ public:
   }
 };
 
-class FiniteVolumePolicy_RiemannSolver_Hydro_hllc
+class HyperbolicPolicy_RiemannSolver_Hydro_hllc
 {
 private:
   struct Rparams {
@@ -218,11 +218,11 @@ private:
   } rparams;
 
 public:
-  using State = FiniteVolumePolicy_State_Hydro;
+  using State = HyperbolicPolicy_State_Hydro;
   using PrimState = State::PrimState;
   using ConsState = State::ConsState;
 
-  FiniteVolumePolicy_RiemannSolver_Hydro_hllc( ConfigMap& configMap )
+  HyperbolicPolicy_RiemannSolver_Hydro_hllc( ConfigMap& configMap )
   : rparams( 
     {
       .gamma0 = configMap.getValue<real_t>("hydro", "gamma0", 1.4),
@@ -382,25 +382,25 @@ private:
 
 };
 
-class FiniteVolumePolicy_Hydro_impl
-  : public FiniteVolumePolicy_State_Hydro,
-    public FiniteVolumePolicy_RiemannSolver_Hydro_hllc,
-    public FiniteVolumePolicy_Slope_dynamic<FiniteVolumePolicy_State_Hydro>,
-    public FiniteVolumePolicy_BoundaryConditions_dynamic<FiniteVolumePolicy_State_Hydro>
+class HyperbolicPolicy_Hydro_impl
+  : public HyperbolicPolicy_State_Hydro,
+    public HyperbolicPolicy_RiemannSolver_Hydro_hllc,
+    public HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Hydro>,
+    public HyperbolicPolicy_BoundaryConditions_dynamic<HyperbolicPolicy_State_Hydro>
 {
 private:
   using CellIndex     = ForeachCell::CellIndex;
   using CellMetaData  = ForeachCell::CellMetaData;
-  using State = FiniteVolumePolicy_State_Hydro;
+  using State = HyperbolicPolicy_State_Hydro;
 public:
   using PrimState = State::PrimState;
   using ConsState = State::ConsState;
 
-  FiniteVolumePolicy_Hydro_impl( ConfigMap& configMap )
-  : FiniteVolumePolicy_State_Hydro(configMap),
-    FiniteVolumePolicy_RiemannSolver_Hydro_hllc(configMap),
-    FiniteVolumePolicy_Slope_dynamic<FiniteVolumePolicy_State_Hydro>(configMap),
-    FiniteVolumePolicy_BoundaryConditions_dynamic<FiniteVolumePolicy_State_Hydro>(configMap)
+  HyperbolicPolicy_Hydro_impl( ConfigMap& configMap )
+  : HyperbolicPolicy_State_Hydro(configMap),
+    HyperbolicPolicy_RiemannSolver_Hydro_hllc(configMap),
+    HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Hydro>(configMap),
+    HyperbolicPolicy_BoundaryConditions_dynamic<HyperbolicPolicy_State_Hydro>(configMap)
   {}
 
   struct PolicyScalarData {
@@ -418,6 +418,6 @@ public:
 
 };
 
-using FiniteVolumePolicy_Hydro = FiniteVolumePolicy_base< FiniteVolumePolicy_Hydro_impl >;
+using HyperbolicPolicy_Hydro = HyperbolicPolicy_base< HyperbolicPolicy_Hydro_impl >;
 
 } //namespace dyablo

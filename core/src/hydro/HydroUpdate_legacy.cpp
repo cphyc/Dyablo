@@ -186,5 +186,5 @@ void HydroUpdate_legacy::update( UserData& U_, ScalarSimulationData& scalar_data
 }// namespace dyablo
 
 
-FACTORY_REGISTER( dyablo::HydroUpdateFactory, dyablo::HydroUpdate_legacy, "HydroUpdate_legacy" );
+FACTORY_REGISTER( dyablo::HyperbolicUpdateFactory, dyablo::HydroUpdate_legacy, "HydroUpdate_legacy" );
 

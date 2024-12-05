@@ -1,7 +1,7 @@
 #pragma once
 
-#include "HydroUpdate_base.h"
-#include "HydroUpdate_utils.h"
+#include "HyperbolicUpdate_base.h"
+#include "HyperbolicUpdate_utils.h"
 #include "mpi/GhostCommunicator_partial_blocks.h"
 
 namespace dyablo {
@@ -60,16 +60,16 @@ void clean_negative_primitive_values(const Policy& policy, const ForeachCell& fo
  * @tparam The type of policy to apply
  */
 template<typename Policy>
-class FiniteVolume_RK2 : public HydroUpdate {
-  static_assert( is_FiniteVolumePolicy_v<Policy>,
-  "Policy must be wrapped in FiniteVolumePolicy_base");
+class Hyperbolic_RK2 : public HyperbolicUpdate {
+  static_assert( is_HyperbolicPolicy_v<Policy>,
+  "Policy must be wrapped in HyperbolicPolicy_base");
 
 public:
   using PrimState = typename Policy::PrimState;
   using ConsState = typename Policy::ConsState;
 
 public:
-  FiniteVolume_RK2(
+  Hyperbolic_RK2(
           ConfigMap& configMap,
           ForeachCell& foreach_cell,
           Timers& timers) 
@@ -91,7 +91,7 @@ public:
   {
     real_t dt = scalar_data.get<real_t>("dt");
 
-    timers.get("HydroUpdate_RK2").start();
+    timers.get("HyperbolicUpdate_RK2").start();
     FieldAccessor Uin = policy.getUin(U);
     FieldAccessor Uout = policy.getUout(U);
 
@@ -109,7 +109,7 @@ public:
     scalar_data.set("time", old_t);
 
     // And correcting
-    foreach_cell.foreach_cell( "FiniteVolume_RK2::resetting_ghosts",
+    foreach_cell.foreach_cell( "Hyperbolic_RK2::resetting_ghosts",
       Uout.getShape(),
       CELL_LAMBDA(const CellIndex &iCell) 
     {
@@ -122,7 +122,7 @@ public:
     // Cleaning all negative values out of the solution
     clean_negative_primitive_values(policy, foreach_cell, Uout, smallr, smallp);
 
-    timers.get("HydroUpdate_RK2").stop();
+    timers.get("HyperbolicUpdate_RK2").stop();
 
   }
   /**
@@ -147,7 +147,7 @@ public:
 
     // Initializing output array 
     // TODO : remove this and copy Uin->Uout in timeloop or field creation logic
-    foreach_cell.foreach_cell( "FiniteVolume_RK2::init",
+    foreach_cell.foreach_cell( "Hyperbolic_RK2::init",
       Uout.getShape(),
       CELL_LAMBDA(const CellIndex &iCell) 
     {
@@ -156,7 +156,7 @@ public:
     });
 
     // Setting the ghosts to 0 to accumulate fluxes
-    foreach_cell.foreach_ghost_cell( "FiniteVolume_RK2::resetting_ghosts",
+    foreach_cell.foreach_ghost_cell( "Hyperbolic_RK2::resetting_ghosts",
       Uout.getShape(),
       CELL_LAMBDA(const CellIndex &iCell) 
     {
@@ -167,7 +167,7 @@ public:
     auto fm_prim = PrimState::getFieldManager().get_id2index();
     PatchArray::Ref Qpatch_ = foreach_cell.reserve_patch_tmp("Qpatch", 2, 2, (ndim == 3)?2:0, fm_prim, State_traits<PrimState>::nvars);
 
-    foreach_cell.foreach_patch( "FiniteVolume_RK2::update", 
+    foreach_cell.foreach_patch( "Hyperbolic_RK2::update", 
       PATCH_LAMBDA( const ForeachCell::Patch& patch )
     {
       PatchArray Qpatch = patch.allocate_tmp(Qpatch_);

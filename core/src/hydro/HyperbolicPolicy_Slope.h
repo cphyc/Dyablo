@@ -1,17 +1,17 @@
 #pragma once
 
-#include "hydro/FiniteVolumePolicy_tools.h"
+#include "hydro/HyperbolicPolicy_tools.h"
 
 namespace dyablo{
 
 template< typename LegacyState_t >
-class FiniteVolumePolicy_Slope_minmod
+class HyperbolicPolicy_Slope_minmod
 {
 public:
   using PrimState = typename LegacyState_t::PrimState;
   using ConsState = typename LegacyState_t::ConsState;
 
-  FiniteVolumePolicy_Slope_minmod( ConfigMap& configMap )
+  HyperbolicPolicy_Slope_minmod( ConfigMap& configMap )
   {}
 
   static std::string name() {return "minmod";}
@@ -36,13 +36,13 @@ public:
 };
 
 template< typename State_t >
-class FiniteVolumePolicy_Slope_superbee
+class HyperbolicPolicy_Slope_superbee
 {
 public:
   using PrimState = typename State_t::PrimState;
   using ConsState = typename State_t::ConsState;
 
-  FiniteVolumePolicy_Slope_superbee( ConfigMap& configMap )
+  HyperbolicPolicy_Slope_superbee( ConfigMap& configMap )
   {}
 
   static std::string name() {return "superbee";}
@@ -74,21 +74,21 @@ public:
 };
 
 /***
- * Dynamic Implementation for FiniteVolumePolicy_Slope
- * Merge multiple implementations of FiniteVolumePolicy_Slope and 
+ * Dynamic Implementation for HyperbolicPolicy_Slope
+ * Merge multiple implementations of HyperbolicPolicy_Slope and 
  * choose which version to use at runtime
  * @tparam LegacyState_t::PrimState input/output state used for compute_slope
- * @tparam Ts... FiniteVolumePolicy_Slope types to choose from
+ * @tparam Ts... HyperbolicPolicy_Slope types to choose from
  ***/
 template< typename LegacyState_t, typename... Ts >
-class FiniteVolumePolicy_Slope_dynamic_impl
+class HyperbolicPolicy_Slope_dynamic_impl
 {
   std::tuple<Ts...> slopes;
   size_t selected_slope;
 public:
   using PrimState = typename LegacyState_t::PrimState;
 
-  FiniteVolumePolicy_Slope_dynamic_impl( ConfigMap& configMap )
+  HyperbolicPolicy_Slope_dynamic_impl( ConfigMap& configMap )
   : slopes(Ts(configMap)...)
   {
     std::string slope_limiter = configMap.getValue<std::string>("hydro", "slope_limiter", "minmod");
@@ -105,9 +105,9 @@ public:
 };
 
 template<typename LegacyState_t>
-using FiniteVolumePolicy_Slope_dynamic = FiniteVolumePolicy_Slope_dynamic_impl< LegacyState_t,
-  FiniteVolumePolicy_Slope_minmod<LegacyState_t>,
-  FiniteVolumePolicy_Slope_superbee<LegacyState_t>
+using HyperbolicPolicy_Slope_dynamic = HyperbolicPolicy_Slope_dynamic_impl< LegacyState_t,
+  HyperbolicPolicy_Slope_minmod<LegacyState_t>,
+  HyperbolicPolicy_Slope_superbee<LegacyState_t>
 >;
 
 } //namespace dyablo

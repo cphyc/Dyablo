@@ -13,7 +13,7 @@
 #include "init/InitialConditions.h"
 #include "io/IOManager.h"
 #include "gravity/GravitySolver.h"
-#include "hydro/HydroUpdate.h"
+#include "hydro/HyperbolicUpdate.h"
 #include "particles/ParticleUpdate.h"
 #include "amr/MapUserData.h"
 #include "parabolic/ParabolicUpdate.h"
@@ -302,7 +302,7 @@ public:
       m_gravity_type = GRAVITY_NONE;
 
     std::string gravity_update_id = configMap.getValue<std::string>("gravity", "hydro_update", m_gravity_type==GRAVITY_NONE?"none":"HydroUpdate_gravity");
-    this->gravity_update = HydroUpdateFactory::make_instance( gravity_update_id,
+    this->gravity_update = HyperbolicUpdateFactory::make_instance( gravity_update_id,
         configMap,
         m_foreach_cell,
         timers
@@ -329,7 +329,7 @@ public:
     
 
 
-    this->godunov_updater = HydroUpdateFactory::make_instance( godunov_updater_id,
+    this->godunov_updater = HyperbolicUpdateFactory::make_instance( godunov_updater_id,
       configMap,
       this->m_foreach_cell,
       timers
@@ -840,14 +840,14 @@ private:
   std::unique_ptr<IterationHandler> m_iteration_handler;
   std::vector<std::unique_ptr<Compute_dt>> compute_dt;
   std::unique_ptr<RefineCondition> refine_condition;
-  std::unique_ptr<HydroUpdate> godunov_updater;
+  std::unique_ptr<HyperbolicUpdate> godunov_updater;
   bool has_mhd, is_glm; // TODO : remove this
   int ghost_count; // TODO : remove this
   std::unique_ptr<ParticleUpdate> particle_position_updater, particle_update_density;
   std::unique_ptr<MapUserData> mapUserData;
   std::unique_ptr<IOManager> io_manager, io_manager_checkpoint;
   std::unique_ptr<GravitySolver> gravity_solver;
-  std::unique_ptr<HydroUpdate> gravity_update;
+  std::unique_ptr<HyperbolicUpdate> gravity_update;
 
   std::unique_ptr<CosmoManager> cosmo_manager;
 

@@ -46,7 +46,7 @@ struct RiemannParams
     smallpp( smallr*smallp ),
     three_waves( configMap.getValue<bool>("hydro", "three_waves", false))
   { 
-    const bool use_glm = configMap.getValue<std::string>("hydro", "update", "HydroUpdate_hancock").find("GLMMHD") != std::string::npos;
+    const bool use_glm = configMap.getValue<std::string>("hydro", "update", "HyperbolicUpdate_hancock").find("GLMMHD") != std::string::npos;
     if (use_glm) {
       const uint32_t ndim = configMap.getValue<uint32_t>("mesh", "ndim", 3);
       const real_t xmin = configMap.getValue<real_t>("mesh", "xmin", 0.0);

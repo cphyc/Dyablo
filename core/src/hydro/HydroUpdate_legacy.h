@@ -5,7 +5,7 @@
 #include "kokkos_shared.h"
 #include "FieldManager.h"
 #include "amr/LightOctree.h"
-#include "hydro/HydroUpdate_base.h"
+#include "hydro/HyperbolicUpdate_base.h"
 
 class Timers;
 class ConfigMap;
@@ -13,7 +13,7 @@ class ConfigMap;
 namespace dyablo {
 
 
-class HydroUpdate_legacy : public HydroUpdate{
+class HydroUpdate_legacy : public HyperbolicUpdate{
 public: 
   HydroUpdate_legacy(
                 ConfigMap& configMap,

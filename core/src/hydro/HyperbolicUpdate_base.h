@@ -11,19 +11,19 @@
 
 namespace dyablo {
 
-class HydroUpdate{
+class HyperbolicUpdate{
 public: 
-  // HydroUpdate(
+  // HyperbolicUpdate(
   //               const ConfigMap& configMap,
   //               ForeachCell&& params, 
   //               const id2index_t& fm,
   //               uint32_t bx, uint32_t by, uint32_t bz,
   //               Timers& timers );
-  virtual ~HydroUpdate(){}
+  virtual ~HyperbolicUpdate(){}
   virtual void update( UserData& U, ScalarSimulationData& scalar_data) = 0;
 };
 
-using HydroUpdateFactory = RegisteringFactory< HydroUpdate, 
+using HyperbolicUpdateFactory = RegisteringFactory< HyperbolicUpdate, 
   ConfigMap& /*configMap*/,
   ForeachCell& /*foreach_cell*/,
   Timers& /*timers*/ >;

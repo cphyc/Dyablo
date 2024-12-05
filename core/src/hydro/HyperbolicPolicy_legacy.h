@@ -2,8 +2,8 @@
 
 #include "RiemannSolvers.h"
 #include "foreach_cell/ForeachCell.h"
-#include "hydro/FiniteVolumePolicy_Slope.h"
-#include "FiniteVolumePolicy_base.h"
+#include "hydro/HyperbolicPolicy_Slope.h"
+#include "HyperbolicPolicy_base.h"
 
 namespace dyablo{
 
@@ -16,7 +16,7 @@ using offset_t      = typename CellIndex::offset_t;
 }// namespace
 
 template< typename State_t >
-class FiniteVolumePolicy_State_legacy
+class HyperbolicPolicy_State_legacy
 {
 private:
   int ndim;
@@ -25,7 +25,7 @@ public:
   using PrimState = typename State_t::PrimState;
   using ConsState = typename State_t::ConsState;
 
-  FiniteVolumePolicy_State_legacy( ConfigMap& configMap )
+  HyperbolicPolicy_State_legacy( ConfigMap& configMap )
   : ndim(configMap.getValue<int>("mesh", "ndim", 3)),
     gamma0(configMap.getValue<real_t>("hydro","gamma0", 1.4))
   {}
@@ -104,7 +104,7 @@ public:
 };
 
 template< typename LegacyState_t >
-class FiniteVolumePolicy_RiemannSolver_legacy
+class HyperbolicPolicy_RiemannSolver_legacy
 {
 public:
   RiemannParams rparams;
@@ -112,7 +112,7 @@ public:
   using PrimState = typename LegacyState_t::PrimState;
   using ConsState = typename LegacyState_t::ConsState;
 
-  FiniteVolumePolicy_RiemannSolver_legacy( ConfigMap& configMap )
+  HyperbolicPolicy_RiemannSolver_legacy( ConfigMap& configMap )
   : rparams(configMap)
   {}
 
@@ -128,39 +128,39 @@ public:
 };
 
 template< typename LegacyState_t >
-class FiniteVolumePolicy_BoundaryConditions_value_euler
+class HyperbolicPolicy_BoundaryConditions_value_euler
 {
   public:
-  FiniteVolumePolicy_BoundaryConditions_value_euler( ConfigMap& configMap )
+  HyperbolicPolicy_BoundaryConditions_value_euler( ConfigMap& configMap )
   {}
 
 };
 
-template< typename FiniteVolumePolicy_State_t,
-          typename FiniteVolumePolicy_RiemannSolver_t,
-          typename FiniteVolumePolicy_BoundaryConditions_t,
-          typename FiniteVolumePolicy_Slope_t > 
-class FiniteVolumePolicy_impl : 
-  public FiniteVolumePolicy_State_t,
-  public FiniteVolumePolicy_RiemannSolver_t,
-  public FiniteVolumePolicy_BoundaryConditions_t,
-  public FiniteVolumePolicy_Slope_t
+template< typename HyperbolicPolicy_State_t,
+          typename HyperbolicPolicy_RiemannSolver_t,
+          typename HyperbolicPolicy_BoundaryConditions_t,
+          typename HyperbolicPolicy_Slope_t > 
+class HyperbolicPolicy_impl : 
+  public HyperbolicPolicy_State_t,
+  public HyperbolicPolicy_RiemannSolver_t,
+  public HyperbolicPolicy_BoundaryConditions_t,
+  public HyperbolicPolicy_Slope_t
 {
 public:
-  using PrimState = typename FiniteVolumePolicy_State_t::PrimState;
-  using ConsState = typename FiniteVolumePolicy_State_t::ConsState;
+  using PrimState = typename HyperbolicPolicy_State_t::PrimState;
+  using ConsState = typename HyperbolicPolicy_State_t::ConsState;
   using CellIndex = ForeachCell::CellIndex;
 
-  static_assert( std::is_same_v< typename FiniteVolumePolicy_RiemannSolver_t::PrimState
+  static_assert( std::is_same_v< typename HyperbolicPolicy_RiemannSolver_t::PrimState
                                , PrimState >, "RiemannSolver State type mismatch" );
-  static_assert( std::is_same_v< typename FiniteVolumePolicy_RiemannSolver_t::ConsState
+  static_assert( std::is_same_v< typename HyperbolicPolicy_RiemannSolver_t::ConsState
                                , ConsState >, "RiemannSolver State type mismatch" );
 
-  FiniteVolumePolicy_impl( ConfigMap& configMap )
-  : FiniteVolumePolicy_State_t(configMap),
-    FiniteVolumePolicy_RiemannSolver_t(configMap),
-    FiniteVolumePolicy_BoundaryConditions_t(configMap),
-    FiniteVolumePolicy_Slope_t(configMap),
+  HyperbolicPolicy_impl( ConfigMap& configMap )
+  : HyperbolicPolicy_State_t(configMap),
+    HyperbolicPolicy_RiemannSolver_t(configMap),
+    HyperbolicPolicy_BoundaryConditions_t(configMap),
+    HyperbolicPolicy_Slope_t(configMap),
     bc_min{
       configMap.getValue<BoundaryConditionType>("mesh","boundary_type_xmin", BC_ABSORBING),
       configMap.getValue<BoundaryConditionType>("mesh","boundary_type_ymin", BC_ABSORBING),
@@ -186,15 +186,15 @@ public:
     return U.getAccessor( fields_info_next );
   }
 
-  using FiniteVolumePolicy_State_t::getConsState;
-  using FiniteVolumePolicy_State_t::setConsState;
-  using FiniteVolumePolicy_State_t::atomic_addConsState;
-  using FiniteVolumePolicy_State_t::getPrimState;
-  using FiniteVolumePolicy_State_t::setPrimState;
-  using FiniteVolumePolicy_State_t::consToPrim;
-  using FiniteVolumePolicy_State_t::primToCons;
+  using HyperbolicPolicy_State_t::getConsState;
+  using HyperbolicPolicy_State_t::setConsState;
+  using HyperbolicPolicy_State_t::atomic_addConsState;
+  using HyperbolicPolicy_State_t::getPrimState;
+  using HyperbolicPolicy_State_t::setPrimState;
+  using HyperbolicPolicy_State_t::consToPrim;
+  using HyperbolicPolicy_State_t::primToCons;
 
-  using FiniteVolumePolicy_RiemannSolver_t::riemann_solver;
+  using HyperbolicPolicy_RiemannSolver_t::riemann_solver;
   
   Kokkos::Array<BoundaryConditionType, 3> bc_min, bc_max;
 
@@ -278,10 +278,10 @@ public:
                   ||  (offset[dir] < 0 && bc_min[dir] == BC_ABSORBING);
     
     // TODO : don't break encapsulation here
-    real_t gamma0 = FiniteVolumePolicy_RiemannSolver_t::rparams.gamma0;
-    real_t smallr = FiniteVolumePolicy_RiemannSolver_t::rparams.smallr;
-    real_t smallp = FiniteVolumePolicy_RiemannSolver_t::rparams.smallp;
-    real_t smallc = FiniteVolumePolicy_RiemannSolver_t::rparams.smallc;
+    real_t gamma0 = HyperbolicPolicy_RiemannSolver_t::rparams.gamma0;
+    real_t smallr = HyperbolicPolicy_RiemannSolver_t::rparams.smallr;
+    real_t smallp = HyperbolicPolicy_RiemannSolver_t::rparams.smallp;
+    real_t smallc = HyperbolicPolicy_RiemannSolver_t::rparams.smallc;
     
     real_t r_in = q_in.rho;
     real_t p_in = q_in.p;
@@ -347,17 +347,17 @@ public:
     return flux_out;
   }
 
-  using FiniteVolumePolicy_Slope_t::compute_slope;
+  using HyperbolicPolicy_Slope_t::compute_slope;
 };
 
 template<typename LegacyState_t >
-using FiniteVolumePolicy_legacy = 
-  FiniteVolumePolicy_base<
-    FiniteVolumePolicy_impl<
-  FiniteVolumePolicy_State_legacy<LegacyState_t>,
-  FiniteVolumePolicy_RiemannSolver_legacy<LegacyState_t>,
-  FiniteVolumePolicy_BoundaryConditions_value_euler<LegacyState_t>,
-  FiniteVolumePolicy_Slope_dynamic<LegacyState_t>
+using HyperbolicPolicy_legacy = 
+  HyperbolicPolicy_base<
+    HyperbolicPolicy_impl<
+  HyperbolicPolicy_State_legacy<LegacyState_t>,
+  HyperbolicPolicy_RiemannSolver_legacy<LegacyState_t>,
+  HyperbolicPolicy_BoundaryConditions_value_euler<LegacyState_t>,
+  HyperbolicPolicy_Slope_dynamic<LegacyState_t>
     >
   >;
 

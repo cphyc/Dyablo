@@ -26,7 +26,7 @@ public:
     gamma0( configMap.getValue<real_t>("hydro","gamma0", 1.4) ),
     smallr( configMap.getValue<real_t>("hydro","smallr", 1e-10) ),
     smallc( configMap.getValue<real_t>("hydro","smallc", 1e-10) ),
-    has_mhd( configMap.getValue<std::string>("hydro", "update", "HydroUpdate_hancock").find("MHD") != std::string::npos )
+    has_mhd( configMap.getValue<std::string>("hydro", "update", "HyperbolicUpdate_hancock").find("MHD") != std::string::npos )
   {
     real_t default_cfl = 0.5;
     if (configMap.hasValue("hydro", "cfl")) {

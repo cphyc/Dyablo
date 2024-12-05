@@ -2,7 +2,7 @@
 
 #include "FieldManager.h"
 #include "RiemannSolvers.h"
-#include "hydro/HydroUpdate_utils.h"
+#include "hydro/HyperbolicUpdate_utils.h"
 
 #include "foreach_cell/ForeachCell.h"
 #include "foreach_cell/ForeachCell_utils.h"

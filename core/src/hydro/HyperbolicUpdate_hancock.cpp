@@ -1,4 +1,4 @@
-#include "HydroUpdate_base.h"
+#include "HyperbolicUpdate_base.h"
 #include "states/State_forward.h"
 #include "utils/monitoring/Timers.h"
 
@@ -6,7 +6,7 @@
 #include "utils_hydro.h"
 #include "RiemannSolvers.h"
 
-#include "HydroUpdate_utils.h"
+#include "HyperbolicUpdate_utils.h"
 
 #include "boundary_conditions/BoundaryConditions.h"
 
@@ -237,13 +237,13 @@ namespace dyablo {
  * @brief Solves the hydrodynamics equations using Hancock time-stepping. 
  */
 template<typename State_>
-class HydroUpdate_hancock : public HydroUpdate {
+class HyperbolicUpdate_hancock : public HyperbolicUpdate {
 public:
   using State = State_;
   using PrimState = typename State::PrimState;
   using ConsState = typename State::ConsState;
 
-  HydroUpdate_hancock(
+  HyperbolicUpdate_hancock(
     ConfigMap& configMap,
     ForeachCell& foreach_cell,
     Timers& timers )
@@ -306,13 +306,13 @@ public:
       SlopesZ_ = foreach_cell.reserve_patch_tmp("SlopesZ", 0, 0, 1, fm_prim, State::N);
     PatchArray::Ref Sources_ = foreach_cell.reserve_patch_tmp("Sources", 1, 1, (ndim == 3)?1:0, fm_prim, State::N);
 
-    timers.get("HydroUpdate_hancock").start();
+    timers.get("HyperbolicUpdate_hancock").start();
 
     ForeachCell::CellMetaData cellmetadata = foreach_cell.getCellMetaData();
     GhostedArray::Shape_t U_shape = U.getShape();
 
     // Iterate over patches
-    foreach_cell.foreach_patch( "HydroUpdate_hancock::update",
+    foreach_cell.foreach_patch( "HyperbolicUpdate_hancock::update",
       PATCH_LAMBDA( const ForeachCell::Patch& patch )
     {
       PatchArray Ugroup = patch.allocate_tmp(Ugroup_);
@@ -360,7 +360,7 @@ public:
 
     clean_negative_primitive_values<ndim, State>(foreach_cell, Uout, params.gamma0, params.smallr, params.smallp);
 
-    timers.get("HydroUpdate_hancock").stop();
+    timers.get("HyperbolicUpdate_hancock").stop();
 
   }
 
@@ -375,10 +375,10 @@ private:
 
 } // namespace dyablo
 
-FACTORY_REGISTER(dyablo::HydroUpdateFactory, 
-                 dyablo::HydroUpdate_hancock<dyablo::HydroState>, 
+FACTORY_REGISTER(dyablo::HyperbolicUpdateFactory, 
+                 dyablo::HyperbolicUpdate_hancock<dyablo::HydroState>, 
                  "HydroUpdate_hancock")
 
-FACTORY_REGISTER(dyablo::HydroUpdateFactory, 
-                 dyablo::HydroUpdate_hancock<dyablo::MHDState>, 
+FACTORY_REGISTER(dyablo::HyperbolicUpdateFactory, 
+                 dyablo::HyperbolicUpdate_hancock<dyablo::MHDState>, 
                  "MHDUpdate_hancock")

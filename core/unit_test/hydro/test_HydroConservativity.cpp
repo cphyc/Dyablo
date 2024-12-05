@@ -1,15 +1,15 @@
 /**
- * Test all HydroUpdate implementations for conservativity
+ * Test all HyperbolicUpdate implementations for conservativity
  * 
- * For each HydroUpdate registered in the factory int 2d/3d :
+ * For each HyperbolicUpdate registered in the factory int 2d/3d :
  * - Generate a low resolution blast with a few AMR levels in 2d / 3d,
- * - Execute HydroUpdate for a few iterations
+ * - Execute HyperbolicUpdate for a few iterations
  * - Check that the total mass and energy are conserved
  * 
- * Target conservativity for each HydroUpdate kernel can be 
+ * Target conservativity for each HyperbolicUpdate kernel can be 
  * personalized in expected_conservativity_percent()
  * Generate vizualization output files with the same name for 
- * each HydroUpdate/dim pair : use --gtest_filter to run a 
+ * each HyperbolicUpdate/dim pair : use --gtest_filter to run a 
  * specific Kernel/dim and view the result
  **/
 
@@ -18,7 +18,7 @@
 #include "foreach_cell/ForeachCell.h"
 #include "compute_dt/Compute_dt.h"
 #include "init/InitialConditions.h"
-#include "hydro/HydroUpdate.h"
+#include "hydro/HyperbolicUpdate.h"
 #include "utils_hydro.h"
 #include "io/IOManager.h"
 #include "states/State_hydro.h"
@@ -31,7 +31,7 @@ using Device = Kokkos::DefaultExecutionSpace;
 
 namespace dyablo {
 
-real_t expected_conservativity_percent( const std::string& HydroUpdate_id )
+real_t expected_conservativity_percent( const std::string& HyperbolicUpdate_id )
 {
   static std::map<std::string, real_t> expected_map =
   {
@@ -42,7 +42,7 @@ real_t expected_conservativity_percent( const std::string& HydroUpdate_id )
   };
   real_t expected_default = 1e-10;
 
-  auto it = expected_map.find( HydroUpdate_id );
+  auto it = expected_map.find( HyperbolicUpdate_id );
   if(it == expected_map.end() )
     return expected_default;
   else
@@ -124,14 +124,14 @@ std::shared_ptr<AMRmesh> init_amr_mesh( ConfigMap& configMap )
   return std::make_shared<AMRmesh>( ndim, codim, periodic, amr_level_min, amr_level_max );
 }
 
-void run_test(int ndim, std::string HydroUpdate_id ) {
+void run_test(int ndim, std::string HyperbolicUpdate_id ) {
   std::cout << "// =========================================\n";
-  std::cout << "// Testing " << HydroUpdate_id << "\n";
+  std::cout << "// Testing " << HyperbolicUpdate_id << "\n";
   std::cout << "// =========================================\n";
 
-  bool has_mhd = HydroUpdate_id.find("MHD") != std::string::npos;
-  bool is_glm  = HydroUpdate_id.find("GLM") != std::string::npos;
-  bool is_gravity = HydroUpdate_id.find("gravity") != std::string::npos;
+  bool has_mhd = HyperbolicUpdate_id.find("MHD") != std::string::npos;
+  bool is_glm  = HyperbolicUpdate_id.find("GLM") != std::string::npos;
+  bool is_gravity = HyperbolicUpdate_id.find("gravity") != std::string::npos;
 
   if( is_gravity )
     GTEST_SKIP();
@@ -175,7 +175,7 @@ void run_test(int ndim, std::string HydroUpdate_id ) {
   // Initializing kernels
   std::cout << " . Initializing kernels" << std::endl;
   std::unique_ptr<Compute_dt> compute_dt;
-  std::unique_ptr<HydroUpdate> updater;
+  std::unique_ptr<HyperbolicUpdate> updater;
   std::unique_ptr<IOManager> iomanager;
   {
     std::string compute_dt_id = configMap.getValue<std::string>("dt", "dt_kernel", "Compute_dt_hydro");
@@ -184,7 +184,7 @@ void run_test(int ndim, std::string HydroUpdate_id ) {
                                                   foreach_cell, 
                                                   timers);
 
-    updater = HydroUpdateFactory::make_instance(HydroUpdate_id, 
+    updater = HyperbolicUpdateFactory::make_instance(HyperbolicUpdate_id, 
                                                 configMap, 
                                                 foreach_cell,
                                                 timers);
@@ -214,9 +214,9 @@ void run_test(int ndim, std::string HydroUpdate_id ) {
 
   int hydro_ghost_count;
   {          
-    if( HydroUpdate_id.find("oneneighbor") != std::string::npos )
+    if( HyperbolicUpdate_id.find("oneneighbor") != std::string::npos )
       hydro_ghost_count = 2; // Could be 1 but other kernels may need 2
-    else if( HydroUpdate_id.find("hancock") != std::string::npos )
+    else if( HyperbolicUpdate_id.find("hancock") != std::string::npos )
       hydro_ghost_count = 4;
     else
       hydro_ghost_count = 2;
@@ -309,7 +309,7 @@ void run_test(int ndim, std::string HydroUpdate_id ) {
     std::cout << "Mass\t" << diag0[0] << "\t" << diag1[0] << "\t" << dM << "\t" << pct_M << std::endl;
     std::cout << "Energy\t" << diag0[1] << "\t" << diag1[1] << "\t" << dE << "\t" << pct_E << std::endl;
 
-    real_t percent_threshold = expected_conservativity_percent(HydroUpdate_id);
+    real_t percent_threshold = expected_conservativity_percent(HyperbolicUpdate_id);
     EXPECT_LT(fabs(pct_M), percent_threshold) << "Mass is not conserved at less than " << percent_threshold << "% !";
     EXPECT_LT(fabs(pct_E), percent_threshold) << "Energy is not conserved at less than " << percent_threshold << "% !";
   }
@@ -333,7 +333,7 @@ INSTANTIATE_TEST_SUITE_P(
     Test_Conservativity, Test_Conservativity,
     testing::Combine(
         testing::Values(2,3),
-        testing::ValuesIn( dyablo::HydroUpdateFactory::get_available_ids() )
+        testing::ValuesIn( dyablo::HyperbolicUpdateFactory::get_available_ids() )
     ),
     [](const testing::TestParamInfo<Test_Conservativity::ParamType>& info) {
       std::string name = 

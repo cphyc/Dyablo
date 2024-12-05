@@ -1,6 +1,6 @@
-#include "HydroUpdate_base.h"
+#include "HyperbolicUpdate_base.h"
 #include "RiemannSolvers.h"
-#include "HydroUpdate_utils.h"
+#include "HyperbolicUpdate_utils.h"
 
 #include "boundary_conditions/BoundaryConditions.h"
 
@@ -25,13 +25,13 @@ namespace dyablo {
  * using a 1st order Euler timestepping.
  */
 template<typename State_>
-class HydroUpdate_euler : public HydroUpdate {
+class HyperbolicUpdate_euler : public HyperbolicUpdate {
 public:
   using State     = State_;
   using PrimState = typename State::PrimState;
   using ConsState = typename State::ConsState;
 
-  HydroUpdate_euler(
+  HyperbolicUpdate_euler(
           ConfigMap& configMap,
           ForeachCell& foreach_cell,
           Timers& timers) 
@@ -52,7 +52,7 @@ public:
                                "Well balanced scheme not implemented for MHD solvers yet !");
   }
 
-  ~HydroUpdate_euler() {}
+  ~HyperbolicUpdate_euler() {}
 
   /**
    * @brief Solves hydro for one step using the euler method
@@ -112,12 +112,12 @@ public:
     PatchArray::Ref Ugroup_ = foreach_cell.reserve_patch_tmp("Ugroup", 2, 2, (ndim == 3)?2:0, fm_cons, State::N);
     PatchArray::Ref Qgroup_ = foreach_cell.reserve_patch_tmp("Qgroup", 2, 2, (ndim == 3)?2:0, fm_prim, State::N);
     
-    timers.get("HydroUpdate_euler").start();
+    timers.get("HyperbolicUpdate_euler").start();
 
     ForeachCell::CellMetaData cellmetadata = foreach_cell.getCellMetaData();
 
     // Iterate over patches
-    foreach_cell.foreach_patch( "HydroUpdate_euler::update",
+    foreach_cell.foreach_patch( "HyperbolicUpdate_euler::update",
       PATCH_LAMBDA( const ForeachCell::Patch& patch )
     {
       PatchArray Ugroup = patch.allocate_tmp(Ugroup_);
@@ -154,7 +154,7 @@ public:
 
     clean_negative_primitive_values<ndim, State>(foreach_cell, Uout, params.gamma0, params.smallr, params.smallp);
 
-    timers.get("HydroUpdate_euler").stop();
+    timers.get("HyperbolicUpdate_euler").stop();
   }
 
 private:
@@ -172,14 +172,14 @@ private:
 
 } // namespace dyablo
 
-FACTORY_REGISTER( dyablo::HydroUpdateFactory, 
-                  dyablo::HydroUpdate_euler<dyablo::HydroState>, 
+FACTORY_REGISTER( dyablo::HyperbolicUpdateFactory, 
+                  dyablo::HyperbolicUpdate_euler<dyablo::HydroState>, 
                   "HydroUpdate_euler")
 
-FACTORY_REGISTER( dyablo::HydroUpdateFactory, 
-                  dyablo::HydroUpdate_euler<dyablo::MHDState>, 
+FACTORY_REGISTER( dyablo::HyperbolicUpdateFactory, 
+                  dyablo::HyperbolicUpdate_euler<dyablo::MHDState>, 
                   "MHDUpdate_euler")
 
-FACTORY_REGISTER( dyablo::HydroUpdateFactory, 
-                  dyablo::HydroUpdate_euler<dyablo::GLMMHDState>, 
+FACTORY_REGISTER( dyablo::HyperbolicUpdateFactory, 
+                  dyablo::HyperbolicUpdate_euler<dyablo::GLMMHDState>, 
                   "GLMMHDUpdate_euler")

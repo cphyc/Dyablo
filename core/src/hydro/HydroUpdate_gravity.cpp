@@ -1,10 +1,10 @@
-#include "HydroUpdate_base.h"
+#include "HyperbolicUpdate_base.h"
 
 namespace dyablo {
 
 
-
-class HydroUpdate_gravity : public HydroUpdate {
+// Should we keep that name ?
+class HydroUpdate_gravity : public HyperbolicUpdate {
 private:
   ForeachCell& foreach_cell;  
   Timers& timers;
@@ -118,6 +118,6 @@ public:
 
 } // namespace dyablo
 
-FACTORY_REGISTER( dyablo::HydroUpdateFactory, 
+FACTORY_REGISTER( dyablo::HyperbolicUpdateFactory, 
                   dyablo::HydroUpdate_gravity, 
                   "HydroUpdate_gravity")

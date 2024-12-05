@@ -7,28 +7,28 @@
 namespace dyablo{
 
 /**
- * Interface for FiniteVolumePolicy used in Finite Volume solvers
- * to verify that FiniteVolumePolicy implements all methods correctly
- * We recommand that you wrap your FiniteVolumePolicy implementation 
+ * Interface for HyperbolicPolicy used in Finite Volume solvers
+ * to verify that HyperbolicPolicy implements all methods correctly
+ * We recommand that you wrap your HyperbolicPolicy implementation 
  * in this template interface to check every interface methods
  **/
-template< typename FiniteVolumePolicy_impl >
-class FiniteVolumePolicy_base
+template< typename HyperbolicPolicy_impl >
+class HyperbolicPolicy_base
 {
 private:
-  FiniteVolumePolicy_impl impl;
+  HyperbolicPolicy_impl impl;
 
 public:
   /// Structure containing primitive variables
-  using PrimState = typename FiniteVolumePolicy_impl::PrimState;
+  using PrimState = typename HyperbolicPolicy_impl::PrimState;
   /// Structure containing conservative variables
-  using ConsState = typename FiniteVolumePolicy_impl::ConsState;
+  using ConsState = typename HyperbolicPolicy_impl::ConsState;
   using CellIndex = ForeachCell::CellIndex;
   using CellMetaData = ForeachCell::CellMetaData;
   using FieldAccessor = UserData::FieldAccessor;  
 
-  /// FiniteVolumePolicy needs to be constructible from a ConfigMap
-  FiniteVolumePolicy_base( ConfigMap& configMap )
+  /// HyperbolicPolicy needs to be constructible from a ConfigMap
+  HyperbolicPolicy_base( ConfigMap& configMap )
   : impl(configMap)
   {}
 
@@ -185,7 +185,7 @@ public:
    * Structure to contain variables extracted from ScalarData that are used in the policy
    * This structure is specific to the policy because every policy may need different scalar_data variables
    **/
-  using PolicyScalarData = typename FiniteVolumePolicy_impl::PolicyScalarData;
+  using PolicyScalarData = typename HyperbolicPolicy_impl::PolicyScalarData;
 
   /** 
    * Extract variables from ScalarData into a GPU compatible structure
@@ -194,7 +194,7 @@ public:
    **/
   static PolicyScalarData getScalarData( const ScalarSimulationData& scalar_data )
   {
-    return FiniteVolumePolicy_impl::getScalarData(scalar_data);
+    return HyperbolicPolicy_impl::getScalarData(scalar_data);
   }
 
   /**
@@ -242,17 +242,17 @@ public:
 };
 
 template< class T >
-struct is_FiniteVolumePolicy 
+struct is_HyperbolicPolicy 
   : std::false_type
 {};
 
 template< class U >
-struct is_FiniteVolumePolicy<FiniteVolumePolicy_base<U>> 
+struct is_HyperbolicPolicy<HyperbolicPolicy_base<U>> 
   : std::true_type
 {};
 
 template< class T >
-inline constexpr bool is_FiniteVolumePolicy_v 
-  = is_FiniteVolumePolicy<T>::value;
+inline constexpr bool is_HyperbolicPolicy_v 
+  = is_HyperbolicPolicy<T>::value;
 
 } // namespace dyablo

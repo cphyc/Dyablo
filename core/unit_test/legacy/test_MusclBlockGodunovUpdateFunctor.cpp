@@ -11,7 +11,7 @@
 
 #include "init/InitialConditions.h"
 
-#include "hydro/HydroUpdate.h"
+#include "hydro/HyperbolicUpdate.h"
 #include "legacy/ComputeDtHydroFunctor.h"
 
 using Device = Kokkos::DefaultExecutionSpace;
@@ -164,7 +164,7 @@ void run_test(std::string name, int ndim) {
 
   // testing MusclBlockGodunovUpdateFunctor
   {
-    std::unique_ptr<HydroUpdate> godunov_updater = HydroUpdateFactory::make_instance( "HydroUpdate_hancock",
+    std::unique_ptr<HyperbolicUpdate> godunov_updater = HyperbolicUpdateFactory::make_instance( "HydroUpdate_hancock",
       configMap,
       foreach_cell,
       timers
@@ -204,13 +204,13 @@ void run_test(std::string name, int ndim) {
 
 } // namespace dyablo
 
-TEST(dyablo, test_HydroUpdate_hancock_blast_2D)
+TEST(dyablo, test_HyperbolicUpdate_hancock_blast_2D)
 {
-  dyablo::run_test("HydroUpdate_hancock (2D)", 2);
+  dyablo::run_test("HyperbolicUpdate_hancock (2D)", 2);
 }
 
-TEST(dyablo, test_HydroUpdate_hancock_blast_3D)
+TEST(dyablo, test_HyperbolicUpdate_hancock_blast_3D)
 {
-  dyablo::run_test("HydroUpdate_hancock (3D)", 3);
+  dyablo::run_test("HyperbolicUpdate_hancock (3D)", 3);
 }
 

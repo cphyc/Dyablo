@@ -3,7 +3,7 @@
 #include "kokkos_shared.h"
 #include "FieldManager.h"
 #include "amr/LightOctree.h"
-#include "hydro/HydroUpdate_base.h"
+#include "hydro/HyperbolicUpdate_base.h"
 
 #include "foreach_cell/ForeachCell.h"
 #include "foreach_cell/ForeachCell_utils.h"
@@ -11,7 +11,7 @@
 #include "RiemannSolvers.h"
 #include "utils/config/ConfigMap.h"
 
-#include "hydro/HydroUpdate_utils.h"
+#include "hydro/HyperbolicUpdate_utils.h"
 
 #include "states/State_forward.h"
 #include "mpi/GhostCommunicator.h"
@@ -34,7 +34,7 @@ using GhostedArray = ForeachCell::CellArray_global_ghosted;
 using CellIndex = ForeachCell::CellIndex;
 using FieldArray = UserData::FieldAccessor;
 
-//Copied from HydroUpdate_generic
+//Copied from HyperbolicUpdate_generic
 template < 
   int ndim,
   typename State>
@@ -411,20 +411,20 @@ void compute_fluxes_and_update( const FieldArray& Uin, const FieldArray& Uout, c
 }
 
 /**
- * @brief Solves the hydrodynamics equations with a Hancock timestepping on 
+ * @brief Solves the equations with a Hancock timestepping on 
  * small blocks.
  * 
  * This solver should only be used for comparison with cell-based AMR
  * as it is the only one allowing for bx=by=bz=1.
 */
 template <typename State_>
-class HydroUpdate_hancock_oneneighbor : public HydroUpdate{
+class HyperbolicUpdate_hancock_oneneighbor : public HyperbolicUpdate{
 public: 
   using State = State_;
   using PrimState = typename State::PrimState;
   using ConsState = typename State::ConsState;
 
-  HydroUpdate_hancock_oneneighbor(
+  HyperbolicUpdate_hancock_oneneighbor(
                 ConfigMap& configMap,
                 ForeachCell& foreach_cell,
                 Timers& timers )
@@ -457,7 +457,7 @@ public:
     int nb_ghosts = 1;
     GhostCommunicator ghost_comm(foreach_cell.get_amr_mesh(), U.getShape(), nb_ghosts );
 
-    timers.get("HydroUpdate_hancock_oneneighbor").start();
+    timers.get("HyperbolicUpdate_hancock_oneneighbor").start();
 
     auto fields_info = ConsState::getFieldsInfo();
     UserData::FieldAccessor Uin = U.getAccessor( fields_info );
@@ -472,7 +472,7 @@ public:
     GhostedArray Q = foreach_cell.allocate_ghosted_array( "Q", fm_prim );
 
     // Fill Q with primitive variables
-    foreach_cell.foreach_cell("HydroUpdate_hancock_oneneighbor::convertToPrimitives", Q, KOKKOS_LAMBDA(const CellIndex& iCell_Q)
+    foreach_cell.foreach_cell("HyperbolicUpdate_hancock_oneneighbor::convertToPrimitives", Q, KOKKOS_LAMBDA(const CellIndex& iCell_Q)
     { 
         computePrimitives<ndim, State>(riemann_params, Uin, iCell_Q, Q);
     });
@@ -489,7 +489,7 @@ public:
     ForeachCell::CellMetaData cellmetadata = foreach_cell.getCellMetaData();
 
     // Fill slope arrays
-    foreach_cell.foreach_cell("HydroUpdate_hancock_oneneighbor::reconstruct_gradients", Q, KOKKOS_LAMBDA(const CellIndex& iCell_Q)
+    foreach_cell.foreach_cell("HyperbolicUpdate_hancock_oneneighbor::reconstruct_gradients", Q, KOKKOS_LAMBDA(const CellIndex& iCell_Q)
     { 
         compute_limited_slopes<ndim, State>(Q, iCell_Q, cellmetadata.getCellCenter(iCell_Q), cellmetadata.getCellSize(iCell_Q), Slopes_x, Slopes_y, Slopes_z);
     });
@@ -500,7 +500,7 @@ public:
       ghost_comm.exchange_ghosts(Slopes_z);
 
     // Compute flux and update Uout
-    foreach_cell.foreach_cell("HydroUpdate_hancock_oneneighbor::flux_and_update", Q, KOKKOS_LAMBDA(const CellIndex& iCell_Q)
+    foreach_cell.foreach_cell("HyperbolicUpdate_hancock_oneneighbor::flux_and_update", Q, KOKKOS_LAMBDA(const CellIndex& iCell_Q)
     { 
         compute_fluxes_and_update<ndim, State>(Uin, Uout, Q, iCell_Q, 
                                                Slopes_x, Slopes_y, Slopes_z,
@@ -509,7 +509,7 @@ public:
 
     clean_negative_primitive_values<ndim, State>(foreach_cell, Uout, riemann_params.gamma0, riemann_params.smallr, riemann_params.smallp);
 
-    timers.get("HydroUpdate_hancock_oneneighbor").stop();
+    timers.get("HyperbolicUpdate_hancock_oneneighbor").stop();
   }
   private:
     ForeachCell& foreach_cell;
@@ -520,9 +520,9 @@ public:
 
 } //namespace dyablo 
 
-FACTORY_REGISTER( dyablo::HydroUpdateFactory, 
-                  dyablo::HydroUpdate_hancock_oneneighbor<dyablo::HydroState>, 
+FACTORY_REGISTER( dyablo::HyperbolicUpdateFactory, 
+                  dyablo::HyperbolicUpdate_hancock_oneneighbor<dyablo::HydroState>, 
                   "HydroUpdate_hancock_oneneighbor")
-FACTORY_REGISTER( dyablo::HydroUpdateFactory, 
-                  dyablo::HydroUpdate_hancock_oneneighbor<dyablo::MHDState>, 
+FACTORY_REGISTER( dyablo::HyperbolicUpdateFactory, 
+                  dyablo::HyperbolicUpdate_hancock_oneneighbor<dyablo::MHDState>, 
                   "MHDUpdate_hancock_oneneighbor")
