@@ -169,10 +169,13 @@ void run_test(std::string name, int ndim) {
       foreach_cell,
       timers
     );
+
     U_.new_fields({"rho_next","e_tot_next","rho_vx_next","rho_vy_next","rho_vz_next"});
     ScalarSimulationData scalar_data;
     scalar_data.set("dt", dt);    
+    scalar_data.set("time", 0.0);
     godunov_updater->update(U_, scalar_data);
+
 
     // Kokkos::deep_copy( Uhost, U.U);
     // std::cout << "Printing U data (after update) from iOct = " << iOct_global << "\n";
