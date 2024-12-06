@@ -164,7 +164,7 @@ void run_test(std::string name, int ndim) {
 
   // testing MusclBlockGodunovUpdateFunctor
   {
-    std::unique_ptr<HyperbolicUpdate> godunov_updater = HyperbolicUpdateFactory::make_instance( "HydroUpdate_hancock",
+    std::unique_ptr<HyperbolicUpdate> godunov_updater = HyperbolicUpdateFactory::make_instance( "HydroUpdate_FV_hancock",
       configMap,
       foreach_cell,
       timers
