@@ -1,5 +1,5 @@
-#include "InitialConditions_analytical.h"
-#include "AnalyticalFormula_tools.h"
+#include "../InitialConditions_analytical.h"
+#include "../AnalyticalFormula_tools.h"
 #include "states/State_forward.h"
 
 namespace dyablo{

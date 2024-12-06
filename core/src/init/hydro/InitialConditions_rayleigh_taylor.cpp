@@ -1,8 +1,8 @@
-#include "InitialConditions_analytical.h"
+#include "../InitialConditions_analytical.h"
+#include "../AnalyticalFormula_tools.h"
 
 #include <Kokkos_Random.hpp>
 
-#include "AnalyticalFormula_tools.h"
 
 namespace dyablo{
 

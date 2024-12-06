@@ -31,18 +31,18 @@ set( core_src
 )
 
 set( ic_src
-    ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_blast.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_implode.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_riemann2d.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_kelvin_helmholtz.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_rayleigh_taylor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_orszag_tang.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_MHD_blast.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_MHD_rotor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/init/hydro/InitialConditions_blast.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/init/hydro/InitialConditions_implode.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/init/hydro/InitialConditions_riemann2d.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/init/hydro/InitialConditions_kelvin_helmholtz.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/init/hydro/InitialConditions_rayleigh_taylor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/init/hydro/InitialConditions_sod.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/init/hydro/InitialConditions_double_mach.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/init/mhd/InitialConditions_orszag_tang.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/init/mhd/InitialConditions_MHD_blast.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/init/mhd/InitialConditions_MHD_rotor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_simple_particles.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_sod.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_particle_grid.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_double_mach.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_grafic_fields.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/wholesun/InitialConditions_C91.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/wholesun/InitialConditions_tri_layer.cpp

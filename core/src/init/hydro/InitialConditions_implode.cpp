@@ -1,6 +1,5 @@
-#include "InitialConditions_analytical.h"
-
-#include "AnalyticalFormula_tools.h"
+#include "../InitialConditions_analytical.h"
+#include "../AnalyticalFormula_tools.h"
 
 namespace dyablo{
 
