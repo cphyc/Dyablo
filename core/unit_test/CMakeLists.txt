@@ -83,10 +83,6 @@ dyablo_add_test(utest_CopyGhostBlockCellData ON
   legacy/test_CopyGhostBlockCellData.cpp
   main.cpp)
 
-dyablo_add_test(utest_MusclBlockGodunovUpdateFunctor OFF
-  legacy/test_MusclBlockGodunovUpdateFunctor.cpp
-  main.cpp)
-
 dyablo_add_test(utest_ViewCommunicator ON
   block_data/test_ViewCommunicator.cpp
   main.cpp)
