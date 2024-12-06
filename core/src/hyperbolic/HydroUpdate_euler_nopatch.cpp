@@ -6,7 +6,7 @@
 
 namespace dyablo {
 
-class HydroUpdate_FV_euler_nopatch 
+class HydroUpdate_euler_nopatch 
   : public HyperbolicUpdate_euler_nopatch<HyperbolicPolicy_Hydro>
 {
 public:
@@ -16,5 +16,5 @@ public:
 } //namespace dyablo
 
 FACTORY_REGISTER( dyablo::HyperbolicUpdateFactory, 
-                  dyablo::HydroUpdate_FV_euler_nopatch, 
-                  "HydroUpdate_FV_euler_nopatch")
+                  dyablo::HydroUpdate_euler_nopatch, 
+                  "HydroUpdate_euler_nopatch")

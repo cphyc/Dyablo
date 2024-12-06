@@ -6,7 +6,7 @@
 
 namespace dyablo{
 
-class HydroUpdate_FV_RK2
+class HydroUpdate_RK2
   : public Hyperbolic_RK2<HyperbolicPolicy_Hydro>
 {
 public:
@@ -16,5 +16,5 @@ public:
 } //namespace dyablo
 
 FACTORY_REGISTER( dyablo::HyperbolicUpdateFactory, 
-                  dyablo::HydroUpdate_FV_RK2, 
-                  "HydroUpdate_FV_RK2")
+                  dyablo::HydroUpdate_RK2, 
+                  "HydroUpdate_RK2")
