@@ -310,7 +310,7 @@ public:
 
     this->m_iteration_handler = std::make_unique<IterationHandler>(configMap, m_scalar_data);
 
-    std::string godunov_updater_id = configMap.getValue<std::string>("hydro", "update", "HydroUpdate_hancock");
+    std::string godunov_updater_id = configMap.getValue<std::string>("hydro", "update", "HydroUpdate_FV_hancock");
     this->has_mhd = godunov_updater_id.find("MHD") != std::string::npos;
     this->is_glm  = godunov_updater_id.find("GLM") != std::string::npos;
     
