@@ -173,6 +173,12 @@ struct CellIndex
   }
 
   KOKKOS_INLINE_FUNCTION
+  CellIndex getChildren() const
+  {
+    #warning "TODO"
+  }
+
+  KOKKOS_INLINE_FUNCTION
   bool operator==(const CellIndex &c2) const {
   return (iOct.iOct == c2.iOct.iOct 
        && iOct.isGhost == c2.iOct.isGhost

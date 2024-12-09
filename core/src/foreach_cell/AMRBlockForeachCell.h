@@ -32,6 +32,12 @@ public:
   : cdata( cdata ), lmesh(pmesh.getLightOctree())
   {}
 
+  KOKKOS_INLINE_FUNCTION
+  int getLevel( const CellIndex& iCell ) const
+  {
+    lmesh.getLevel( iCell.iOct );
+  }
+
   /// Get the physical size of the cell
   KOKKOS_INLINE_FUNCTION
   pos_t getCellSize( const CellIndex& iCell ) const
@@ -360,6 +366,12 @@ public:
     });
   }
 
+  template <typename Function>
+  void foreach_intermediate_cell(const std::string& kernel_name, const CellArray_shape& iter_space, const Function& f) const
+  {
+    #warning "TODO"
+  }
+
 
   /**
    * Call the user-defined function f for each cell and perform a reduction with the provided reducer
@@ -400,6 +412,18 @@ public:
   void reduce_cell(const std::string& kernel_name, const CellArray_shape& iter_space, const Function& f, Value_t&... reducer) const
   {
     reduce_cell(kernel_name, iter_space, f, Kokkos::Sum<Value_t>(reducer)...);
+  }
+
+  template <typename Function, typename... Reducer_t>
+  void reduce_intermediate_cell(const std::string& kernel_name, const CellArray_shape& iter_space, const Function& f, const Reducer_t&... reducer) const
+  {
+    #warning "todo"
+  }
+
+  template <typename Function, typename... Value_t>
+  void reduce_intermediate_cell(const std::string& kernel_name, const CellArray_shape& iter_space, const Function& f, Value_t&... reducer) const
+  {
+    reduce_intermediate_cell(kernel_name, iter_space, f, Kokkos::Sum<Value_t>(reducer)...);
   }
 };
 

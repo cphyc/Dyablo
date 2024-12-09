@@ -63,6 +63,8 @@ public:
     uint32_t getNumOctants() const;
     /// Get local (MPI) ghost octant count
     uint32_t getNumGhosts() const;
+    /// Get intermediate (full tree) octant count
+    uint32_t getNumIntermediates() const;
     /// Get min level
     uint32_t get_level_min() const;
     /// Get max level

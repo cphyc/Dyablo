@@ -47,6 +47,15 @@ public:
         fields.new_fields(names);
     }
 
+    /**
+     * Add new fields for intermediate levels (full tree) 
+     * names should not be already present
+     **/
+    void new_intermediate_fields( const std::set<std::string>& names)
+    {
+        fields.new_intermediate_fields(names);
+    }
+
     /// Check if field exists
     bool has_field(const std::string& name) const
     {
@@ -56,7 +65,7 @@ public:
     std::set<std::string> getEnabledFields() const
     {
         return fields.getEnabledFields();
-    }   
+    }  
 
     // Get View associated with field name
     const FieldView_t getField(const std::string& name) const
@@ -86,9 +95,19 @@ public:
         return fields.nbFields();
     }
 
+    int nbIntermediateFields() const
+    {
+        return fields.nbIntermediateFields();
+    }
+
     FieldAccessor getAccessor( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const
     {
         return fields.getAccessor(fields_info);
+    }
+
+    FieldAccessor getAccessor_intermediate( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const
+    {
+        return fields.getAccessor_intermediate(fields_info);
     }
 
     FieldAccessor backup_and_realloc()

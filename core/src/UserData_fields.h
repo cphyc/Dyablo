@@ -122,6 +122,11 @@ public:
         }
     }
 
+    void new_intermediate_fields( const std::set<std::string>& names)
+    {
+        #warning "TODO"
+    }
+
     /// Check if field exists
     bool has_field(const std::string& name) const
     {
@@ -175,9 +180,16 @@ public:
         return field_index.size();
     }
 
+    int nbIntermediateFields() const
+    {
+        #warning "TODO"
+    }
+
     void exchange_loadbalance( const ViewCommunicator& ghost_comm );
 
     FieldAccessor getAccessor( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const;
+    
+    FieldAccessor getAccessor_intermediate( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const;
 
     FieldAccessor backup_and_realloc();
 
@@ -328,6 +340,11 @@ inline void UserData_fields::exchange_loadbalance( const ViewCommunicator& ghost
 inline UserData_fields::FieldAccessor UserData_fields::getAccessor( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const
 {
     return FieldAccessor(*this, fields_info);
+}
+
+inline UserData_fields::FieldAccessor UserData_fields::getAccessor_intermediate( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const
+{
+    #warning "TODO"
 }
 
 inline UserData_fields::FieldAccessor UserData_fields::backup_and_realloc()
