@@ -95,11 +95,6 @@ public:
         return fields.nbFields();
     }
 
-    int nbIntermediateFields() const
-    {
-        return fields.nbIntermediateFields();
-    }
-
     FieldAccessor getAccessor( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const
     {
         return fields.getAccessor(fields_info);

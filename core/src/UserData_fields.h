@@ -20,6 +20,12 @@ public:
     class FieldAccessor; 
     struct FieldAccessor_FieldInfo;
 
+private:
+    struct field_index_t
+    {
+        int index;
+    };
+
 public:
     using FieldView_t = ForeachCell::CellArray_global_ghosted;
 
@@ -43,8 +49,15 @@ public:
 
     void extend_fields( )
     {
+        int nbOcts = this->foreach_cell.get_amr_mesh().getNumOctants();
+        int nbGhosts = this->foreach_cell.get_amr_mesh().getNumGhosts();
+        extend_fields_aux(foreach_cell, fields, nbOcts, nbGhosts, max_field_count);
+    }
+
+    static void extend_fields_aux( ForeachCell& foreach_cell, FieldView_t& fields, int nbOcts, int nbGhosts, int max_field_count )
+    {
         int allocated_field_count = fields.nbfields();
-        auto fields_new = foreach_cell.allocate_ghosted_array( "UserData_fields", FieldManager(this->max_field_count) );
+        auto fields_new = foreach_cell.allocate_ghosted_array( "UserData_fields", FieldManager(max_field_count), nbOcts, nbGhosts );
         if( allocated_field_count != 0 )
         {
             Kokkos::deep_copy( 
@@ -58,31 +71,33 @@ public:
         }
         fields = fields_new;
     }
-
-    /**
-     * Add new fields with unique identifiers 
-     * names should not be already present
-     **/
-    void new_fields( const std::set<std::string>& names)
+    
+    static void new_fields_aux( const std::set<std::string>& names,
+                                size_t nbOcts,
+                                size_t nbGhosts,
+                                int& max_field_count,
+                                std::map<std::string, field_index_t>& field_index,
+                                FieldView_t& fields,
+                                ForeachCell& foreach_cell)
     {
-        if( this->nbFields() != 0 )
+        if( field_index.size() != 0 )
         {
-            DYABLO_ASSERT_HOST_RELEASE( fields.U.extent(2) == foreach_cell.get_amr_mesh().getNumOctants(), "UserData_fields internal error : mismatch between allocated size and octant count" );
-            DYABLO_ASSERT_HOST_RELEASE( fields.Ughost.extent(2) == foreach_cell.get_amr_mesh().getNumGhosts(), "UserData_fields internal error : mismatch between allocated size and ghost octant count" );
+            DYABLO_ASSERT_HOST_RELEASE( fields.U.extent(2) == nbOcts, "UserData_fields internal error : mismatch between allocated size and octant count" );
+            DYABLO_ASSERT_HOST_RELEASE( fields.Ughost.extent(2) == nbGhosts, "UserData_fields internal error : mismatch between allocated size and ghost octant count" );
         }
         
-        int needed_field_count = nbFields() + names.size();
-        this->max_field_count = std::max( this->max_field_count, needed_field_count );
+        int needed_field_count = field_index.size() + names.size();
+        max_field_count = std::max( max_field_count, needed_field_count );
         int allocated_field_count = fields.nbfields();
         if( needed_field_count > allocated_field_count )
         {   // Not enough fields : resize to add fields
             std::cout << "Reallocate : add fields " << allocated_field_count << " -> " << max_field_count << std::endl;
-            extend_fields();
+            extend_fields_aux(foreach_cell, fields, nbOcts, nbGhosts, max_field_count);
         }
 
         for( const std::string& name : names )
         {
-            if( this->has_field(name) )
+            if( 1 == field_index.count(name) )
                 throw std::runtime_error(std::string("UserData_fields::new_fields() - field already exists : ") + name);
             /// Find first free ivar in `fields` view
             auto first_free = [&]() -> int
@@ -122,9 +137,30 @@ public:
         }
     }
 
+    /**
+     * Add new fields with unique identifiers 
+     * names should not be already present
+     **/
+    void new_fields( const std::set<std::string>& names)
+    {
+        size_t nbOcts = this->foreach_cell.get_amr_mesh().getNumOctants();
+        size_t nbGhosts = this->foreach_cell.get_amr_mesh().getNumGhosts();
+        int& max_field_count = this->max_field_count;
+        std::map<std::string, field_index_t>& field_index = this->field_index;
+        FieldView_t& fields = this->fields;
+
+        new_fields_aux(names,nbOcts,nbGhosts,max_field_count,field_index,fields,this->foreach_cell);
+    }
+
     void new_intermediate_fields( const std::set<std::string>& names)
     {
-        #warning "TODO"
+        size_t nbOcts = this->foreach_cell.get_amr_mesh().getLightOctree().getNumIntermediate();
+        size_t nbGhosts = 0;
+        int& max_field_count = this->max_field_count_intermediate;
+        std::map<std::string, field_index_t>& field_index = this->field_index_intermediate;
+        FieldView_t& fields = this->fields_intermediate;
+
+        new_fields_aux(names,nbOcts,nbGhosts,max_field_count,field_index,fields,this->foreach_cell);
     }
 
     /// Check if field exists
@@ -180,10 +216,6 @@ public:
         return field_index.size();
     }
 
-    int nbIntermediateFields() const
-    {
-        #warning "TODO"
-    }
 
     void exchange_loadbalance( const ViewCommunicator& ghost_comm );
 
@@ -195,13 +227,9 @@ public:
 
 private:
     ForeachCell& foreach_cell;
-    FieldView_t fields;
-    struct field_index_t
-    {
-        int index;
-    };
-    std::map<std::string, field_index_t> field_index;
-    int max_field_count = 0;
+    FieldView_t fields, fields_intermediate;
+    std::map<std::string, field_index_t> field_index, field_index_intermediate;
+    int max_field_count = 0, max_field_count_intermediate = 0;
 };
 
 struct UserData_fields::FieldAccessor_FieldInfo
@@ -233,7 +261,13 @@ public:
     }
 
     FieldAccessor(const UserData_fields& user_data, const std::vector<FieldInfo>& fields_info)
-        : fields(user_data.fields)
+    : FieldAccessor( user_data.fields,  user_data.field_index, fields_info)
+    {}        
+
+    FieldAccessor(const UserData_fields::FieldView_t& fields,
+                  const std::map<std::string, field_index_t>& field_index, 
+                  const std::vector<FieldInfo>& fields_info)
+    : fields(fields)
     {
         DYABLO_ASSERT_HOST_RELEASE( fields_info.size() > 0, "fields_info cannot be empty" );
 
@@ -242,7 +276,7 @@ public:
             std::stringstream s;
             s << "Could not find field '" << field_name << "' in UserData" << std::endl;
             s << "Available fields are :" << std::endl;
-            for( auto& p : user_data.field_index )
+            for( auto& p : field_index )
             {
                 s << " - '" << p.first << "'" << std::endl;
             }
@@ -265,9 +299,9 @@ public:
         int i=0; 
         for( const FieldInfo& info : fields_info )
         {
-            DYABLO_ASSERT_HOST_RELEASE( user_data.has_field(info.name), 
+            DYABLO_ASSERT_HOST_RELEASE( 1 == field_index.count(info.name), 
                                         unknown_field_error(info.name) );
-            int index = user_data.field_index.at(info.name).index;
+            int index = field_index.at(info.name).index;
             var_to_arrayindex_host(info.id) = index;
             ivar_to_arrayindex_host(i) = index;
             i++;
@@ -344,7 +378,7 @@ inline UserData_fields::FieldAccessor UserData_fields::getAccessor( const std::v
 
 inline UserData_fields::FieldAccessor UserData_fields::getAccessor_intermediate( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const
 {
-    #warning "TODO"
+    return FieldAccessor(this->fields_intermediate, this->field_index_intermediate, fields_info);
 }
 
 inline UserData_fields::FieldAccessor UserData_fields::backup_and_realloc()

@@ -35,7 +35,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   int getLevel( const CellIndex& iCell ) const
   {
-    lmesh.getLevel( iCell.iOct );
+    return lmesh.getLevel( iCell.iOct );
   }
 
   /// Get the physical size of the cell
@@ -265,14 +265,21 @@ public:
 
   CellArray_global_ghosted allocate_ghosted_array( std::string name, const FieldManager& fieldMgr)
   {
+    int nbOcts = pmesh.getNumOctants();
+    int nbGhosts = pmesh.getNumGhosts();
+
+    return allocate_ghosted_array(name, fieldMgr, nbOcts, nbGhosts);
+  }
+  
+  CellArray_global_ghosted allocate_ghosted_array( std::string name, const FieldManager& fieldMgr, int nbOcts, int nbGhosts)
+  {
     const CData& cdata = this->cdata;
     uint32_t bx = cdata.bx;
     uint32_t by = cdata.by;
     uint32_t bz = cdata.bz;
     int nbCellsPerOct = bx*by*bz;
     int nbFields = fieldMgr.nbfields();
-    int nbOcts = pmesh.getNumOctants();
-    int nbGhosts = pmesh.getNumGhosts();
+    
     auto fm = fieldMgr.get_id2index();
 
     DYABLO_ASSERT_HOST_RELEASE( cdata.ndim != 2 || bz==1, "bz should be 1 in 2D" );
@@ -282,7 +289,7 @@ public:
 
     const LightOctree& lmesh = pmesh.getLightOctree();
 
-    return CellArray_global_ghosted(CellArray_global{U, bx, by, bz, (uint32_t)U.extent(2), fm}, Ughost, lmesh);
+    return CellArray_global_ghosted(CellArray_global{U, bx, by, bz, fm}, Ughost, lmesh);
   }
   /**
    * Reserve a new temporary ghosted cell array local to each patch. 
@@ -369,7 +376,26 @@ public:
   template <typename Function>
   void foreach_intermediate_cell(const std::string& kernel_name, const CellArray_shape& iter_space, const Function& f) const
   {
-    #warning "TODO"
+    uint32_t bx = iter_space.bx;
+    uint32_t by = iter_space.by;
+    uint32_t bz = iter_space.bz;
+    uint32_t nbCellsPerBlock = bx*by*bz;
+    uint32_t nbIntermediate = pmesh.getLightOctree().getNumIntermediate();
+
+    Kokkos::parallel_for( kernel_name, 
+      Kokkos::RangePolicy<>(0,nbCellsPerBlock*nbIntermediate), 
+      KOKKOS_LAMBDA( uint32_t index )
+    {
+      uint32_t iOct = index/nbCellsPerBlock;
+      index = index%nbCellsPerBlock;
+
+      uint32_t k = index/(bx*by);
+      uint32_t j = (index - k*bx*by)/bx;
+      uint32_t i = index - j*bx - k*bx*by;
+
+      CellIndex iCell = {{iOct,false,true}, i, j, k, bx, by, bz};
+      f( iCell );
+    });
   }
 
 
@@ -417,7 +443,26 @@ public:
   template <typename Function, typename... Reducer_t>
   void reduce_intermediate_cell(const std::string& kernel_name, const CellArray_shape& iter_space, const Function& f, const Reducer_t&... reducer) const
   {
-    #warning "todo"
+    uint32_t bx = iter_space.bx;
+    uint32_t by = iter_space.by;
+    uint32_t bz = iter_space.bz;
+    uint32_t nbCellsPerBlock = bx*by*bz;
+    uint32_t nbIntermediate = pmesh.getLightOctree().getNumIntermediate();
+
+    Kokkos::parallel_reduce( kernel_name, 
+      Kokkos::RangePolicy<>(0,nbCellsPerBlock*nbIntermediate),
+      KOKKOS_LAMBDA( uint32_t index, typename Reducer_t::value_type&... update )
+    {
+      uint32_t iOct = index/nbCellsPerBlock;
+      index = index%nbCellsPerBlock;
+
+      uint32_t k = index/(bx*by);
+      uint32_t j = (index - k*bx*by)/bx;
+      uint32_t i = index - j*bx - k*bx*by;
+
+      CellIndex iCell = {{iOct,false,true}, i, j, k, bx, by, bz};
+      f( iCell, update... );
+    }, reducer...);
   }
 
   template <typename Function, typename... Value_t>

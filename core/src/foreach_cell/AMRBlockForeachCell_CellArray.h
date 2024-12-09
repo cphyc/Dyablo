@@ -173,10 +173,7 @@ struct CellIndex
   }
 
   KOKKOS_INLINE_FUNCTION
-  CellIndex getChildren() const
-  {
-    #warning "TODO"
-  }
+  CellIndex getChildren() const;
 
   KOKKOS_INLINE_FUNCTION
   bool operator==(const CellIndex &c2) const {
@@ -259,7 +256,6 @@ public:
 
   View_t U;    
   uint32_t bx,by,bz;
-  uint32_t nbOcts;
   id2index_t fm;
 
   KOKKOS_INLINE_FUNCTION
@@ -355,7 +351,6 @@ public :
   void update_lightOctree(  const LightOctree& lmesh ) // TODO remove this once Kokkos arrays are not resized manually anymore.
   {
     this->lmesh = lmesh;
-    this->nbOcts = lmesh.getNumOctants();
   }
 
 
@@ -554,6 +549,7 @@ real_t& CellArray_base<View_t>::at_ivar(const CellIndex& iCell, int iVar) const
   DYABLO_ASSERT_KOKKOS_DEBUG(bz == iCell.bz, "bz mismatch icell vs array");
 
   uint32_t i = iCell.i + iCell.j*iCell.bx + iCell.k*iCell.bx*iCell.by;
+  int nbOcts = this->U.extent(2);
   return U(i, iVar, iCell.iOct.iOct%nbOcts);
 }
 
@@ -580,6 +576,13 @@ real_t& CellArray_global_ghosted::at_ivar(const CellIndex& iCell, int ivar) cons
   {
     return U(i, ivar, iCell.iOct.iOct);
   }
+}
+
+KOKKOS_INLINE_FUNCTION
+CellIndex CellIndex::getChildren() const
+{
+  #warning "TODO"
+  return CellIndex{{},0,0,0,bx,by,bz};
 }
 
 KOKKOS_INLINE_FUNCTION

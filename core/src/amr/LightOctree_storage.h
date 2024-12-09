@@ -41,7 +41,6 @@ public:
   using oct_data_t = Kokkos::View< logical_coord_t**, Kokkos::LayoutLeft, MemorySpace >;
   using pos_t = Kokkos::Array<real_t,3>;
   using coarse_grid_size_t = Kokkos::Array<logical_coord_t,3>;
-protected:
   using OctantIndex = LightOctree_base::OctantIndex;
   //! Index to access different fields in `oct_data`
   enum oct_data_field_t{
