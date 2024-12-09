@@ -198,7 +198,7 @@ public:
   }
 
   /**
-   * \brief Get field values for a cell outside of the simulation domain
+   * @brief Get field values for a cell outside of the simulation domain
    * 
    * This method is usually called by kernels when trying to access neighbors outside
    * of the simulation domain.
@@ -206,10 +206,11 @@ public:
    * The value returned may be determined by the values inside the domain 
    * (e.g. reflecting/absorbing boundary conditions)
    * 
-   * \param U array containing conservative variables
-   * \param iCell_boundary cell index outside of the domain (iCell_boundary.is_boundary() must be true)
-   * \param metadata CellMetaData object allowing for mesh queries on size/position
-   * \return The conservative state defined at the given boundary position 
+   * @param U array containing conservative variables
+   * @param iCell_boundary cell index outside of the domain (iCell_boundary.is_boundary() must be true)
+   * @param metadata CellMetaData object allowing for mesh queries on size/position
+   * @param policy_scalar_data PolicyScalarData object for the passage of scalar information  
+   * @return The conservative state defined at the given boundary position 
    */
   template < typename Array_t >
   KOKKOS_INLINE_FUNCTION
@@ -219,7 +220,7 @@ public:
   }
   
   /**
-   * \brief Get flux value for a neighboring cell outside of the simulation domain
+   * @brief Get flux value for a neighboring cell outside of the simulation domain
    * 
    * This method is called when trying to compute the flux with neighbors outside
    * of the simulation domain.
@@ -227,11 +228,12 @@ public:
    * The value returned may be determined by the values inside the domain 
    * (e.g. reflecting/absorbing boundary conditions)
    * 
-   * \param U array containing conservative variables
-   * \param iCell_boundary cell index outside of the domain (iCell_boundary.is_boundary() must be true), 
+   * @param U array containing conservative variables
+   * @param iCell_boundary cell index outside of the domain (iCell_boundary.is_boundary() must be true), 
    *          the cell must have an interface with a cell inside the domain
-   * \param metadata CellMetaData object allowing for mesh queries on size/position
-   * \return The flux at the boundary interface 
+   * @param metadata CellMetaData object allowing for mesh queries on size/position
+   * @param policy_scalar_data PolicyScalarData object for the passage of scalar information  
+   * @return The flux at the boundary interface 
    */
   template < typename Array_t >
   KOKKOS_INLINE_FUNCTION
