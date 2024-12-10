@@ -10,6 +10,9 @@ set( core_src
     ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/HydroUpdate_euler_nopatch.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/HydroUpdate_hancock.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/HydroUpdate_RK2.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/GLMMHDUpdate_euler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/GLMMHDUpdate_hancock.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/GLMMHDUpdate_RK2.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/gravity/GravitySolver_point_mass.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/gravity/GravitySolver_constant.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/gravity/GravitySolver_cg.cpp

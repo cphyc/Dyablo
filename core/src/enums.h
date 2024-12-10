@@ -24,6 +24,23 @@ inline named_enum<BoundaryConditionType>::init_list named_enum<BoundaryCondition
   };
 }
 
+enum MagneticBoundaryConditionType {
+  BCMAG_UNDEFINED, 
+  BCMAG_ABSORBING,         /*!< absorbing border condition */
+  BCMAG_PERFECT_CONDUCTOR, /*!< Normal field is set to 0 */
+  BCMAG_NORMAL_FIELD,      /*!< Horizontal field is set to 0 */
+};
+
+template<>
+inline named_enum<MagneticBoundaryConditionType>::init_list named_enum<MagneticBoundaryConditionType>::names()
+{
+  return{
+    {MagneticBoundaryConditionType::BCMAG_ABSORBING, "absorbing"},
+    {MagneticBoundaryConditionType::BCMAG_PERFECT_CONDUCTOR, "perfect_conductor"},
+    {MagneticBoundaryConditionType::BCMAG_NORMAL_FIELD, "normal_field"},
+  };
+}
+
 //! enum component index
 enum ComponentIndex3D {
   IX = 0,
