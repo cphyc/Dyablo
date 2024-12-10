@@ -231,7 +231,7 @@ public:
       qR = policy.consToPrim(out_val);
     }
 
-    return policy.riemann_solver(qL, qR, dir);
+    return policy.riemann_solver(qL, qR, dir, scalar_data);
   }
 
   template < typename Array_t, typename Policy_t, typename ScalarData_t >
@@ -316,9 +316,11 @@ public:
 };
 
 /***
- * Dynamic Implementation for Hyperbolic_BoundaryConditions
+ * @brief Dynamic Implementation for Hyperbolic_BoundaryConditions
+ * 
  * Merge multiple implementations of Hyperbolic_BoundaryConditions and 
  * choose which version to use at runtime
+ * 
  * @tparam LegacyState_t input/output state used for the boundaries values
  * @tparam Ts... Hyperbolic_BoundaryConditions types to choose from
  ***/

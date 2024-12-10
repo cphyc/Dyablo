@@ -212,7 +212,7 @@ public:
               PrimState qC = qC0 - 0.5 * slope_C;
 
               // Solving
-              fluxL = policy.riemann_solver(qL, qC, dir);
+              fluxL = policy.riemann_solver(qL, qC, dir, policy_scalar_data);
               
               // Adding flux to the neighbor if it is bigger
               if (Ldiff == 1) 
@@ -249,7 +249,7 @@ public:
               PrimState qR = qR0 - 0.5 * slope_R;
 
               // Solving
-              fluxR = policy.riemann_solver(qC, qR, dir);
+              fluxR = policy.riemann_solver(qC, qR, dir, policy_scalar_data);
 
               // Adding flux to the neighbor if it is bigger
               if (Rdiff == 1)

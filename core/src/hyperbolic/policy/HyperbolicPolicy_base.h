@@ -33,6 +33,22 @@ public:
   {}
 
   /**
+   * Structure to contain variables extracted from ScalarData that are used in the policy
+   * This structure is specific to the policy because every policy may need different scalar_data variables
+   **/
+  using PolicyScalarData = typename HyperbolicPolicy_impl::PolicyScalarData;
+
+  /** 
+   * Extract variables from ScalarData into a GPU compatible structure
+   * Only useful variables should be extracted
+   * Cannot be called inside Kokkos kernels
+   **/
+  static PolicyScalarData getScalarData( const ScalarSimulationData& scalar_data )
+  {
+    return HyperbolicPolicy_impl::getScalarData(scalar_data);
+  }
+
+  /**
    * Extract a FieldAccessor from U for input fields 
    * This must allow reading current timestep fields with getConsState()
    **/
@@ -166,12 +182,13 @@ public:
    * @param qleft left state (primitive variables)
    * @param qright right state (primitive variables)
    * @param dir x, y or z direction
+   * @param policy_scalar_data PolicyScalarData object for the passage of scalar information  
    * @return output flux
    */
   KOKKOS_INLINE_FUNCTION
-  ConsState riemann_solver( PrimState qL, PrimState qR, ComponentIndex3D dir ) const
+  ConsState riemann_solver( PrimState qL, PrimState qR, ComponentIndex3D dir, const PolicyScalarData& policy_scalar_data ) const
   {
-    return impl.riemann_solver(qL, qR, dir);
+    return impl.riemann_solver(qL, qR, dir, policy_scalar_data);
   }
 
   
@@ -179,22 +196,6 @@ public:
   PrimState compute_slope( PrimState qL, PrimState qC, PrimState qR, real_t dL, real_t dR) const
   {
     return impl.compute_slope(qL, qC, qR, dL, dR);
-  }
-
-  /**
-   * Structure to contain variables extracted from ScalarData that are used in the policy
-   * This structure is specific to the policy because every policy may need different scalar_data variables
-   **/
-  using PolicyScalarData = typename HyperbolicPolicy_impl::PolicyScalarData;
-
-  /** 
-   * Extract variables from ScalarData into a GPU compatible structure
-   * Only useful variables should be extracted
-   * Cannot be called inside Kokkos kernels
-   **/
-  static PolicyScalarData getScalarData( const ScalarSimulationData& scalar_data )
-  {
-    return HyperbolicPolicy_impl::getScalarData(scalar_data);
   }
 
   /**

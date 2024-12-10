@@ -232,12 +232,13 @@ public:
     })
   {}
 
+  template < typename ScalarData_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState riemann_solver( PrimState qL, PrimState qR, ComponentIndex3D dir ) const
+  ConsState riemann_solver( PrimState qL, PrimState qR, ComponentIndex3D dir, const ScalarData_t &scalar_data ) const
   {
     qL = swapComponents(qL, dir);
     qR = swapComponents(qR, dir);
-    ConsState flux = riemann_hllc(qL, qR);
+    ConsState flux = riemann_hllc(qL, qR, scalar_data);
     flux = swapComponents(flux, dir);
     return flux;
   }
@@ -278,8 +279,9 @@ private:
     }
   }
 
+  template < typename ScalarData_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState riemann_hllc( PrimState qleft, PrimState qright ) const
+  ConsState riemann_hllc( PrimState qleft, PrimState qright, const ScalarData_t &scalar_data ) const
   {
     real_t gamma0 = rparams.gamma0;
     real_t smallr = rparams.smallr;
