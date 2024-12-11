@@ -11,15 +11,15 @@
 
 namespace dyablo {
 
-class CoolingUpdate{
+class SourceUpdate{
 public: 
-  virtual ~CoolingUpdate(){}
+  virtual ~SourceUpdate(){}
   
   virtual void update( UserData &U,
                        ScalarSimulationData& scalar_data) = 0;
 };
 
-using CoolingUpdateFactory = RegisteringFactory< CoolingUpdate, 
+using SourceUpdateFactory = RegisteringFactory< SourceUpdate, 
   ConfigMap& /*configMap*/,
   ForeachCell& /*foreach_cell*/,
   Timers& /*timers*/ >;

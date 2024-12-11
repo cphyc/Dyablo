@@ -1,4 +1,4 @@
-#include "CoolingUpdate_base.h"
+#include "SourceUpdate_base.h"
 
 namespace dyablo{
 
@@ -15,7 +15,7 @@ namespace {
  * exactly compensated by the cooling so that no total energy is injected
  * in the box.
  */
-class CoolingUpdate_FF : public CoolingUpdate
+class SourceUpdate_Cooling_FF : public SourceUpdate
 {
 private:
   ForeachCell& foreach_cell;
@@ -26,7 +26,7 @@ private:
 
   real_t dmin, dmax;
 public:
-  CoolingUpdate_FF(
+  SourceUpdate_Cooling_FF(
         ConfigMap& configMap,
         ForeachCell& foreach_cell,
         Timers& timers )
@@ -58,7 +58,7 @@ public:
     }
   }
 
-  ~CoolingUpdate_FF() {}
+  ~SourceUpdate_Cooling_FF() {}
 
   template<int ndim>
   void update_aux( UserData &U,
@@ -124,6 +124,6 @@ public:
 
 } // namespace dyablo
 
-FACTORY_REGISTER( dyablo::CoolingUpdateFactory, 
-                  dyablo::CoolingUpdate_FF, 
-                  "CoolingUpdate_FF" );
+FACTORY_REGISTER( dyablo::SourceUpdateFactory, 
+                  dyablo::SourceUpdate_Cooling_FF, 
+                  "SourceUpdate_Cooling_FF" );
