@@ -101,7 +101,6 @@ public:
 
             for( level_t i_level = level-1; i_level >= min_level; i_level-- )
             {
-                key_t logical_coords;
                 logical_coords.level = i_level;
                 logical_coords.i /= 2;
                 logical_coords.j /= 2;
@@ -115,7 +114,7 @@ public:
         });
 
         uint32_t nbIntermediate = 0;
-        Kokkos::parallel_scan("LightOctree_hashmap::intermediate_numbering",oct_map_intermediate.size(), 
+        Kokkos::parallel_scan("LightOctree_hashmap::intermediate_numbering",oct_map_intermediate.capacity(), 
             KOKKOS_LAMBDA(uint32_t i, uint32_t& iOct, bool final)
         {
             if( oct_map_intermediate.valid_at(i) )
@@ -132,7 +131,7 @@ public:
         auto& oct_data_intermediate = storage_intermediate.oct_data;
         using oct_data_field_t = Storage_t::oct_data_field_t;
 
-        Kokkos::parallel_for( "LightOctree_hashmap::intermediate_storage", oct_map_intermediate.size(), 
+        Kokkos::parallel_for( "LightOctree_hashmap::intermediate_storage", oct_map_intermediate.capacity(), 
             KOKKOS_LAMBDA(uint32_t i)
         {
             if( oct_map_intermediate.valid_at(i) )
@@ -143,7 +142,7 @@ public:
                 oct_data_intermediate( iOct, oct_data_field_t::ICORNERX ) = logical_coords.i;
                 oct_data_intermediate( iOct, oct_data_field_t::ICORNERY ) = logical_coords.j;
                 oct_data_intermediate( iOct, oct_data_field_t::ICORNERZ ) = logical_coords.k;
-                oct_data_intermediate(iOct, oct_data_field_t::ILEVEL) = logical_coords.level;
+                oct_data_intermediate( iOct, oct_data_field_t::ILEVEL) = logical_coords.level;
             }
         });
     }
@@ -166,23 +165,23 @@ public:
     
     KOKKOS_INLINE_FUNCTION
     pos_t getCenter(const OctantIndex& iOct)  const
-    {return storage.getCenter(iOct);}
+    {return iOct.isIntermediate? storage_intermediate.getCenter(iOct) : storage.getCenter(iOct);}
    
     KOKKOS_INLINE_FUNCTION
     pos_t getCorner(const OctantIndex& iOct)  const
-    {return storage.getCorner(iOct);}
+    {return iOct.isIntermediate? storage_intermediate.getCorner(iOct) : storage.getCorner(iOct);}
 
     KOKKOS_INLINE_FUNCTION
     pos_t getSize(const OctantIndex& iOct)  const
-    {return storage.getSize(iOct);}
+    {return iOct.isIntermediate? storage_intermediate.getSize(iOct) : storage.getSize(iOct);}
     
     KOKKOS_INLINE_FUNCTION
     uint8_t getLevel(const OctantIndex& iOct)  const
-    {return storage.getLevel(iOct);}
+    {return iOct.isIntermediate? storage_intermediate.getLevel(iOct) : storage.getLevel(iOct);}
     
     KOKKOS_INLINE_FUNCTION
     bool getBound(const OctantIndex& iOct)  const
-    {return storage.getBound(iOct);}
+    {return iOct.isIntermediate? storage_intermediate.getBound(iOct) : storage.getBound(iOct);}
 
     KOKKOS_INLINE_FUNCTION
     uint32_t get_level_min()  const
@@ -393,6 +392,32 @@ KOKKOS_INLINE_FUNCTION
         }
         return res;
     }
+    
+    KOKKOS_INLINE_FUNCTION
+    OctantIndex findChild( const OctantIndex& iOct, const offset_t& offset )  const
+    {
+        DYABLO_ASSERT_KOKKOS_DEBUG( iOct.isIntermediate, "Leaves have no children" );
+
+        auto lc = storage_intermediate.get_logical_coords(iOct);
+        key_t logical_coords;
+        logical_coords.level = storage_intermediate.getLevel(iOct)+1;
+        logical_coords.i = 2*lc[IX] + offset[IX];
+        logical_coords.j = 2*lc[IY] + offset[IY];
+        logical_coords.k = 2*lc[IZ] + offset[IZ];
+
+        auto it_l = oct_map.find(logical_coords);
+        if( oct_map.valid_at(it_l) )
+        {
+            return oct_map.value_at(it_l);
+        }
+        else
+        {
+            auto it_i = oct_map_intermediate.find(logical_coords);
+            DYABLO_ASSERT_KOKKOS_DEBUG( oct_map_intermediate.valid_at(it_i), "Could not find child octant." );
+            return oct_map_intermediate.value_at( it_i );
+        }
+    }
+    
     /// @copydoc LightOctree_base::isBoundary()
     KOKKOS_INLINE_FUNCTION
     bool isBoundary(const OctantIndex& iOct, const offset_t& offset) const {

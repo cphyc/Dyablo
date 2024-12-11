@@ -173,7 +173,7 @@ struct CellIndex
   }
 
   KOKKOS_INLINE_FUNCTION
-  CellIndex getChildren() const;
+  CellIndex getChildren(const CellArray_shape_ghosted& array) const;
 
   KOKKOS_INLINE_FUNCTION
   bool operator==(const CellIndex &c2) const {
@@ -579,10 +579,23 @@ real_t& CellArray_global_ghosted::at_ivar(const CellIndex& iCell, int ivar) cons
 }
 
 KOKKOS_INLINE_FUNCTION
-CellIndex CellIndex::getChildren() const
+CellIndex CellIndex::getChildren(const CellArray_shape_ghosted& array) const
 {
-  #warning "TODO"
-  return CellIndex{{},0,0,0,bx,by,bz};
+  const LightOctree& lmesh = array.lmesh;
+
+  DYABLO_ASSERT_KOKKOS_DEBUG( this->is_valid(), "Index needs to be valid to get children");
+
+  int8_t quadrant_x = (2*i) / bx; // = floor( i / (bx/2.0) )
+  int8_t quadrant_y = (2*j) / by;
+  int8_t quadrant_z = (2*k) / bz;
+
+  LightOctree::OctantIndex iOct_c = lmesh.findChild(this->iOct, {quadrant_x, quadrant_y, quadrant_z});
+
+  uint32_t i_c = (2*i) - bx*quadrant_x;
+  uint32_t j_c = (2*j) - by*quadrant_y;
+  uint32_t k_c = (2*k) - bz*quadrant_z;
+
+  return CellIndex{iOct_c, i_c,j_c,k_c, bx,by,bz, CellIndex::SMALLER};
 }
 
 KOKKOS_INLINE_FUNCTION

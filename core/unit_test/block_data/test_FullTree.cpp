@@ -47,23 +47,18 @@ void test_FullTree()
     //amr_mesh->setPeriodic(4);
     //amr_mesh->setPeriodic(5);
 
-    debug::output_vtk("before_initial", *amr_mesh);
     if( amr_mesh->getRank() == 0 )
       amr_mesh->setMarker(amr_mesh->getNumOctants()-1 ,1);      
     amr_mesh->adapt();
-    debug::output_vtk("after_adapt1", *amr_mesh);
     if( amr_mesh->getRank() == 0 )
       amr_mesh->setMarker(amr_mesh->getNumOctants()-1 ,1);      
     amr_mesh->adapt();
-    debug::output_vtk("after_adapt2", *amr_mesh);
     if( amr_mesh->getRank() == 0 )
       amr_mesh->setMarker(amr_mesh->getNumOctants()-1 ,1);      
     amr_mesh->adapt();
-    debug::output_vtk("after_adapt3", *amr_mesh);
     if( amr_mesh->getRank() == 0 )
       amr_mesh->setMarker(amr_mesh->getNumOctants()-1 ,1);      
     amr_mesh->adapt();
-    debug::output_vtk("after_adapt4", *amr_mesh);
   }
 
   uint32_t bx = 8;
@@ -117,15 +112,30 @@ void test_FullTree()
     {
       if( cells.getLevel(iCell) == level )
       {
-        ForeachCell::CellIndex iCell_c0 = iCell.getChildren();
+        ForeachCell::CellIndex iCell_c0 = iCell.getChildren(Uintermediate.getShape());
+
+        pos_t parent_pos = cells.getCellCenter( iCell );
+        pos_t child_pos =  cells.getCellCenter( iCell_c0 );
 
         pos_t p{};
         int ns = foreach_sibling( ndim, iCell_c0, Uintermediate.getShape(),
           [&]( const ForeachCell::CellIndex& iCell_c )
         {
-          real_t px = Uintermediate.at(iCell_c, Px);
-          real_t py = Uintermediate.at(iCell_c, Py);
-          real_t pz = Uintermediate.at(iCell_c, Pz);
+          real_t px, py, pz;
+
+          if( iCell_c.iOct.isIntermediate )
+          {
+            px = Uintermediate.at(iCell_c, Px);
+            py = Uintermediate.at(iCell_c, Py);
+            pz = Uintermediate.at(iCell_c, Pz);
+          }
+          else
+          {
+            px = Ua.at(iCell_c, Px);
+            py = Ua.at(iCell_c, Py);
+            pz = Ua.at(iCell_c, Pz);
+          }
+
           p[IX] += px;
           p[IY] += py;
           p[IZ] += pz;
@@ -149,7 +159,7 @@ void test_FullTree()
       if( a != b )
       {
         error_count++;
-        printf("%f != %f", a, b);
+        printf("%f != %f\n", a, b);
       }
     };
 
