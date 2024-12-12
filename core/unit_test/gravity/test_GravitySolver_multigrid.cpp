@@ -267,7 +267,8 @@ namespace dyablo {
 
 
     const LightOctree& lmesh = U.getShape().lmesh;
-    const uint32_t numOctants = lmesh.getNumOctants();
+    lmesh.buildFullTree();
+    /* const uint32_t numOctants = lmesh.getNumOctants();
     uint32_t max_level_in_amr = 0;
     Kokkos::parallel_for( "Get max level in AMR", 
       Kokkos::RangePolicy<>(0,numOctants), 
@@ -312,14 +313,12 @@ namespace dyablo {
       {
         const LightOctree_base::OctantIndex iOct = {ioct_local, false};
         uint32_t level = lmesh.getLevel(iOct);
-        //if(level > level_coarse + 1){
-          LightOctree_hashmap::key_t logical_coords = lmesh.getKey(iOct);
-          while (logical_coords.i % 2 == 0 && logical_coords.j % 2 == 0 && logical_coords.k % 2 == 0 && level > min_level_multigrid) {
-            level--;
-            logical_coords = lmesh.getParentKey(logical_coords);
-            Kokkos::atomic_fetch_add( &octs_intermediate_per_level(level-min_level_multigrid), 1 );
-          } 
-        //}  
+        auto logical_coords = lmesh.get_logical_coord(iOct);
+        while (logical_coords[IX] % 2 == 0 && logical_coords[IY] % 2 == 0 && logical_coords[IZ] % 2 == 0 && level > min_level_multigrid) {
+          level--;
+          logical_coords = lmesh.get_parent_logical_coord(logical_coords);
+          Kokkos::atomic_fetch_add( &octs_intermediate_per_level(level-min_level_multigrid), 1 );
+        } 
       }
     );
     for(uint32_t ilevel = min_level_multigrid; ilevel <= max_level_in_amr; ilevel++) printf("Finished Level %d, octs %u intermediate %u\n", ilevel, octs_per_level(ilevel-min_level_multigrid), octs_intermediate_per_level(ilevel-min_level_multigrid));
@@ -327,7 +326,7 @@ namespace dyablo {
 
     uint64_t numIntermediate = 0;
     for (uint32_t ilevel = 0; ilevel < nlevel; ilevel++) numIntermediate += octs_intermediate_per_level(ilevel);
-    printf("numIntermediate %lu\n", numIntermediate);
+    printf("numIntermediate %lu\n", numIntermediate); */
     // Create intermediate hashmap
 
     // Initialize cells from intermediate octs
