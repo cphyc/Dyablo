@@ -130,11 +130,134 @@ public:
     bool getBound(const OctantIndex& iOct)  const
     {return storage.getBound(iOct);}
 
+    KOKKOS_INLINE_FUNCTION
+    uint32_t get_level_min()  const
+    {return this->min_level;}
+
+    KOKKOS_INLINE_FUNCTION
+    uint32_t get_level_max()  const
+    {return this->max_level;}
+
     const Storage_t getStorage() const 
     {
         return storage;
     }
 
+
+    KOKKOS_INLINE_FUNCTION
+    const auto getKey(const OctantIndex& iOct)  const
+    {
+        key_t logical_coords;
+        auto lc = storage.get_logical_coords(iOct);
+        logical_coords.level = getLevel(iOct);
+        logical_coords.i = lc[IX];
+        logical_coords.j = lc[IY];
+        logical_coords.k = lc[IZ];
+        return logical_coords;
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    const OctantIndex getParent(const OctantIndex& iOct)  const
+    {
+        key_t logical_coords_parent;
+        auto lc = storage.get_logical_coords(iOct);
+        logical_coords_parent.level = getLevel(iOct) - 1;
+        logical_coords_parent.i = lc[IX] >> 1;
+        logical_coords_parent.j = lc[IY] >> 1;
+        logical_coords_parent.k = lc[IZ] >> 1;
+        const OctantIndex iOct_parent = getiOctFromCoordinates(logical_coords_parent.i, logical_coords_parent.j, logical_coords_parent.k, logical_coords_parent.level);
+        return iOct_parent;
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    const auto getParentKey(const OctantIndex& iOct)  const
+    {
+        key_t logical_coords_parent;
+        auto lc = storage.get_logical_coords(iOct);
+        logical_coords_parent.level = getLevel(iOct) - 1;
+        logical_coords_parent.i = lc[IX] >> 1;
+        logical_coords_parent.j = lc[IY] >> 1;
+        logical_coords_parent.k = lc[IZ] >> 1;
+        return logical_coords_parent;
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    const auto getParentKey(const auto& logical_coords)  const
+    {
+        key_t logical_coords_parent;
+        logical_coords_parent.level = logical_coords.level - 1;
+        logical_coords_parent.i = logical_coords.i >> 1;
+        logical_coords_parent.j = logical_coords.j >> 1;
+        logical_coords_parent.k = logical_coords.k >> 1;
+        return logical_coords_parent;
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    const OctantIndex getChild(const OctantIndex& iOct, const uint8_t iChild)  const
+    {
+        key_t logical_coords_child;
+        int dz = iChild / (2 * 2);
+        int dy = (iChild - dz * 2 * 2) / 2;
+        int dx = iChild - dz * 2 * 2 - dy * 2; // This is Z-curve order
+        auto lc = storage.get_logical_coords(iOct);
+        logical_coords_child.level = getLevel(iOct) + 1;
+        logical_coords_child.i = (lc[IX] << 1) + dx;
+        logical_coords_child.j = (lc[IY] << 1) + dy;
+        logical_coords_child.k = (lc[IZ] << 1) + dz;
+        const OctantIndex iOct_child = getiOctFromCoordinates(logical_coords_child.i, logical_coords_child.j, logical_coords_child.k, logical_coords_child.level);
+        return iOct_child;
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    const auto getChildKey(const OctantIndex& iOct, const uint8_t iChild)  const
+    {
+        key_t logical_coords_child;
+        int dz = iChild / (2 * 2);
+        int dy = (iChild - dz * 2 * 2) / 2;
+        int dx = iChild - dz * 2 * 2 - dy * 2; // This is Z-curve order
+        auto lc = storage.get_logical_coords(iOct);
+        logical_coords_child.level = getLevel(iOct) + 1;
+        logical_coords_child.i = (lc[IX] << 1) + dx;
+        logical_coords_child.j = (lc[IY] << 1) + dy;
+        logical_coords_child.k = (lc[IZ] << 1) + dz;
+        return logical_coords_child;
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    const auto getChildKey(const auto& logical_coords, const uint8_t iChild)  const
+    {
+        key_t logical_coords_child;
+        int dz = iChild / (2 * 2);
+        int dy = (iChild - dz * 2 * 2) / 2;
+        int dx = iChild - dz * 2 * 2 - dy * 2; // This is Z-curve order
+        logical_coords_child.level = logical_coords.level + 1;
+        logical_coords_child.i = (logical_coords.i << 1) + dx;
+        logical_coords_child.j = (logical_coords.j << 1) + dy;
+        logical_coords_child.k = (logical_coords.k << 1) + dz;
+        return logical_coords_child;
+    }
+
+
+KOKKOS_INLINE_FUNCTION
+    const auto getChildrenKeys(const OctantIndex& iOct)  const
+    {
+        std::vector<key_t> logical_coords_children(8);
+        const uint32_t level = getLevel(iOct);
+        auto lc = storage.get_logical_coords(iOct);
+        uint8_t iChild = 0;
+        for (uint8_t dz = 0; dz < 2; dz++) {
+            for (uint8_t dy = 0; dy < 2; dy++) {
+                for (uint8_t dx = 0; dx < 2; dx++) {
+                    logical_coords_children[iChild].level = level;
+                    logical_coords_children[iChild].i = (lc[IX] << 1) + dx;
+                    logical_coords_children[iChild].j = (lc[IY] << 1) + dy;
+                    logical_coords_children[iChild].k = (lc[IZ] << 1) + dz;
+                    iChild++;
+                }
+            }
+        }
+        return logical_coords_children;
+    }
     
     //! @copydoc LightOctree_base::findNeighbors()
     KOKKOS_INLINE_FUNCTION NeighborList findNeighbors( const OctantIndex& iOct, const offset_t& offset )  const
@@ -354,10 +477,12 @@ public:
 
 private:
     Storage_t storage;
+    Storage_t storage_intermediate;
 
     using oct_ref_t = OctantIndex; //! value type for the hashmap
     using oct_map_t = Kokkos::UnorderedMap<key_t, oct_ref_t>; //! hashmap returning an octant form a key
     oct_map_t oct_map; //! hashmap returning an octant form a key
+    oct_map_t oct_map_intermediate; //! hashmap returning an octant form a key
 
     level_t min_level; //! Coarser level of the octree
     level_t max_level; //! Finer level of the octree

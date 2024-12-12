@@ -72,6 +72,10 @@ dyablo_add_test(utest_morton_utils OFF
   shared/test_morton_utils.cpp
   main.cpp)
 
+  #dyablo_add_test(utest_Restriction ON
+  #amr/test_Restriction.cpp
+  #main.cpp)
+
 dyablo_add_test(utest_AMRmesh ON
   amr/test_AMRmesh.cpp
   main.cpp)
@@ -106,6 +110,10 @@ dyablo_add_test(utest_MapUserData ON
 
 dyablo_add_test(utest_GravitySolver_cg ON
   gravity/test_GravitySolver_cg.cpp
+  main.cpp)
+
+dyablo_add_test(utest_GravitySolver_multigrid ON
+  gravity/test_GravitySolver_multigrid.cpp
   main.cpp)
 
 foreach( test "${utest_GravitySolver_cg_TEST_LIST}" )

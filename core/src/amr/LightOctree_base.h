@@ -20,6 +20,7 @@ public:
     {
         uint32_t iOct; //! PABLO's Octant index
         bool isGhost; //! Is this a MPI ghost octant?
+        bool isIntermediate; //! Is this an intermediate level octant (not a leaf)?
 
         KOKKOS_INLINE_FUNCTION static uint32_t OctantIndex_to_iOctLocal(const OctantIndex& oct, uint32_t numOctants)
         {
@@ -62,6 +63,10 @@ public:
     uint32_t getNumOctants() const;
     /// Get local (MPI) ghost octant count
     uint32_t getNumGhosts() const;
+    /// Get min level
+    uint32_t get_level_min() const;
+    /// Get max level
+    uint32_t get_level_max() const;
     //bool getBound(const OctantIndex& iOct)  const;
     /// Get physical position of Octant center
     pos_t getCenter(const OctantIndex& iOct)  const;
