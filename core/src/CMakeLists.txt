@@ -31,6 +31,7 @@ set( core_src
     ${CMAKE_CURRENT_SOURCE_DIR}/particles/ParticleUpdate_CIC_density.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/parabolic/ParabolicUpdate_explicit.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/source_terms/SourceUpdate_Cooling_FF.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/source_terms/SourceUpdate_GLM.cpp
 )
 
 set( ic_src
