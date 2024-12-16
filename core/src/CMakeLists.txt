@@ -45,6 +45,7 @@ set( ic_src
     ${CMAKE_CURRENT_SOURCE_DIR}/init/mhd/InitialConditions_orszag_tang.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/mhd/InitialConditions_MHD_blast.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/mhd/InitialConditions_MHD_rotor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/init/mhd/InitialConditions_MHD_rayleigh_taylor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_simple_particles.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_particle_grid.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_grafic_fields.cpp

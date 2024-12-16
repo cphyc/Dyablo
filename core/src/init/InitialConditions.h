@@ -27,6 +27,7 @@ class AnalyticalFormula_double_mach;
 template<typename State> class AnalyticalFormula_OrszagTang;
 template<typename State> class AnalyticalFormula_MHD_blast;
 template<typename State> class AnalyticalFormula_MHD_rotor;
+class AnalyticalFormula_MHD_RayleighTaylor;
 
 // Particles
 class InitialConditions_simple_particles;
@@ -68,6 +69,7 @@ bool dyablo::InitialConditionsFactory::init()
   DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_MHD_blast<dyablo::GLMMHDState>> );
   DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_MHD_rotor<dyablo::MHDState>> );
   DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_MHD_rotor<dyablo::GLMMHDState>> );
+  DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_MHD_RayleighTaylor> );
   DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_sod> );
   DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_Zeldovitch_pancake> );
 

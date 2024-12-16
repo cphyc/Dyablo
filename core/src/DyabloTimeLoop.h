@@ -412,12 +412,13 @@ public:
       );
     }
 
-    std::string source_updater_id = configMap.getValue<std::string>("source_terms", "update", "none");
-    if (source_updater_id != "none") {
-      this->source_updater = SourceUpdateFactory::make_instance( source_updater_id,
+    std::vector<std::string> source_updater_ids = configMap.getValue<std::vector<std::string>>("source_terms", "updates", {});
+    for (auto source_updater_id: source_updater_ids) {
+      this->source_updaters.push_back(SourceUpdateFactory::make_instance( source_updater_id,
         configMap,
-        m_foreach_cell,
-        timers);
+        m_foreach_cell, 
+        timers
+      ));
     }
 
     // Sanity check : No sense in doing parabolic update without hydro 
@@ -442,8 +443,9 @@ public:
         std::cout << std::endl << "Viscosity solver : " << viscosity_updater_id << std::endl;
       if (tc_updater_id != "none") 
         std::cout << "Thermal conduction solver : " << tc_updater_id << std::endl;
-      if (source_updater_id != "none")
-        std::cout << "Source Terms : " << source_updater_id << std::endl;
+      std::cout << "Source Terms : ";
+      for(const std::string &id : source_updater_ids )
+        std::cout << "`" << id << "` ";
       std::cout << std::endl;
       std::cout << "##########################" << std::endl;
     }
@@ -732,7 +734,8 @@ public:
         viscosity_updater->update( U, m_scalar_data );
       if ( thermal_conduction_updater )
         thermal_conduction_updater->update( U, m_scalar_data );   
-      if ( source_updater )
+
+      for (auto &source_updater : source_updaters)
         source_updater->update( U, m_scalar_data );
 
       U.move_field( "rho", "rho_next" ); 
@@ -852,7 +855,7 @@ private:
 
   std::unique_ptr<ParabolicUpdate> thermal_conduction_updater;
   std::unique_ptr<ParabolicUpdate> viscosity_updater;
-  std::unique_ptr<SourceUpdate> source_updater;
+  std::vector<std::unique_ptr<SourceUpdate>> source_updaters;
 
   Timers timers;
 };
