@@ -632,14 +632,14 @@ public:
       configMap.getValue<BoundaryConditionType>("mesh","boundary_type_zmax", BC_ABSORBING)
     },
     bcmag_min{
-      configMap.getValue<MagneticBoundaryConditionType>("mesh","magnetic_boundary_type_xmin", BCMAG_ABSORBING),
-      configMap.getValue<MagneticBoundaryConditionType>("mesh","magnetic_boundary_type_ymin", BCMAG_ABSORBING),
-      configMap.getValue<MagneticBoundaryConditionType>("mesh","magnetic_boundary_type_zmin", BCMAG_ABSORBING),
+      configMap.getValue<MagneticBoundaryConditionType>("mesh","magnetic_boundary_type_xmin", BCMAG_SAME_AS_HYDRO),
+      configMap.getValue<MagneticBoundaryConditionType>("mesh","magnetic_boundary_type_ymin", BCMAG_SAME_AS_HYDRO),
+      configMap.getValue<MagneticBoundaryConditionType>("mesh","magnetic_boundary_type_zmin", BCMAG_SAME_AS_HYDRO),
     },
     bcmag_max{
-      configMap.getValue<MagneticBoundaryConditionType>("mesh","magnetic_boundary_type_xmax", BCMAG_ABSORBING),
-      configMap.getValue<MagneticBoundaryConditionType>("mesh","magnetic_boundary_type_ymax", BCMAG_ABSORBING),
-      configMap.getValue<MagneticBoundaryConditionType>("mesh","magnetic_boundary_type_zmax", BCMAG_ABSORBING)
+      configMap.getValue<MagneticBoundaryConditionType>("mesh","magnetic_boundary_type_xmax", BCMAG_SAME_AS_HYDRO),
+      configMap.getValue<MagneticBoundaryConditionType>("mesh","magnetic_boundary_type_ymax", BCMAG_SAME_AS_HYDRO),
+      configMap.getValue<MagneticBoundaryConditionType>("mesh","magnetic_boundary_type_zmax", BCMAG_SAME_AS_HYDRO)
     },
     rparams( 
     {
@@ -709,22 +709,20 @@ public:
       || (offset[IX] < 0 && bc_min[IX] == BC_REFLECTING) )
     {
         res.rho_u = -u_sym.rho_u;
+        res.Bx    = -u_sym.Bx;
     }
     if ( (offset[IY] > 0 && bc_max[IY] == BC_REFLECTING)
       || (offset[IY] < 0 && bc_min[IY] == BC_REFLECTING) )
     {
         res.rho_v = -u_sym.rho_v;
+        res.By    = -u_sym.By;
     }
     if ( (offset[IZ] > 0 && bc_max[IZ] == BC_REFLECTING)
       || (offset[IZ] < 0 && bc_min[IZ] == BC_REFLECTING) )
     {
         res.rho_w = -u_sym.rho_w;
+        res.Bz    = -u_sym.Bz;
     }
-
-    // Setting default mag field values as outflows
-    res.Bx = u_sym.Bx;
-    res.By = u_sym.By;
-    res.Bz = u_sym.Bz;
 
     // Now defining values for boundary conditions
     if ( (offset[IX] > 0 && bcmag_max[IX] == BCMAG_NORMAL_FIELD)
