@@ -1,8 +1,7 @@
 #include "InitialConditions_base.h"
-
 #include "utils/io/FortranBinaryReader.h"
-
 #include "utils/units/Units.h"
+#include "ionization/Ionization_utils.h"
 
 namespace dyablo {
 
@@ -27,7 +26,11 @@ public:
     gamma0(configMap.getValue<real_t>("hydro", "gamma0", 1.4)),
     smallr(configMap.getValue<real_t>("hydro", "smallr", 1e-10)),
     smallc(configMap.getValue<real_t>("hydro", "smallc", 1e-10)),
-    smallp(smallc * smallc / gamma0)
+    smallp(smallc * smallc / gamma0),
+    clight_fraction(configMap.getValue<real_t>("cosmology", "clight_fraction", 0.1)),
+    xe_start(configMap.getValue<real_t>("rad", "xe_start", 1.2e-3)),
+    zre_start(configMap.getValue<real_t>("ionization", "zre_start", -1000.0)),
+    temperature_bb(configMap.getValue<real_t>("ionization", "temp_black_body", 1e5))
   {
     {
       const AMRmesh& pmesh = foreach_cell.get_amr_mesh();
@@ -36,10 +39,8 @@ public:
       this->graficDir = configMap.getValue<std::string>("grafic", "inputDir", std::string("data/IC_")+std::to_string(cell_level));
     }
 
-    /// Read header from grafic file, check if values are the same as .ini (or create new entries)
-    grafic_header header;
-
     // Read header from grafic file
+    grafic_header header;
     std::string grafic_filename = this->graficDir + "/ic_deltab";
     std::ifstream grafic_file(grafic_filename , std::ios::in|std::ios::binary );
     DYABLO_ASSERT_HOST_RELEASE(grafic_file, "Could not open grafic file : `" + grafic_filename + "`");
@@ -47,6 +48,7 @@ public:
 
     printHeader(header, graficDir);
 
+    // Check if values are the same as .ini (or create new entries)
     auto set_or_check = [&]( std::string section, std::string param, auto val )
     {
       using T = decltype(val);
@@ -63,15 +65,15 @@ public:
     };
 
     {
-      // Mean mass for a raw cell
+      // Mean mass for a raw cell used for refinement
       double mass0 = 1.0/(header.nx*header.ny*header.nz);
       std::cout << "COSMO mass0=" << mass0 << std::endl;
 
       real_t mass_coarsen_factor = configMap.getValue<real_t>("cosmology", "mass_coarsen_factor", 0.1);
       real_t mass_refine_factor = configMap.getValue<real_t>("cosmology", "mass_refine_factor", 1.0);
 
-      set_or_check("amr", "mass_coarsen", mass0*mass_coarsen_factor );
-      set_or_check("amr", "mass_refine", mass0*mass_refine_factor );
+      set_or_check("amr", "mass_coarsen", mass0*mass_coarsen_factor);
+      set_or_check("amr", "mass_refine", mass0*mass_refine_factor);
     }
 
     DYABLO_ASSERT_HOST_RELEASE( 0 == header.nx%foreach_cell.blockSize()[IX], "Block size (x) is not compatible with grafic file" );
@@ -98,9 +100,29 @@ public:
 
     this->H0 = header.H0 * (Kilo * meter) / second / (Mega * parsec); // Hubble constant (s-1)
     set_or_check( "cosmology", "H0", H0 );
-
     real_t dx = header.dx * (Mega * parsec); // Cell size (m)
     set_or_check( "cosmology", "dx", dx );
+
+    rhoc = 3. * H0 * H0 / (8. * M_PI * NEWTON_G); // comoving critical density (kg/m3)
+    real_t rstar = header.nx * header.dx * (Mega * parsec); // box size in m 
+    tstar = 2. / H0 / sqrt(omegam); // sec
+    vstar = rstar / tstar; //m/s
+    rhostar = rhoc * omegam;
+    pstar = rhostar * vstar * vstar;
+
+    set_or_check( "cosmology", "vstar", vstar );
+    set_or_check( "cosmology", "rhostar", rhostar );
+    set_or_check( "cosmology", "tstar", tstar );
+    set_or_check( "cosmology", "ctilde", clight_fraction * 3e5 * (Kilo*meter/second) * astart/vstar);
+
+    real_t cosmo_z = 1. / astart - 1.;
+    this->temp = 317.5 * (cosmo_z * cosmo_z) / (151.0 * 151.0);
+
+    // Compute sigma_n, sigma_e and typical energy
+    auto s = computeSigma(this->temperature_bb);
+    set_or_check( "ionization", "sigma_n_c", s.sn * clight_fraction * SPEEDOFLIGHT );
+    set_or_check( "ionization", "sigma_e_c", s.se * clight_fraction * SPEEDOFLIGHT );
+    set_or_check( "ionization", "typical_energy", s.etyp);
   }
 
   void init( UserData& U )
@@ -166,45 +188,42 @@ public:
     };
 
     // Sequentially read density and velocities from grafic file
-    U.new_fields({"rho","e_tot","rho_vx","rho_vy","rho_vz"});
+    U.new_fields({"rho","e_tot","rho_vx","rho_vy","rho_vz", "e_rad", "fx_rad", "fy_rad", "fz_rad", "xe", "zre", "temp"});
     fill_field( "ic_deltab", "rho" );
     fill_field( "ic_velbx", "rho_vx" );
     fill_field( "ic_velby", "rho_vy" );
     fill_field( "ic_velbz", "rho_vz" );
 
-    enum VarIndex_hydro {ID, IE, IU, IV, IW};
+    enum VarIndex_hydro {ID, IE, IU, IV, IW, IDR, IUR, IVR, IWR, IXE, IZR, ITemp};
     UserData::FieldAccessor Uinout = U.getAccessor({
         {"rho", ID},
         {"e_tot", IE},
         {"rho_vx", IU},
         {"rho_vy", IV},
-        {"rho_vz", IW}
+        {"rho_vz", IW},
+        {"e_rad",  IDR},
+        {"fx_rad", IUR},
+        {"fy_rad", IVR},
+        {"fz_rad", IWR},
+        {"xe", IXE},
+	      {"zre", IZR},
+        {"temp", ITemp},
     });
 
     using namespace Units;
 
-    // Parameters?
-    constexpr real_t YHE = 0.24; // Helium Mass fraction
-    constexpr real_t yHE = (YHE/(1.-YHE)/MHE_OVER_MH); // Helium number fraction
-    constexpr real_t KBOLTZ = Units::KBOLTZ;
-    
-    
+    // Parameters
     real_t gamma0 = this->gamma0;
     real_t omegab = this->omegab;
     real_t omegam = this->omegam;
     real_t astart = this->astart;
     real_t smallp = this->smallp;
-    real_t H0 = this->H0;
-
-    real_t rhoc = 3. * H0 * H0 / (8. * M_PI * NEWTON_G); // comoving critical density (kg/m3)
-    real_t rstar = header.nx * header.dx * (Mega * parsec); // box size in m 
-    real_t tstar = 2. / H0 / sqrt(omegam); // sec
-    real_t vstar = rstar / tstar; //m/s
-    real_t rhostar = rhoc * omegam;
-    real_t pstar = rhostar * vstar * vstar;
-
-    real_t cosmo_z = 1. / astart - 1.;
-    real_t temp = 317.5 * (cosmo_z * cosmo_z) / (151.0 * 151.0);
+    real_t rhoc = this->rhoc;
+    real_t pstar = this->pstar;
+    real_t vstar = this->vstar;
+    real_t xe_start = this->xe_start;
+    real_t zre_start = this->zre_start;
+    real_t temp = this->temp;
 
     foreach_cell.foreach_cell( "InitialConditions_grafic_fields::compute_conservative", Uinout.getShape(),
       KOKKOS_LAMBDA( const ForeachCell::CellIndex& iCell )
@@ -228,17 +247,27 @@ public:
       real_t cosmo_rhob = (cosmo_density + 1.0) * omegab * rhoc / (astart * astart * astart);
 
       // Physical pressure
-      real_t cosmo_pressure = (gamma0 - 1.0) * 1.5 * (cosmo_rhob * (1. - YHE) / PROTON_MASS * (1. + yHE)) * KBOLTZ * temp;
+      real_t cosmo_pressure = (gamma0 - 1.0) * 1.5 * (cosmo_rhob * (1. - Units::YHE) / PROTON_MASS * (1. + Units::yHE)) * Units::KBOLTZ * temp;
       real_t p = fmax( cosmo_pressure/pstar * (astart * astart * astart * astart * astart), smallp );
       real_t e_tot = rho*u2/2.0 + p/(gamma0-1.0);
 
+      // Hydro
       Uinout.at( iCell, ID ) = rho;
       Uinout.at( iCell, IE ) = e_tot;
       Uinout.at( iCell, IU ) = rho_u;
       Uinout.at( iCell, IV ) = rho_v;
       Uinout.at( iCell, IW ) = rho_w;
-    });
 
+      // Rad
+      Uinout.at( iCell, IDR ) = 1e-18;
+      Uinout.at( iCell, IUR ) = 0.0;
+      Uinout.at( iCell, IVR ) = 0.0;
+      Uinout.at( iCell, IWR ) = 0.0;
+      Uinout.at( iCell, IXE ) = xe_start;
+      Uinout.at( iCell, IZR ) = zre_start;
+      Uinout.at( iCell, ITemp ) = temp;
+
+    });
 
   }
 
@@ -254,11 +283,13 @@ void printHeader(grafic_header hdr, std::string graficDir){
            << "x0 = " << hdr.xo << std::endl
            << "y0 = " << hdr.yo << std::endl
            << "z0 = " << hdr.zo << std::endl
-           << "dx = " << hdr.dx << std::endl
            << "astart = " << hdr.astart << std::endl
-           << "H0 = " << hdr.H0 << std::endl
            << "om = " << hdr.om << std::endl
            << "ov = " << hdr.ov << std::endl
+           << "H0 = " << hdr.H0 << " [km/s/Mpc]" << std::endl
+           << "dx = " << hdr.dx << " [Mpc]" << std::endl
+           << "box size = " << hdr.nx * hdr.dx << " [Mpc]" << std::endl
+           << "box size = " << hdr.nx * hdr.dx * hdr.H0/100.0 << " [Mpc/h]" << std::endl
       //     << "mass0 = " << mass0 << std::endl
            << "##########################" << std::endl;
 }
@@ -272,10 +303,17 @@ private:
   real_t omegab;
   real_t astart, omegam;
   real_t H0;
+  real_t rhoc, pstar, vstar, rhostar, tstar;
+
 
   // Hydro params
   real_t gamma0;
   real_t smallr,smallc,smallp;
+
+  real_t clight_fraction;
+
+  real_t xe_start, zre_start, temperature_bb, temp;
+
 };
 
 } //namespace dyablo

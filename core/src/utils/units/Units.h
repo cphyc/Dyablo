@@ -28,11 +28,16 @@ constexpr real_t parsec = 3.085677e16 * meter;
 
 // Constants
 constexpr real_t KBOLTZ = 1.3806e-23 * Joule / Kelvin;
+constexpr real_t EV = 1.602176634e-19;
 constexpr real_t PROTON_MASS = 1.67262158e-27 * kilogram;
 constexpr real_t MHE_OVER_MH = 4.002;
 constexpr real_t HELIUM_MASS = MHE_OVER_MH * PROTON_MASS;
 constexpr real_t NEWTON_G = 6.67384e-11 * Newton * (meter*meter) / (kilogram*kilogram);
 constexpr real_t SOLAR_MASS = 1.989e30 * kilogram;
+constexpr real_t SPEEDOFLIGHT = 299792458 * meter / second;
+constexpr real_t H0 = 70.3;
+constexpr real_t YHE = 0.24; // Helium Mass fraction
+constexpr real_t yHE = (YHE/(1.-YHE)/MHE_OVER_MH); // Helium number fraction
 
 }
 
