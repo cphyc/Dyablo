@@ -98,3 +98,19 @@ inline named_enum<DiffusivityMode>::init_list named_enum<DiffusivityMode>::names
     {DiffusivityMode::DM_ANALYTICAL, "analytical"},
   };
 }
+
+enum RadType {
+  BUNNY,
+  REGULAR,
+  STROMGREN
+};
+
+template<>
+inline named_enum<RadType>::init_list named_enum<RadType>::names() 
+{
+  return {
+    {RadType::BUNNY, "bunny"},
+    {RadType::REGULAR, "regular"},
+    {RadType::STROMGREN, "stromgren"}
+  };
+}
