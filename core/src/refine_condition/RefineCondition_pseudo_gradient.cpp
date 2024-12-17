@@ -8,6 +8,7 @@
 namespace dyablo {
 
 
+template< typename FieldPicker >
 class RefineCondition_pseudo_gradient_formula
 {
 public:
@@ -26,7 +27,7 @@ public:
   RefineCondition_pseudo_gradient_formula(const Params& params, const UserData& U, ScalarSimulationData& scalar_data)
    : error_min( params.error_min ),
      error_max( params.error_max ),
-     Uin( U.getAccessor( {{"rho", ID}} ) )
+     Uin( U.getAccessor( {{FieldPicker::getFieldName(), ID}} ) )
   {}
 
   template< int ndim >
@@ -117,14 +118,35 @@ private:
 };
 
 /// Alias for template specialization 
+struct FieldPicker_rho
+{
+  static std::string getFieldName()
+  {
+    return "rho";
+  }
+};
 class RefineCondition_pseudo_gradient 
-  : public RefineCondition_helper<RefineCondition_pseudo_gradient_formula>
+  : public RefineCondition_helper<RefineCondition_pseudo_gradient_formula<FieldPicker_rho>>
 {
 public:
-   using RefineCondition_helper<RefineCondition_pseudo_gradient_formula>::RefineCondition_helper;
+   using RefineCondition_helper::RefineCondition_helper;
 };
 
+struct FieldPicker_xe
+{
+  static std::string getFieldName()
+  {
+    return "xe";
+  }
+};
+class RefineCondition_pseudo_gradient_rad
+  : public RefineCondition_helper<RefineCondition_pseudo_gradient_formula<FieldPicker_xe>>
+{
+public:
+   using RefineCondition_helper::RefineCondition_helper;
+};
 
 } // namespace dyablo 
 
 FACTORY_REGISTER( dyablo::RefineConditionFactory, dyablo::RefineCondition_pseudo_gradient, "RefineCondition_pseudo_gradient" );
+FACTORY_REGISTER( dyablo::RefineConditionFactory, dyablo::RefineCondition_pseudo_gradient_rad, "RefineCondition_pseudo_gradient_rad" );
