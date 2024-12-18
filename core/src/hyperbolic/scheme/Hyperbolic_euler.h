@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 #include "HyperbolicUpdate_base.h"
 #include "mpi/GhostCommunicator_partial_blocks.h"
 #include "foreach_cell/ForeachCell_utils.h"
@@ -16,6 +18,16 @@ using PatchArray = ForeachCell::CellArray_patch;
 
 namespace dyablo {
 
+namespace impl{
+namespace {
+template <typename T, typename = int, typename=int>
+struct HasDensityAndPressure : std::false_type { };
+
+template <typename T>
+struct HasDensityAndPressure <T, decltype((void) T::rho, 0), decltype((void) T::p, 0)> : std::true_type { };
+}
+}
+
 template< typename Policy, typename Array_t >
 void clean_negative_primitive_values(const Policy& policy, const ForeachCell& foreach_cell, const Array_t& U, double smallr, double smallp)
 {
@@ -25,27 +37,31 @@ void clean_negative_primitive_values(const Policy& policy, const ForeachCell& fo
   int negative_p_count=0;
   int negative_rho_count=0;
 
-  foreach_cell.reduce_cell( "clean_negative_values", U.getShape(),
-    KOKKOS_LAMBDA(  const ForeachCell::CellIndex& iCell, 
-                    int& negative_p_count, 
-                    int& negative_rho_count )
+  if constexpr (impl::HasDensityAndPressure<PrimState>::value)
   {
-    ConsState u = policy.getConsState(U, iCell);
-    PrimState q = policy.consToPrim(u);
-    if( q.rho < 0.0 || q.p < 0.0 )
+
+    foreach_cell.reduce_cell( "clean_negative_values", U.getShape(),
+      KOKKOS_LAMBDA(  const ForeachCell::CellIndex& iCell, 
+                      int& negative_p_count, 
+                      int& negative_rho_count )
     {
-      if (q.rho < 0.0) {
-        negative_rho_count++;
-        q.rho = smallr;
-      }
-      if (q.p < 0.0) {
-        negative_p_count++;
-        q.p   = smallp;
-      }
-      ConsState u = policy.primToCons(q);
-      policy.setConsState(U, iCell, u);
-    }    
-  }, negative_p_count, negative_rho_count);
+      ConsState u = policy.getConsState(U, iCell);
+      PrimState q = policy.consToPrim(u);
+      if( q.rho < 0.0 || q.p < 0.0 )
+      {
+        if (q.rho < 0.0) {
+          negative_rho_count++;
+          q.rho = smallr;
+        }
+        if (q.p < 0.0) {
+          negative_p_count++;
+          q.p   = smallp;
+        }
+        ConsState u = policy.primToCons(q);
+        policy.setConsState(U, iCell, u);
+      }    
+    }, negative_p_count, negative_rho_count);
+  }
 
   if( negative_rho_count > 0 )
     printf("WARNING ! Negative density detected (x%d) !!!\n", negative_rho_count);

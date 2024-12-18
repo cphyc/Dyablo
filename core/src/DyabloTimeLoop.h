@@ -421,6 +421,15 @@ public:
       ));
     }
 
+    std::string rad_updater_id = configMap.getValue<std::string>("rad", "update", "none");
+    if (rad_updater_id != "none") {
+      this->rad_updater = HyperbolicUpdateFactory::make_instance( rad_updater_id,
+        configMap,
+        m_foreach_cell,
+        timers);
+    }
+
+
     // Sanity check : No sense in doing parabolic update without hydro 
     DYABLO_ASSERT_HOST_RELEASE(godunov_updater || !viscosity_updater, "Cannot have viscosity without hydro !");
     DYABLO_ASSERT_HOST_RELEASE(godunov_updater || !thermal_conduction_updater, "Cannot have thermal conduction without hydro !");
@@ -678,6 +687,13 @@ public:
       fields_to_exchange.push_back("gphi");
     }
 
+    if( this->rad_updater ){
+      fields_to_exchange.push_back("e_rad");
+      fields_to_exchange.push_back("fx_rad");
+      fields_to_exchange.push_back("fy_rad");
+      fields_to_exchange.push_back("fz_rad");
+    }
+
     timers.get("MPI ghosts").start();
     communicate_ghosts( fields_to_exchange );
     timers.get("MPI ghosts").stop();
@@ -727,6 +743,12 @@ public:
 
       godunov_updater->update( U, m_scalar_data );
 
+      if( rad_updater )
+      {
+        U.new_fields({"e_rad_next", "fx_rad_next", "fy_rad_next", "fz_rad_next"});
+        rad_updater->update( U, m_scalar_data );
+      }
+
       if(gravity_update)
         gravity_update->update( U, m_scalar_data );
 
@@ -750,6 +772,13 @@ public:
         U.move_field( "Bz", "Bz_next" );
         if (this->is_glm)
           U.move_field( "psi", "psi_next" );
+      }
+      if(rad_updater)
+      {
+        U.move_field( "e_rad", "e_rad_next" ); 
+        U.move_field( "fx_rad", "fx_rad_next" ); 
+        U.move_field( "fy_rad", "fy_rad_next" ); 
+        U.move_field( "fz_rad", "fz_rad_next" );
       }
     }
 
@@ -843,6 +872,7 @@ private:
   std::vector<std::unique_ptr<Compute_dt>> compute_dt;
   std::unique_ptr<RefineCondition> refine_condition;
   std::unique_ptr<HyperbolicUpdate> godunov_updater;
+  std::unique_ptr<HyperbolicUpdate> rad_updater;
   bool has_mhd, is_glm; // TODO : remove this
   int ghost_count; // TODO : remove this
   std::unique_ptr<ParticleUpdate> particle_position_updater, particle_update_density;
