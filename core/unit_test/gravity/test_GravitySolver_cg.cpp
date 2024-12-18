@@ -146,7 +146,7 @@ void test_GravitySolver( std::shared_ptr<AMRmesh> amr_mesh )
     "[run]\n"
     "solver_name=Hydro_Muscl_Block_3D \n"
     "[output]\n"
-    "outputPrefix=test_GravitySolver\n"
+    "outputPrefix=test_GravitySolver_cg\n"
     "write_variables=rho,gphi,gx,gy,gz\n"
     "[amr]\n"
     "use_block_data=yes\n"

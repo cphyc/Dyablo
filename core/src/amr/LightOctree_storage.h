@@ -256,7 +256,8 @@ public:
   {
       DYABLO_ASSERT_KOKKOS_DEBUG( n>=level_min, "Cannot ask cell_count with level < level_min" );
       DYABLO_ASSERT_KOKKOS_DEBUG( n < sizeof(logical_coord_t)*8, "Overflow : cell_count too big for logical_coord_t" );
-      return coarse_grid_size[idim] << (n-level_min);
+      //return coarse_grid_size[idim] << (n-level_min);
+      return 1U << n;
   }
 
   //! Kokkos::view containing octants position and level 
