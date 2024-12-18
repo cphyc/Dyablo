@@ -35,6 +35,7 @@ set( core_src
     ${CMAKE_CURRENT_SOURCE_DIR}/source_terms/SourceUpdate_Cooling_FF.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/source_terms/SourceUpdate_GLM.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/source_terms/SourceUpdate_Ionization_Bunny.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/source_terms/SourceUpdate_Ionization_Chem.cpp
 )
 
 set( ic_src
