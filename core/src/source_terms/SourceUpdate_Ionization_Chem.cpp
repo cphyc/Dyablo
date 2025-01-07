@@ -247,7 +247,7 @@ public:
     {
       auto pos = cells.getCellCenter(iCell_Uout);
       auto size = cells.getCellSize(iCell_Uout);
-      DYABLO_ASSERT_KOKKOS_DEBUG( size[IX] == SIZE[IY] && size[IX] == SIZE[IZ], "Only square cells supported" );
+      DYABLO_ASSERT_KOKKOS_DEBUG( size[IX] == size[IY] && size[IX] == size[IZ], "Only square cells supported" );
 
       apply_rad_chem( iCell_Uout, Uout, ndim,
                       pos[IX], pos[IY], pos[IZ],
