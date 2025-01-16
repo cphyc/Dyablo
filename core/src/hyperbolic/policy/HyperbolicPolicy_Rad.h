@@ -139,9 +139,7 @@ public:
 class HyperbolicPolicy_RiemannSolver_Rad_M1
 {
 private:
-  struct Rparams {
-    real_t ctilde;
-  } rparams;
+  real_t ctilde_a0;
 
 public:
   using State = HyperbolicPolicy_State_Rad;
@@ -149,22 +147,28 @@ public:
   using ConsState = State::ConsState;
 
   HyperbolicPolicy_RiemannSolver_Rad_M1( ConfigMap& configMap )
-  : rparams( 
-    {
-
-    })
+  : ctilde_a0(configMap.getValue<real_t>( "cosmology", "ctilde" ) / configMap.getValue<real_t>( "cosmology", "astart" ))
   {}
 
   HyperbolicPolicy_RiemannSolver_Rad_M1()
   {}
 
-  template < typename ScalarData_t >
+  struct PolicyScalarData{
+    real_t aexp;
+  };
+
+  static PolicyScalarData getScalarData( const ScalarSimulationData& scalar_data )
+  {
+    return PolicyScalarData{scalar_data.get<real_t>("aexp")};
+  }
+
   KOKKOS_INLINE_FUNCTION
-  ConsState riemann_solver( PrimState qL, PrimState qR, ComponentIndex3D dir, const ScalarData_t &scalar_data ) const
+  ConsState riemann_solver( PrimState qL, PrimState qR, ComponentIndex3D dir, const PolicyScalarData &scalar_data ) const
   {
     qL = swapComponents(qL, dir);
     qR = swapComponents(qR, dir);
-    ConsState flux = riemann_M1(qL, qR, scalar_data);
+    real_t ctilde = this->ctilde_a0 * scalar_data.aexp;
+    ConsState flux = riemann_M1(qL, qR, ctilde);
     flux = swapComponents(flux, dir);
     return flux;
   }
@@ -196,14 +200,13 @@ private:
   }
   */
 
-  template < typename ScalarData_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState riemann_M1( PrimState qleft, PrimState qright, const ScalarData_t &scalar_data ) const
+  ConsState riemann_M1( PrimState qleft, PrimState qright, real_t ctilde ) const
   {
     // RHD part
 
     // Maximum wave speed
-    real_t cmax = scalar_data.ctilde;
+    real_t cmax = ctilde;
 
     // Conservative variables
     ConsState uleft, uright;
@@ -308,17 +311,6 @@ public:
     HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Rad>(configMap),
     HyperbolicPolicy_BoundaryConditions_PeriodicOnly(configMap)
   {}
-
-  struct PolicyScalarData {
-    real_t ctilde;
-  };
-
-  static PolicyScalarData getScalarData( const ScalarSimulationData& scalar_data )
-  {
-    return {
-      scalar_data.get<real_t>("ctilde")
-    };
-  }
 };
 
 using HyperbolicPolicy_Rad = HyperbolicPolicy_base< HyperbolicPolicy_Rad_impl >;
