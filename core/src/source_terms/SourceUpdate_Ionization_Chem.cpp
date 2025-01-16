@@ -213,9 +213,9 @@ public:
         {"fx_rad_next", Ifx_rad },
         {"fy_rad_next", Ify_rad },
         {"fz_rad_next", Ifz_rad }, 
-        {"xe_next",     Ixe     },
-        {"zr_next",     Izr     }, 
-        {"temp_next",   Itemp   }
+        {"xe",     Ixe     },
+        {"zre",     Izr     }, 
+        {"temp",   Itemp   }
       });
 
     real_t dt = scalar_data.get<real_t>("dt");
