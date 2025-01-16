@@ -15,4 +15,4 @@ public:
 
 FACTORY_REGISTER( dyablo::HyperbolicUpdateFactory, 
                   dyablo::RadUpdate_euler, 
-                  "RadUpdate_euler")
+                  "RadUpdate_euler_M1")

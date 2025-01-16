@@ -17,6 +17,8 @@ class GLMMHDUpdate_euler;
 class GLMMHDUpdate_RK2;
 class GLMMHDUpdate_hancock;
 
+class RadUpdate_euler;
+
 } //namespace dyablo 
 
 
@@ -32,6 +34,7 @@ inline bool dyablo::HyperbolicUpdateFactory::init()
   DECLARE_REGISTERED(dyablo::GLMMHDUpdate_euler);
   DECLARE_REGISTERED(dyablo::GLMMHDUpdate_RK2);
   DECLARE_REGISTERED(dyablo::GLMMHDUpdate_hancock);
+  DECLARE_REGISTERED(dyablo::RadUpdate_euler);
 
   return true;
 }
