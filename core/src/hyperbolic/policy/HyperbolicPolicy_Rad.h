@@ -120,7 +120,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   void setPrimState( const Array_t& Q, const CellIndex& iCell, const PrimState& q ) const
   {
-    return setPrimState( Q, iCell, q );
+    return setConsState( Q, iCell, q );
   }
 
   KOKKOS_INLINE_FUNCTION
