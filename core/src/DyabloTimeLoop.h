@@ -281,6 +281,11 @@ public:
       t0_default = cosmo_manager->expansionToTime( cosmo_manager->a_start );
       m_scalar_data.set("aexp", cosmo_manager->a_start);
     }
+    else
+    {
+      m_scalar_data.set("aexp", 1.0);
+      configMap.getValue<real_t>("cosmology",  "aStart",  1.0);
+    }
 
     this->m_scalar_data.set("iter", m_iter_start);
     {
@@ -448,6 +453,7 @@ public:
       std::cout << "Compute dt         : "; 
         for( const std::string& id : compute_dt_ids )
           std::cout << "`" << id << "` ";
+        std::cout << std::endl;
       if (viscosity_updater_id != "none") 
         std::cout << std::endl << "Viscosity solver : " << viscosity_updater_id << std::endl;
       if (tc_updater_id != "none") 
