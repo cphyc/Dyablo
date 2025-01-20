@@ -114,7 +114,7 @@ public:
     ymax(configMap.getValue<real_t>("mesh", "ymax", 1.0)),
     zmin(configMap.getValue<real_t>("mesh", "zmin", 0.0)),
     zmax(configMap.getValue<real_t>("mesh", "zmax", 1.0)),
-    output_real_t(configMap.getValue<OutputRealType>("output", "output_real_type", OT_FLOAT))
+    output_real_type(configMap.getValue<OutputRealType>("output", "output_real_type", OT_FLOAT))
   {
     {
       std::string write_variables = configMap.getValue<std::string>("output", "write_variables", "rho" );
@@ -161,7 +161,7 @@ public:
 
   void save_snapshot( const UserData& U_, ScalarSimulationData& scalar_data )
   {
-    switch (output_real_t) {
+    switch (output_real_type) {
     case OutputRealType::OT_FLOAT:  save_snapshot_aux<float>(U_, scalar_data); break;
     case OutputRealType::OT_DOUBLE: save_snapshot_aux<double>(U_, scalar_data); break;
   }
@@ -185,7 +185,7 @@ private:
   const real_t ymin, ymax;
   const real_t zmin, zmax;
 
-  OutputRealType output_real_t;
+  OutputRealType output_real_type;
 };
 
 namespace{
