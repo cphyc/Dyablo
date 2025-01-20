@@ -384,11 +384,17 @@ private:
 
 };
 
+} // namespace dyablo
+
+#include "HyperbolicPolicy_Hydro_BoundaryConditions.h"
+
+namespace dyablo {
+
 class HyperbolicPolicy_Hydro_impl
   : public HyperbolicPolicy_State_Hydro,
     public HyperbolicPolicy_RiemannSolver_Hydro_hllc,
     public HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Hydro>,
-    public HyperbolicPolicy_BoundaryConditions_dynamic<HyperbolicPolicy_State_Hydro>
+    public HyperbolicPolicy_BoundaryConditions_Hydro_Default
 {
 private:
   using CellIndex     = ForeachCell::CellIndex;
@@ -402,7 +408,7 @@ public:
   : HyperbolicPolicy_State_Hydro(configMap),
     HyperbolicPolicy_RiemannSolver_Hydro_hllc(configMap),
     HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Hydro>(configMap),
-    HyperbolicPolicy_BoundaryConditions_dynamic<HyperbolicPolicy_State_Hydro>(configMap)
+    HyperbolicPolicy_BoundaryConditions_Hydro_Default(configMap)
   {}
 
   struct PolicyScalarData {
@@ -415,9 +421,6 @@ public:
       scalar_data.get<real_t>("time")
     };
   }
-
-
-
 };
 
 using HyperbolicPolicy_Hydro = HyperbolicPolicy_base< HyperbolicPolicy_Hydro_impl >;
