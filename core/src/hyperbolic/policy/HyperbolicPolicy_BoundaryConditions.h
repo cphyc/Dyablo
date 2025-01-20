@@ -104,10 +104,6 @@ public:
     offset_t  offset;    
     iCell_boundary.getBoundaryPosAndOffset(iCell_ref, offset);
 
-    ConsState u_in = policy.getConsState( U, iCell_ref );
-    PrimState q_in = policy.consToPrim(u_in);
-
-    
     bool dir_IX = offset[IX] == -1 || offset[IX] == 1;
     bool dir_IY = offset[IY] == -1 || offset[IY] == 1;
     bool dir_IZ = offset[IZ] == -1 || offset[IZ] == 1;
@@ -124,41 +120,31 @@ public:
     else
       DYABLO_ASSERT_KOKKOS_DEBUG(false, "Internal error! Should not happen");
 
-    bool reflecting = (offset[dir] > 0 && bc_max[dir] == BC_REFLECTING)
-                  ||  (offset[dir] < 0 && bc_min[dir] == BC_REFLECTING);
-    bool absorbing  = (offset[dir] > 0 && bc_max[dir] == BC_ABSORBING)
-                  ||  (offset[dir] < 0 && bc_min[dir] == BC_ABSORBING);
+    const PrimState& q_in = q_in_reconstructed;
 
-    real_t v_in[3] = {q_in.u, q_in.v, q_in.w};
-    real_t v_normal = v_in[dir];
-
-    ConsState flux_out {};
-    /**
-     * In the reflecting case, the values in the "ghosts" are supposed to be reflecting the
-     * ones inside the domain, hence reconstruction yields u_norm = 0 at the boundary, simplifying
-     * the calculation of the flux to only the pressure gradient term in the flux.
-     */
-    if( reflecting )
+    PrimState q_out = q_in;
     {
-      flux_out.rho_u = ((dir==IX) ? q_in.p : 0);
-      flux_out.rho_v = ((dir==IY) ? q_in.p : 0);
-      flux_out.rho_w = ((dir==IZ) ? q_in.p : 0);
+      if ( (offset[IX] > 0 && bc_max[IX] == BC_REFLECTING)
+        || (offset[IX] < 0 && bc_min[IX] == BC_REFLECTING) )
+      {
+          q_out.u = -q_in.u;
     }
-    /**
-     * In the absorbing case, the values in the ghosts are supposed to be interpolated from the ones 
-     * inside the domain to provide a null gradient through the boundary. Hence we can take the
-     * reconstructed value at the boundary as the riemann-problem solution.
-     */
-    else if( absorbing )
+      if ( (offset[IY] > 0 && bc_max[IY] == BC_REFLECTING)
+        || (offset[IY] < 0 && bc_min[IY] == BC_REFLECTING) )
     {
-      real_t f_rho = q_in.rho*v_normal;
-
-      flux_out.rho = f_rho;
-      flux_out.rho_u = f_rho*q_in.u + ((dir==IX) ? q_in.p : 0);
-      flux_out.rho_v = f_rho*q_in.v + ((dir==IY) ? q_in.p : 0);
-      flux_out.rho_w = f_rho*q_in.w + ((dir==IZ) ? q_in.p : 0);
-      flux_out.e_tot = (q_in.p + u_in.e_tot) * v_normal;
+          q_out.v = -q_in.v;
     }
+      if ( (offset[IZ] > 0 && bc_max[IZ] == BC_REFLECTING)
+        || (offset[IZ] < 0 && bc_min[IZ] == BC_REFLECTING) )
+      {
+          q_out.w = -q_in.w;
+      }
+    }    
+
+    const PrimState& qL = (offset[dir] == 1) ? q_in : q_out;
+    const PrimState& qR = (offset[dir] == 1) ? q_out : q_in;
+
+    ConsState flux_out = policy.riemann_solver(qL, qR, dir, scalar_data);
 
     return flux_out;
   }
