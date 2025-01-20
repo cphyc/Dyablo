@@ -783,6 +783,7 @@ public:
   ConsState getBoundaryFlux_impl( const Policy_t      &policy, 
                                   const Array_t       &U, 
                                   const CellIndex     &iCell_boundary, 
+                                  const PrimState     &q_in_reconstructed,
                                   const CellMetaData  &metadata, 
                                   const ScalarData_t  &scalar_data) const 
   {
@@ -916,14 +917,14 @@ public:
 
   template < typename Array_t, typename Policy_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryFlux( const Policy_t &policy, const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata, const PolicyScalarData &scalar_data) const
+  ConsState getBoundaryFlux( const Policy_t &policy, const Array_t &U, const CellIndex &iCell_boundary, const PrimState &q_in_reconstructed, const CellMetaData &metadata, const typename Policy_t::PolicyScalarData &scalar_data) const
   {
-    return HyperbolicPolicy_BoundaryConditions_GLMMHD::getBoundaryFlux_impl(policy,U,iCell_boundary,metadata,scalar_data);
+    return HyperbolicPolicy_BoundaryConditions_GLMMHD::getBoundaryFlux_impl(policy,U,iCell_boundary,q_in_reconstructed,metadata,scalar_data);
   }
 
   template < typename Array_t, typename Policy_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryValue( const Policy_t &policy, const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata, const PolicyScalarData &scalar_data ) const 
+  ConsState getBoundaryValue( const Policy_t &policy, const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata, const typename Policy_t::PolicyScalarData &scalar_data ) const 
   {
     return HyperbolicPolicy_BoundaryConditions_GLMMHD::getBoundaryValue_impl(policy,U,iCell_boundary,metadata,scalar_data);
   }

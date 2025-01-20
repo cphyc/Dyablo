@@ -295,12 +295,14 @@ public:
           // Compute left side flux
           ConsState fluxL {};
           {
+            PrimState qC = qC_half - 0.5 * slope_C;
+
             offset_t off_m{}; 
             off_m[dir] = -1;
             const CellIndex iCell_m_U = iCell_U.getNeighbor_ghost(off_m, Uin.getShape());
             if( iCell_m_U.is_boundary() )
             {
-              fluxL = policy.getBoundaryFlux(Uin, iCell_m_U, cellmetadata, policy_scalar_data);
+              fluxL = policy.getBoundaryFlux(Uin, iCell_m_U, qC, cellmetadata, policy_scalar_data);
             }
             else
             {  
@@ -316,7 +318,6 @@ public:
 
                 // Reconstructing
                 PrimState qL = qL_half + 0.5 * slope_L;
-                PrimState qC = qC_half - 0.5 * slope_C;
 
                 // Solving
                 fluxL = policy.riemann_solver(qL, qC, dir, policy_scalar_data);
@@ -333,13 +334,15 @@ public:
 
           // Compute right side flux
           ConsState fluxR {};
-          {      
+          {     
+            PrimState qC = qC_half + 0.5 * slope_C;
+
             offset_t off_p{}; 
             off_p[dir] = 1;
             const CellIndex iCell_p_U = iCell_U.getNeighbor_ghost(off_p, Uin.getShape());
             if( iCell_p_U.is_boundary() )
             {
-              fluxR = policy.getBoundaryFlux(Uin, iCell_p_U, cellmetadata, policy_scalar_data);
+              fluxR = policy.getBoundaryFlux(Uin, iCell_p_U, qC, cellmetadata, policy_scalar_data);
             }
             else
             {
@@ -353,7 +356,6 @@ public:
                 PrimState qR_half = policy.getPrimState( HalfStep, iCell_p_tmp );
 
                 // Reconstructing
-                PrimState qC = qC_half + 0.5 * slope_C;
                 PrimState qR = qR_half - 0.5 * slope_R;
 
                 // Solving

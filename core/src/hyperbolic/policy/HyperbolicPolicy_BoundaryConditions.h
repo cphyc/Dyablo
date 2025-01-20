@@ -96,6 +96,7 @@ public:
   ConsState getBoundaryFlux_impl( const Policy_t      &policy, 
                                   const Array_t       &U, 
                                   const CellIndex     &iCell_boundary, 
+                                  const PrimState     &q_in_reconstructed,
                                   const CellMetaData  &metadata, 
                                   const ScalarData_t  &scalar_data) const 
   {
@@ -205,6 +206,7 @@ public:
   ConsState getBoundaryFlux( const Policy_t      &policy, 
                                   const Array_t       &U, 
                                   const CellIndex     &iCell_boundary, 
+                                  const PrimState     &q_in_reconstructed,
                                   const CellMetaData  &metadata, 
                                   const ScalarData_t  &scalar_data) const 
   {
@@ -257,6 +259,7 @@ public:
   ConsState getBoundaryFlux_impl( const Policy_t      &policy, 
                                   const Array_t       &U, 
                                   const CellIndex     &iCell_boundary, 
+                                  const PrimState     &q_in_reconstructed,
                                   const CellMetaData  &metadata, 
                                   const ScalarData_t  &scalar_data) const 
 {
@@ -382,6 +385,7 @@ class HyperbolicPolicy_BoundaryConditions_dynamic_impl
   using CellMetaData  = ForeachCell::CellMetaData;
 public:
   using ConsState = typename LegacyState_t::ConsState;
+  using PrimState = typename LegacyState_t::PrimState;
 
   HyperbolicPolicy_BoundaryConditions_dynamic_impl( ConfigMap& configMap )
   : boundary_conditions(Ts(configMap)...)
@@ -394,9 +398,9 @@ public:
 public:
   template < typename Array_t, typename Policy_t, typename ScalarData_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryFlux( const Policy_t& policy, const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata, const ScalarData_t &scalar_data ) const
+  ConsState getBoundaryFlux( const Policy_t& policy, const Array_t &U, const CellIndex &iCell_boundary, const PrimState &q_in_reconstructed, const CellMetaData &metadata, const ScalarData_t &scalar_data ) const
   {
-    return tuple_apply_nth( selected_bc, [&](const auto& s){return s.getBoundaryFlux_impl(policy,U,iCell_boundary,metadata,scalar_data);},boundary_conditions );
+    return tuple_apply_nth( selected_bc, [&](const auto& s){return s.getBoundaryFlux_impl(policy,U,iCell_boundary,q_in_reconstructed,metadata,scalar_data);},boundary_conditions );
   }
   
   template < typename Array_t, typename Policy_t, typename ScalarData_t >

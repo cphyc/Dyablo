@@ -232,15 +232,16 @@ public:
    * @param U array containing conservative variables
    * @param iCell_boundary cell index outside of the domain (iCell_boundary.is_boundary() must be true), 
    *          the cell must have an interface with a cell inside the domain
+   * @param q_in_reconstructed reconstructed state inside domain at boundary interface
    * @param metadata CellMetaData object allowing for mesh queries on size/position
    * @param policy_scalar_data PolicyScalarData object for the passage of scalar information  
    * @return The flux at the boundary interface 
    */
   template < typename Array_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryFlux( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata, const PolicyScalarData& policy_scalar_data) const
+  ConsState getBoundaryFlux( const Array_t &U, const CellIndex &iCell_boundary, const PrimState &q_in_reconstructed, const CellMetaData &metadata, const PolicyScalarData& policy_scalar_data) const
   {
-    return impl.getBoundaryFlux(*this, U, iCell_boundary, metadata, policy_scalar_data);
+    return impl.getBoundaryFlux(*this, U, iCell_boundary, q_in_reconstructed, metadata, policy_scalar_data);
   }
 };
 
