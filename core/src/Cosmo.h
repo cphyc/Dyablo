@@ -82,7 +82,7 @@ private:
     {
       return 1.0 / sqrt(std::pow(aexp, 4) * (1.0-omega_m-omega_v) 
                     + std::pow(aexp, 3) * omega_m 
-                    + std::pow(aexp, 5) * omega_v);
+                    + std::pow(aexp, 6) * omega_v);
     };
     return Impl::romberg( faexp_tilde, a, b, max_iterations, tol );
   }
