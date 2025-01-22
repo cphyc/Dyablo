@@ -46,8 +46,9 @@ public:
   using PrimState = HyperbolicPolicy_RadState;
   using ConsState = HyperbolicPolicy_RadState;
 
-  HyperbolicPolicy_State_Rad( ConfigMap& configMap )
-  : ndim(configMap.getValue<int>("mesh", "ndim", 3))
+  template< typename Params_t >
+  HyperbolicPolicy_State_Rad( const Params_t& params )
+  : ndim(params.ndim)
   {}
 
   using ConsVarIndex = ConsState::VarIndex;
@@ -140,30 +141,24 @@ class HyperbolicPolicy_RiemannSolver_Rad_M1
 {
 private:
   real_t ctilde_a0;
+  struct ScalarData_t 
+  {
+    real_t aexp;
+  } scalar_data;
 
 public:
   using State = HyperbolicPolicy_State_Rad;
   using PrimState = State::PrimState;
   using ConsState = State::ConsState;
 
-  HyperbolicPolicy_RiemannSolver_Rad_M1( ConfigMap& configMap )
-  : ctilde_a0(configMap.getValue<real_t>( "cosmology", "ctilde" ) / configMap.getValue<real_t>( "cosmology", "astart" ))
+  template< typename Params_t >
+  HyperbolicPolicy_RiemannSolver_Rad_M1( const Params_t& params, const ScalarSimulationData& scalar_data_dict )
+  : ctilde_a0(params.ctilde_a0),
+    scalar_data( {.aexp = scalar_data_dict.get<real_t>("aexp")} )
   {}
-
-  HyperbolicPolicy_RiemannSolver_Rad_M1()
-  {}
-
-  struct PolicyScalarData{
-    real_t aexp;
-  };
-
-  static PolicyScalarData getScalarData( const ScalarSimulationData& scalar_data )
-  {
-    return PolicyScalarData{scalar_data.get<real_t>("aexp")};
-  }
 
   KOKKOS_INLINE_FUNCTION
-  ConsState riemann_solver( PrimState qL, PrimState qR, ComponentIndex3D dir, const PolicyScalarData &scalar_data ) const
+  ConsState riemann_solver( PrimState qL, PrimState qR, ComponentIndex3D dir ) const
   {
     qL = swapComponents(qL, dir);
     qR = swapComponents(qR, dir);
@@ -305,11 +300,28 @@ public:
   using PrimState = State::PrimState;
   using ConsState = State::ConsState;
 
-  HyperbolicPolicy_Rad_impl( ConfigMap& configMap )
-  : HyperbolicPolicy_State_Rad(configMap),
-    HyperbolicPolicy_RiemannSolver_Rad_M1(configMap),
-    HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Rad>(configMap),
-    HyperbolicPolicy_BoundaryConditions_PeriodicOnly(configMap)
+  struct Params{
+    int ndim;
+    real_t ctilde_a0;
+    HyperbolicPolicy_BoundaryConditions_PeriodicOnly<HyperbolicPolicy_State_Rad>::Params bc_params; 
+    HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Rad>::Params slope_params; 
+  };
+
+  static Params getParams( ConfigMap& configMap )
+  {
+    return {
+      .ndim = configMap.getValue<int>("mesh", "ndim", 3),
+      .ctilde_a0 = configMap.getValue<real_t>( "cosmology", "ctilde" ) / configMap.getValue<real_t>( "cosmology", "astart" ),
+      .bc_params = HyperbolicPolicy_BoundaryConditions_PeriodicOnly<HyperbolicPolicy_State_Rad>::getParams(configMap),
+      .slope_params = HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Rad>::getParams(configMap)
+    };
+  }
+
+  HyperbolicPolicy_Rad_impl( const Params& params, const ScalarSimulationData& scalar_data )
+  : HyperbolicPolicy_State_Rad(params),
+    HyperbolicPolicy_RiemannSolver_Rad_M1(params, scalar_data),
+    HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Rad>(params.slope_params),
+    HyperbolicPolicy_BoundaryConditions_PeriodicOnly(params.bc_params, scalar_data)
   {}
 };
 

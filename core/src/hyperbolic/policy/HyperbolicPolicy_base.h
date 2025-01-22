@@ -25,28 +25,18 @@ public:
   using ConsState = typename HyperbolicPolicy_impl::ConsState;
   using CellIndex = ForeachCell::CellIndex;
   using CellMetaData = ForeachCell::CellMetaData;
-  using FieldAccessor = UserData::FieldAccessor;  
+  using FieldAccessor = UserData::FieldAccessor;
 
-  /// HyperbolicPolicy needs to be constructible from a ConfigMap
-  HyperbolicPolicy_base( ConfigMap& configMap )
-  : impl(configMap)
-  {}
-
-  /**
-   * Structure to contain variables extracted from ScalarData that are used in the policy
-   * This structure is specific to the policy because every policy may need different scalar_data variables
-   **/
-  using PolicyScalarData = typename HyperbolicPolicy_impl::PolicyScalarData;
-
-  /** 
-   * Extract variables from ScalarData into a GPU compatible structure
-   * Only useful variables should be extracted
-   * Cannot be called inside Kokkos kernels
-   **/
-  static PolicyScalarData getScalarData( const ScalarSimulationData& scalar_data )
+  using Params = typename HyperbolicPolicy_impl::Params;
+  static Params getParams( ConfigMap& configMap )
   {
-    return HyperbolicPolicy_impl::getScalarData(scalar_data);
+    return HyperbolicPolicy_impl::getParams(configMap);
   }
+
+    /// HyperbolicPolicy needs to be constructible from a ConfigMap
+  HyperbolicPolicy_base( const Params& params, const ScalarSimulationData& scalar_data )
+  : impl(params, scalar_data)
+  {}
 
   /**
    * Extract a FieldAccessor from U for input fields 
@@ -186,9 +176,9 @@ public:
    * @return output flux
    */
   KOKKOS_INLINE_FUNCTION
-  ConsState riemann_solver( PrimState qL, PrimState qR, ComponentIndex3D dir, const PolicyScalarData& policy_scalar_data ) const
+  ConsState riemann_solver( PrimState qL, PrimState qR, ComponentIndex3D dir) const
   {
-    return impl.riemann_solver(qL, qR, dir, policy_scalar_data);
+    return impl.riemann_solver(qL, qR, dir);
   }
 
   
@@ -215,9 +205,9 @@ public:
    */
   template < typename Array_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryValue( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata, const PolicyScalarData& policy_scalar_data) const 
+  ConsState getBoundaryValue( const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const 
   {
-    return impl.getBoundaryValue(*this, U, iCell_boundary, metadata, policy_scalar_data);
+    return impl.getBoundaryValue(*this, U, iCell_boundary, metadata);
   }
   
   /**
@@ -239,9 +229,9 @@ public:
    */
   template < typename Array_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryFlux( const Array_t &U, const CellIndex &iCell_boundary, const PrimState &q_in_reconstructed, const CellMetaData &metadata, const PolicyScalarData& policy_scalar_data) const
+  ConsState getBoundaryFlux( const Array_t &U, const CellIndex &iCell_boundary, const PrimState &q_in_reconstructed, const CellMetaData &metadata) const
   {
-    return impl.getBoundaryFlux(*this, U, iCell_boundary, q_in_reconstructed, metadata, policy_scalar_data);
+    return impl.getBoundaryFlux(*this, U, iCell_boundary, q_in_reconstructed, metadata);
   }
 };
 

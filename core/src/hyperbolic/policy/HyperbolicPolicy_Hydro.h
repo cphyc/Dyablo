@@ -84,9 +84,10 @@ public:
   using PrimState = HyperbolicPolicy_PrimHydroState;
   using ConsState = HyperbolicPolicy_ConsHydroState;
 
-  HyperbolicPolicy_State_Hydro( ConfigMap& configMap )
-  : ndim(configMap.getValue<int>("mesh", "ndim", 3)),
-    gamma0(configMap.getValue<real_t>("hydro","gamma0", 1.4))
+  template< typename Params_t >
+  HyperbolicPolicy_State_Hydro( const Params_t& params )
+  : ndim(params.ndim),
+    gamma0(params.gamma0)
   {}
 
   using ConsVarIndex = HyperbolicPolicy_ConsHydroState::VarIndex;
@@ -222,23 +223,23 @@ public:
   using PrimState = State::PrimState;
   using ConsState = State::ConsState;
 
-  HyperbolicPolicy_RiemannSolver_Hydro_hllc( ConfigMap& configMap )
+  template< typename Params_t >
+  HyperbolicPolicy_RiemannSolver_Hydro_hllc( const Params_t& params )
   : rparams( 
     {
-      .gamma0 = configMap.getValue<real_t>("hydro", "gamma0", 1.4),
-      .smallr = configMap.getValue<real_t>("hydro", "smallr", 1e-10),
-      .smallp = configMap.getValue<real_t>("hydro", "smallp", 1e-10),
-      .smallc = configMap.getValue<real_t>("hydro", "smallc", 1e-10) 
+      .gamma0 = params.gamma0,
+      .smallr = params.smallr,
+      .smallp = params.smallp,
+      .smallc = params.smallc,
     })
   {}
 
-  template < typename ScalarData_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState riemann_solver( PrimState qL, PrimState qR, ComponentIndex3D dir, const ScalarData_t &scalar_data ) const
+  ConsState riemann_solver( PrimState qL, PrimState qR, ComponentIndex3D dir ) const
   {
     qL = swapComponents(qL, dir);
     qR = swapComponents(qR, dir);
-    ConsState flux = riemann_hllc(qL, qR, scalar_data);
+    ConsState flux = riemann_hllc(qL, qR);
     flux = swapComponents(flux, dir);
     return flux;
   }
@@ -279,9 +280,8 @@ private:
     }
   }
 
-  template < typename ScalarData_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState riemann_hllc( PrimState qleft, PrimState qright, const ScalarData_t &scalar_data ) const
+  ConsState riemann_hllc( PrimState qleft, PrimState qright) const
   {
     real_t gamma0 = rparams.gamma0;
     real_t smallr = rparams.smallr;
@@ -404,23 +404,36 @@ public:
   using PrimState = State::PrimState;
   using ConsState = State::ConsState;
 
-  HyperbolicPolicy_Hydro_impl( ConfigMap& configMap )
-  : HyperbolicPolicy_State_Hydro(configMap),
-    HyperbolicPolicy_RiemannSolver_Hydro_hllc(configMap),
-    HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Hydro>(configMap),
-    HyperbolicPolicy_BoundaryConditions_Hydro_Default(configMap)
-  {}
-
-  struct PolicyScalarData {
-    real_t sim_time;
+  struct Params
+  {
+    int ndim;
+    real_t gamma0;
+    real_t smallr;
+    real_t smallp;
+    real_t smallc;
+    HyperbolicPolicy_BoundaryConditions_Hydro_Default::Params bc_params;
+    HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Hydro>::Params slope_params;
   };
 
-  static PolicyScalarData getScalarData( const ScalarSimulationData& scalar_data )
+  static Params getParams( ConfigMap& configMap )
   {
-    return {
-      scalar_data.get<real_t>("time")
+    return Params{
+      .ndim   = configMap.getValue<int>("mesh", "ndim", 3),
+      .gamma0 = configMap.getValue<real_t>("hydro", "gamma0", 1.4),
+      .smallr = configMap.getValue<real_t>("hydro", "smallr", 1e-10),
+      .smallp = configMap.getValue<real_t>("hydro", "smallp", 1e-10),
+      .smallc = configMap.getValue<real_t>("hydro", "smallc", 1e-10),
+      .bc_params = HyperbolicPolicy_BoundaryConditions_Hydro_Default::getParams(configMap),
+      .slope_params = HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Hydro>::getParams(configMap)
     };
   }
+
+  HyperbolicPolicy_Hydro_impl( const Params& params, const ScalarSimulationData& scalar_data )
+  : HyperbolicPolicy_State_Hydro(params),
+    HyperbolicPolicy_RiemannSolver_Hydro_hllc(params),
+    HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Hydro>(params.slope_params),
+    HyperbolicPolicy_BoundaryConditions_Hydro_Default(params.bc_params, scalar_data)
+  {}
 };
 
 using HyperbolicPolicy_Hydro = HyperbolicPolicy_base< HyperbolicPolicy_Hydro_impl >;

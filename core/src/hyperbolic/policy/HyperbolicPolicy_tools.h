@@ -11,21 +11,21 @@ bool tuple_foreach_until( F f, const Tuple_t& t, std::index_sequence<Is...>)
 }
 
 /// Find the index n of the tuple element where std::get<n>(t).name() == name
-template< typename... Ts >
-size_t tuple_find_name( std::string name, const std::tuple<Ts...>& t)
+template< typename T0, typename... Ts >
+size_t tuple_find_name(std::string name, int N=0)
 {
-  size_t res;
-  auto find_name = [&](size_t i, const auto& ti)
+  if( T0::name() == name )
+    return N;
+  else
   {
-    if( ti.name() == name ) 
-      res = i;
-    return ti.name() == name;
-  };
-
-  bool found = tuple_foreach_until( find_name, t, std::index_sequence_for<Ts...>{} );
-  DYABLO_ASSERT_HOST_RELEASE( found, "Could not find tuple element '" << name << "'" );
-
-  return res;
+    if constexpr( sizeof...(Ts) == 0 )
+    {
+      DYABLO_ASSERT_HOST_RELEASE( false, "Could not find tuple element '" << name << "'" );
+      return -1;
+    }
+    else
+      return tuple_find_name<Ts...>(name, N+1);
+  }
 }
 
 /***

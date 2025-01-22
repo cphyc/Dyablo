@@ -91,7 +91,7 @@ public:
           Timers& timers) 
   : foreach_cell(foreach_cell),
     timers(timers),
-    policy(configMap),
+    policy_params(Policy::getParams(configMap)),
     ndim(configMap.getValue<int>("mesh", "ndim", 3)),
     smallr( configMap.getValue<real_t>("hydro","smallr", 1e-10) ),
     smallp( configMap.getValue<real_t>("hydro","smallp", 1e-10) ),
@@ -110,7 +110,7 @@ public:
     int ndim = this->ndim;
     bool slope_enabled = this->slope_enabled;
 
-    const Policy& policy = this->policy; 
+    const Policy policy( this->policy_params, scalar_data ); 
     Timers& timers = this->timers; 
     ForeachCell& foreach_cell = this->foreach_cell;
 
@@ -120,7 +120,6 @@ public:
     timers.get("HyperbolicUpdate_euler").start();
 
     ForeachCell::CellMetaData cellmetadata = foreach_cell.getCellMetaData();
-    auto policy_scalar_data = policy.getScalarData( scalar_data );
 
     // Initializing output array 
     // TODO : remove this and copy Uin->Uout in timeloop or field creation logic
@@ -157,7 +156,7 @@ public:
         int level_diff = iCell_Uin.level_diff();
         ConsState u = {};
         if (iCell_Uin.is_boundary())
-          u = policy.getBoundaryValue(Uin, iCell_Uin, cellmetadata, policy_scalar_data);
+          u = policy.getBoundaryValue(Uin, iCell_Uin, cellmetadata);
         else if (level_diff < 0) {
           int subcell_count = 
           foreach_sibling(ndim, iCell_Uin, Uin.getShape(),
@@ -224,7 +223,7 @@ public:
             const CellIndex iCell_Uin_m = iCell_Uin.getNeighbor_ghost(off_m, Uin.getShape());
             if( iCell_Uin_m.is_boundary() )
             {
-              fluxL = policy.getBoundaryFlux(Uin, iCell_Uin_m, qC, cellmetadata, policy_scalar_data);
+              fluxL = policy.getBoundaryFlux(Uin, iCell_Uin_m, qC, cellmetadata);
             }
             else
             {  
@@ -240,7 +239,7 @@ public:
                 PrimState qL = qL0 + 0.5 * slope_L;
 
                 // Solving
-                fluxL = policy.riemann_solver(qL, qC, dir, policy_scalar_data);
+                fluxL = policy.riemann_solver(qL, qC, dir);
                 
                 // Adding flux to the neighbor if it is bigger
                 if (Ldiff == 1) 
@@ -262,7 +261,7 @@ public:
             const CellIndex iCell_Uin_p = iCell_Uin.getNeighbor_ghost(off_p, Uin.getShape());
             if( iCell_Uin_p.is_boundary() )
             {
-              fluxR = policy.getBoundaryFlux(Uin, iCell_Uin_p, qC, cellmetadata, policy_scalar_data);
+              fluxR = policy.getBoundaryFlux(Uin, iCell_Uin_p, qC, cellmetadata);
             }
             else
             {
@@ -278,7 +277,7 @@ public:
                 PrimState qR = qR0 - 0.5 * slope_R;
 
                 // Solving
-                fluxR = policy.riemann_solver(qC, qR, dir, policy_scalar_data);
+                fluxR = policy.riemann_solver(qC, qR, dir);
 
                 // Adding flux to the neighbor if it is bigger
                 if (Rdiff == 1)
@@ -324,7 +323,7 @@ private:
   ForeachCell& foreach_cell;
   
   Timers& timers;  
-  Policy policy;
+  typename Policy::Params policy_params;
 
   int ndim;
   real_t smallr, smallp;

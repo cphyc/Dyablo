@@ -11,7 +11,7 @@ public:
   using PrimState = typename LegacyState_t::PrimState;
   using ConsState = typename LegacyState_t::ConsState;
 
-  HyperbolicPolicy_Slope_minmod( ConfigMap& configMap )
+  HyperbolicPolicy_Slope_minmod()
   {}
 
   static std::string name() {return "minmod";}
@@ -42,7 +42,7 @@ public:
   using PrimState = typename State_t::PrimState;
   using ConsState = typename State_t::ConsState;
 
-  HyperbolicPolicy_Slope_superbee( ConfigMap& configMap )
+  HyperbolicPolicy_Slope_superbee()
   {}
 
   static std::string name() {return "superbee";}
@@ -88,12 +88,24 @@ class HyperbolicPolicy_Slope_dynamic_impl
 public:
   using PrimState = typename LegacyState_t::PrimState;
 
-  HyperbolicPolicy_Slope_dynamic_impl( ConfigMap& configMap )
-  : slopes(Ts(configMap)...)
+  struct Params{
+    size_t selected_slope;
+    // TODO add params to Ts...
+  };
+
+  static Params getParams(ConfigMap& configMap)
   {
     std::string slope_limiter = configMap.getValue<std::string>("hydro", "slope_limiter", "minmod");
+    size_t selected_slope = tuple_find_name<Ts...>(slope_limiter);
+    return {
+      .selected_slope = selected_slope
+    };
+  }
 
-    this->selected_slope = tuple_find_name( slope_limiter, slopes );
+  HyperbolicPolicy_Slope_dynamic_impl(const Params& params)
+  : slopes(Ts()...) // TODO add params to Ts...
+  {
+    this->selected_slope = params.selected_slope;
   }
 
 public:

@@ -17,7 +17,9 @@ public:
   using PrimState = typename HyperbolicPolicy_State::PrimState;
   using ConsState = typename HyperbolicPolicy_State::ConsState;
 
-  HyperbolicPolicy_BoundaryConditions_PeriodicOnly( ConfigMap& configMap )
+  struct Params{};
+
+  static Params getParams( ConfigMap& configMap )
   {
     DYABLO_ASSERT_HOST_RELEASE( 
        configMap.getValue<BoundaryConditionType>("mesh","boundary_type_xmin", BC_PERIODIC) == BC_PERIODIC 
@@ -27,29 +29,33 @@ public:
     && configMap.getValue<BoundaryConditionType>("mesh","boundary_type_ymax", BC_PERIODIC) == BC_PERIODIC 
     && configMap.getValue<BoundaryConditionType>("mesh","boundary_type_zmax", BC_PERIODIC) == BC_PERIODIC ,
     "Boundary conditions are 'periodic only' but other boundary conditions are set in .ini" );
+    return {};
   }
 
-  template < typename Array_t, typename Policy_t, typename ScalarData_t >
+  HyperbolicPolicy_BoundaryConditions_PeriodicOnly( const Params& params, const ScalarSimulationData& scalar_data )
+  {}
+
+  template < typename Array_t, typename Policy_t>
   KOKKOS_INLINE_FUNCTION
   ConsState getBoundaryValue( const Policy_t      &policy, 
                                    const Array_t       &U, 
                                    const CellIndex     &iCell_boundary, 
-                                   const CellMetaData  &metadata, 
-                                   const ScalarData_t  &scalar_data) const 
+                                   const CellMetaData  &metadata) const 
   {
     DYABLO_ASSERT_KOKKOS_DEBUG( false, "BoundaryConditions_PeriodicOnly::getBoundaryValue_impl should not be called" );
+    return {};
   }
 
-  template < typename Array_t, typename Policy_t, typename ScalarData_t >
+  template < typename Array_t, typename Policy_t>
   KOKKOS_INLINE_FUNCTION
   ConsState getBoundaryFlux( const Policy_t      &policy, 
                                   const Array_t       &U, 
                                   const CellIndex     &iCell_boundary, 
                                   const PrimState     &q_in_reconstructed,
-                                  const CellMetaData  &metadata, 
-                                  const ScalarData_t  &scalar_data) const 
+                                  const CellMetaData  &metadata) const 
   {
     DYABLO_ASSERT_KOKKOS_DEBUG( false, "BoundaryConditions_PeriodicOnly::getBoundaryFlux_impl should not be called" );
+    return {};
   }
 };
 
