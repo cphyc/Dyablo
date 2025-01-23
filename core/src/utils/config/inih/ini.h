@@ -14,6 +14,11 @@ https://github.com/benhoyt/inih
 #ifndef INI_H
 #define INI_H
 
+// Dyablo Specific configuration
+#define INI_MAX_LINE 999999
+#define INI_USE_STACK 0
+#define INI_ALLOW_REALLOC 1
+
 /* Make this header file easier to include in C++ code */
 #ifdef __cplusplus
 extern "C" {
