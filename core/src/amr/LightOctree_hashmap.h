@@ -87,8 +87,7 @@ public:
         const oct_map_t& oct_map_intermediate = this->oct_map_intermediate;
         uint32_t nbOcts = storage.getNumOctants();
         uint32_t numOctants_tot = nbOcts + storage.getNumGhosts();
-        const level_t min_multigrid_level = 1;
-
+        const level_t min_multigrid_level = 0;
         // Put octants into hashmap on device
         Kokkos::parallel_for( "LightOctree_hashmap::hash",
                             Kokkos::RangePolicy<>(0, numOctants_tot),
@@ -108,13 +107,12 @@ public:
             DYABLO_ASSERT_KOKKOS_DEBUG(inserted.success(), "oct_map::insert() failed");
 
             //for( level_t i_level = level-1; i_level >= min_level; i_level-- )
-            for( level_t i_level = level-1; i_level >= min_multigrid_level; i_level-- )
+            for( level_t i_level = level; i_level-- > min_multigrid_level; )
             {
                 logical_coords.level = i_level;
                 logical_coords.i /= 2;
                 logical_coords.j /= 2;
                 logical_coords.k /= 2;
-
                 oct_map_t::insert_result inserted = this->oct_map_intermediate.insert( logical_coords, OctantIndex{0, false, true} );
                 if( inserted.existing() )
                     break;
@@ -204,12 +202,16 @@ public:
     {
         return storage;
     }
+    const Storage_t getStorageIntermediate() const 
+    {
+        return storage_intermediate;
+    }
 
 
     KOKKOS_INLINE_FUNCTION
     Kokkos::Array<logical_coord_t, 3> get_logical_coords(const OctantIndex& iOct)  const
     {
-        return storage.get_logical_coords(iOct);
+        return iOct.isIntermediate ? storage_intermediate.get_logical_coords(iOct) : storage.get_logical_coords(iOct);
     }
 
     KOKKOS_INLINE_FUNCTION
@@ -238,8 +240,8 @@ public:
 
         // Get logical coordinates of neighbor
         
-        level_t level = getLevel(iOct);
-        auto lc = storage.get_logical_coords(iOct);
+        level_t level = this->getLevel(iOct);
+        auto lc = this->get_logical_coords(iOct);
         logical_coord_t octant_count_x = storage.cell_count(IX, level );
         logical_coord_t octant_count_y = storage.cell_count(IY, level );
         logical_coord_t octant_count_z = storage.cell_count(IZ, level );
@@ -247,8 +249,8 @@ public:
         logical_coords.level = getLevel(iOct);
         logical_coords.i = (lc[IX] + octant_count_x + offset[IX]) % octant_count_x; // Periodic coord only works if offset > -octant_count
         logical_coords.j = (lc[IY] + octant_count_y + offset[IY]) % octant_count_y;
-        logical_coords.k = (lc[IZ] + octant_count_z + offset[IZ]) % octant_count_z;   
-
+        logical_coords.k = (lc[IZ] + octant_count_z + offset[IZ]) % octant_count_z; 
+  
         NeighborList res = {0};
         // Search octant at same level
         auto it = oct_map.find(logical_coords);
@@ -319,8 +321,8 @@ public:
 
         // Get logical coordinates of neighbor
         
-        level_t level = getLevel(iOct);
-        auto lc = storage_intermediate.get_logical_coords(iOct);
+        level_t level = this->getLevel(iOct);
+        auto lc = this->get_logical_coords(iOct);
         logical_coord_t octant_count_x = storage_intermediate.cell_count(IX, level );
         logical_coord_t octant_count_y = storage_intermediate.cell_count(IY, level );
         logical_coord_t octant_count_z = storage_intermediate.cell_count(IZ, level );
@@ -328,7 +330,7 @@ public:
         logical_coords.level = getLevel(iOct);
         logical_coords.i = (lc[IX] + octant_count_x + offset[IX]) % octant_count_x; // Periodic coord only works if offset > -octant_count
         logical_coords.j = (lc[IY] + octant_count_y + offset[IY]) % octant_count_y;
-        logical_coords.k = (lc[IZ] + octant_count_z + offset[IZ]) % octant_count_z;   
+        logical_coords.k = (lc[IZ] + octant_count_z + offset[IZ]) % octant_count_z; 
 
         NeighborList res = {0};
         // Search octant at same level
@@ -408,6 +410,35 @@ public:
         {
             auto it_i = oct_map_intermediate.find(logical_coords);
             DYABLO_ASSERT_KOKKOS_DEBUG( oct_map_intermediate.valid_at(it_i), "Could not find child octant." );
+            return oct_map_intermediate.value_at( it_i );
+        }
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    OctantIndex findParent( const OctantIndex& iOct )  const
+    {
+        auto lc = this->get_logical_coords(iOct);
+        key_t logical_coords;
+        logical_coords.level = this->getLevel(iOct)-1;
+        logical_coords.i = (lc[IX] >> 1);
+        logical_coords.j = (lc[IY] >> 1);
+        logical_coords.k = (lc[IZ] >> 1);
+
+        if (!iOct.isIntermediate){
+            auto it_i = oct_map_intermediate.find(logical_coords);
+            DYABLO_ASSERT_KOKKOS_DEBUG( oct_map_intermediate.valid_at(it_i), "Could not find intermediate parent octant from leaf cell." );
+            return oct_map_intermediate.value_at(it_i);
+        }
+
+        auto it_l = oct_map.find(logical_coords);
+        if( oct_map.valid_at(it_l) )
+        {
+            return oct_map.value_at(it_l);
+        }
+        else
+        {
+            auto it_i = oct_map_intermediate.find(logical_coords);
+            DYABLO_ASSERT_KOKKOS_DEBUG( oct_map_intermediate.valid_at(it_i), "Could not find Parent octant." );
             return oct_map_intermediate.value_at( it_i );
         }
     }
