@@ -286,11 +286,151 @@ private:
 
 };
 
+class HyperbolicPolicy_BoundaryConditions_Rad_Default
+{
+private:
+  using HyperbolicPolicy_State = HyperbolicPolicy_State_Rad;
+  using CellIndex     = ForeachCell::CellIndex;
+  using CellMetaData  = ForeachCell::CellMetaData;
+  using offset_t      = CellIndex::offset_t;
+
+  Kokkos::Array<BoundaryConditionType, 3> bc_min, bc_max;
+
+public:
+  using PrimState = typename HyperbolicPolicy_State::PrimState;
+  using ConsState = typename HyperbolicPolicy_State::ConsState;
+
+  struct Params{
+    Kokkos::Array<BoundaryConditionType, 3> bc_min, bc_max;
+  };
+
+  
+  static Params getParams( ConfigMap& configMap )
+  {
+    return {
+      .bc_min = {
+        configMap.getValue<BoundaryConditionType>("mesh","boundary_type_xmin", BC_ABSORBING),
+        configMap.getValue<BoundaryConditionType>("mesh","boundary_type_ymin", BC_ABSORBING),
+        configMap.getValue<BoundaryConditionType>("mesh","boundary_type_zmin", BC_ABSORBING)
+      },
+      .bc_max = {
+        configMap.getValue<BoundaryConditionType>("mesh","boundary_type_xmax", BC_ABSORBING),
+        configMap.getValue<BoundaryConditionType>("mesh","boundary_type_ymax", BC_ABSORBING),
+        configMap.getValue<BoundaryConditionType>("mesh","boundary_type_zmax", BC_ABSORBING)
+      }
+    };
+  }
+
+  HyperbolicPolicy_BoundaryConditions_Rad_Default( const Params& params, const ScalarSimulationData& )
+  : bc_min(params.bc_min),
+    bc_max(params.bc_max)
+  {}
+
+  template < typename Array_t, typename Policy_t>
+  KOKKOS_INLINE_FUNCTION
+  ConsState getBoundaryValue( const Policy_t      &policy, 
+                              const Array_t       &U, 
+                              const CellIndex     &iCell_boundary, 
+                              const CellMetaData  &metadata) const 
+  {
+    CellIndex iCell_inside;
+    offset_t  offset;    
+    iCell_boundary.getBoundaryPosAndOffset(iCell_inside, offset);
+
+    auto sign = [](int x){return (x>0)-(x<0);};
+
+    CellIndex::offset_t symmetric_offset {
+      (int16_t)(-offset[IX] + sign(offset[IX])), 
+      (int16_t)(-offset[IY] + sign(offset[IY])), 
+      (int16_t)(-offset[IZ] + sign(offset[IZ]))
+    }; 
+
+    CellIndex iCell_sym = iCell_inside.getNeighbor(symmetric_offset);
+    ConsState u_sym = policy.getConsState( U, iCell_sym );    
+    ConsState res = u_sym;
+
+    if ( (offset[IX] > 0 && bc_max[IX] == BC_REFLECTING)
+      || (offset[IX] < 0 && bc_min[IX] == BC_REFLECTING) )
+    {
+        res.fx_rad = -u_sym.fx_rad;
+    }
+    if ( (offset[IY] > 0 && bc_max[IY] == BC_REFLECTING)
+      || (offset[IY] < 0 && bc_min[IY] == BC_REFLECTING) )
+    {
+        res.fy_rad = -u_sym.fy_rad;
+    }
+    if ( (offset[IZ] > 0 && bc_max[IZ] == BC_REFLECTING)
+      || (offset[IZ] < 0 && bc_min[IZ] == BC_REFLECTING) )
+    {
+        res.fz_rad = -u_sym.fz_rad;
+    }
+
+    return res;
+  }
+
+  template < typename Array_t, typename Policy_t>
+  KOKKOS_INLINE_FUNCTION
+  ConsState getBoundaryFlux(  const Policy_t      &policy, 
+                              const Array_t       &U, 
+                              const CellIndex     &iCell_boundary, 
+                              const PrimState     &q_in_reconstructed,
+                              const CellMetaData  &metadata) const 
+  {
+    CellIndex iCell_ref;
+    offset_t  offset;    
+    iCell_boundary.getBoundaryPosAndOffset(iCell_ref, offset);
+
+    bool dir_IX = offset[IX] == -1 || offset[IX] == 1;
+    bool dir_IY = offset[IY] == -1 || offset[IY] == 1;
+    bool dir_IZ = offset[IZ] == -1 || offset[IZ] == 1;
+    DYABLO_ASSERT_KOKKOS_DEBUG( (int)dir_IX + (int)dir_IY + (int)dir_IZ == 1
+                              , "offset is not compatible with getBoundaryFlux" );
+
+    ComponentIndex3D dir = IZ;
+    if( dir_IX )
+      dir = IX;
+    else if( dir_IY )
+      dir = IY;
+    else if( dir_IZ )
+      dir = IZ;
+    else
+      DYABLO_ASSERT_KOKKOS_DEBUG(false, "Internal error! Should not happen");
+
+    const PrimState& q_in = q_in_reconstructed;
+
+    PrimState q_out = q_in;
+    {
+      if ( (offset[IX] > 0 && bc_max[IX] == BC_REFLECTING)
+        || (offset[IX] < 0 && bc_min[IX] == BC_REFLECTING) )
+      {
+          q_out.fx_rad = -q_in.fx_rad;
+    }
+      if ( (offset[IY] > 0 && bc_max[IY] == BC_REFLECTING)
+        || (offset[IY] < 0 && bc_min[IY] == BC_REFLECTING) )
+    {
+          q_out.fy_rad = -q_in.fy_rad;
+    }
+      if ( (offset[IZ] > 0 && bc_max[IZ] == BC_REFLECTING)
+        || (offset[IZ] < 0 && bc_min[IZ] == BC_REFLECTING) )
+      {
+          q_out.fz_rad = -q_in.fz_rad;
+      }
+    }    
+
+    const PrimState& qL = (offset[dir] == 1) ? q_in : q_out;
+    const PrimState& qR = (offset[dir] == 1) ? q_out : q_in;
+
+    ConsState flux_out = policy.riemann_solver(qL, qR, dir);
+
+    return flux_out;
+  }
+};
+
 class HyperbolicPolicy_Rad_impl
   : public HyperbolicPolicy_State_Rad,
     public HyperbolicPolicy_RiemannSolver_Rad_M1,
     public HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Rad>,
-    public HyperbolicPolicy_BoundaryConditions_PeriodicOnly<HyperbolicPolicy_State_Rad>
+    public HyperbolicPolicy_BoundaryConditions_Rad_Default
 {
 private:
   using CellIndex     = ForeachCell::CellIndex;
@@ -303,7 +443,7 @@ public:
   struct Params{
     int ndim;
     real_t ctilde_a0;
-    HyperbolicPolicy_BoundaryConditions_PeriodicOnly<HyperbolicPolicy_State_Rad>::Params bc_params; 
+    HyperbolicPolicy_BoundaryConditions_Rad_Default::Params bc_params; 
     HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Rad>::Params slope_params; 
   };
 
@@ -312,7 +452,7 @@ public:
     return {
       .ndim = configMap.getValue<int>("mesh", "ndim", 3),
       .ctilde_a0 = configMap.getValue<real_t>( "cosmology", "ctilde" ) / configMap.getValue<real_t>( "cosmology", "astart" ),
-      .bc_params = HyperbolicPolicy_BoundaryConditions_PeriodicOnly<HyperbolicPolicy_State_Rad>::getParams(configMap),
+      .bc_params = HyperbolicPolicy_BoundaryConditions_Rad_Default::getParams(configMap),
       .slope_params = HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Rad>::getParams(configMap)
     };
   }
@@ -321,7 +461,7 @@ public:
   : HyperbolicPolicy_State_Rad(params),
     HyperbolicPolicy_RiemannSolver_Rad_M1(params, scalar_data),
     HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Rad>(params.slope_params),
-    HyperbolicPolicy_BoundaryConditions_PeriodicOnly(params.bc_params, scalar_data)
+    HyperbolicPolicy_BoundaryConditions_Rad_Default(params.bc_params, scalar_data)
   {}
 };
 
