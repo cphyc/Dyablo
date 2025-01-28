@@ -71,6 +71,25 @@ DECLARE_STATE_GET( HyperbolicPolicy_PrimHydroState, 2, u );
 DECLARE_STATE_GET( HyperbolicPolicy_PrimHydroState, 3, v );
 DECLARE_STATE_GET( HyperbolicPolicy_PrimHydroState, 4, w );
 
+struct HyperbolicPolicy_Hydro_Params
+{
+  static HyperbolicPolicy_Hydro_Params from_configMap( ConfigMap& configMap )
+  {
+    return {
+      .ndim   = configMap.getValue<int>("mesh", "ndim", 3),
+      .gamma0 = configMap.getValue<real_t>("hydro", "gamma0", 1.4),
+      .smallr = configMap.getValue<real_t>("hydro", "smallr", 1e-10),
+      .smallp = configMap.getValue<real_t>("hydro", "smallp", 1e-10),
+      .smallc = configMap.getValue<real_t>("hydro", "smallc", 1e-10),
+    };
+  }
+
+  int ndim;
+  real_t gamma0;
+  real_t smallr;
+  real_t smallp;
+  real_t smallc;
+};
 
 class HyperbolicPolicy_State_Hydro
 {
@@ -84,8 +103,7 @@ public:
   using PrimState = HyperbolicPolicy_PrimHydroState;
   using ConsState = HyperbolicPolicy_ConsHydroState;
 
-  template< typename Params_t >
-  HyperbolicPolicy_State_Hydro( const Params_t& params )
+  HyperbolicPolicy_State_Hydro( const HyperbolicPolicy_Hydro_Params& params )
   : ndim(params.ndim),
     gamma0(params.gamma0)
   {}
@@ -223,8 +241,7 @@ public:
   using PrimState = State::PrimState;
   using ConsState = State::ConsState;
 
-  template< typename Params_t >
-  HyperbolicPolicy_RiemannSolver_Hydro_hllc( const Params_t& params )
+  HyperbolicPolicy_RiemannSolver_Hydro_hllc( const HyperbolicPolicy_Hydro_Params& params )
   : rparams( 
     {
       .gamma0 = params.gamma0,
@@ -400,39 +417,36 @@ private:
   using CellIndex     = ForeachCell::CellIndex;
   using CellMetaData  = ForeachCell::CellMetaData;
   using State = HyperbolicPolicy_State_Hydro;
+
+  using RiemannSolver_t = HyperbolicPolicy_RiemannSolver_Hydro_hllc;
+  using Slope_t = HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Hydro>;
+  using BoundaryConditions_t = HyperbolicPolicy_BoundaryConditions_Hydro_Default;
+
 public:
   using PrimState = State::PrimState;
   using ConsState = State::ConsState;
 
   struct Params
   {
-    int ndim;
-    real_t gamma0;
-    real_t smallr;
-    real_t smallp;
-    real_t smallc;
-    HyperbolicPolicy_BoundaryConditions_Hydro_Default::Params bc_params;
-    HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Hydro>::Params slope_params;
+    HyperbolicPolicy_Hydro_Params policy_params;
+    BoundaryConditions_t::Params bc_params;
+    Slope_t::Params slope_params;
   };
 
   static Params getParams( ConfigMap& configMap )
   {
     return Params{
-      .ndim   = configMap.getValue<int>("mesh", "ndim", 3),
-      .gamma0 = configMap.getValue<real_t>("hydro", "gamma0", 1.4),
-      .smallr = configMap.getValue<real_t>("hydro", "smallr", 1e-10),
-      .smallp = configMap.getValue<real_t>("hydro", "smallp", 1e-10),
-      .smallc = configMap.getValue<real_t>("hydro", "smallc", 1e-10),
-      .bc_params = HyperbolicPolicy_BoundaryConditions_Hydro_Default::getParams(configMap),
-      .slope_params = HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Hydro>::getParams(configMap)
+      .policy_params = HyperbolicPolicy_Hydro_Params::from_configMap(configMap),
+      .bc_params = BoundaryConditions_t::getParams(configMap),
+      .slope_params = Slope_t::getParams(configMap)
     };
   }
 
   HyperbolicPolicy_Hydro_impl( const Params& params, const ScalarSimulationData& scalar_data )
-  : HyperbolicPolicy_State_Hydro(params),
-    HyperbolicPolicy_RiemannSolver_Hydro_hllc(params),
-    HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Hydro>(params.slope_params),
-    HyperbolicPolicy_BoundaryConditions_Hydro_Default(params.bc_params, scalar_data)
+  : HyperbolicPolicy_State_Hydro(params.policy_params),
+    RiemannSolver_t(params.policy_params),
+    Slope_t(params.slope_params),
+    BoundaryConditions_t(params.bc_params, scalar_data)
   {}
 };
 

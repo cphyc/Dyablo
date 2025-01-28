@@ -5,6 +5,33 @@
 namespace dyablo{
 
 template< typename LegacyState_t >
+class HyperbolicPolicy_Slope_zero
+{
+public:
+  using PrimState = typename LegacyState_t::PrimState;
+  using ConsState = typename LegacyState_t::ConsState;
+
+  static std::string name() {return "zero";}
+
+  struct Params {};
+
+  static Params getParams( const ConfigMap& )
+  {
+    return {};
+  }
+
+  HyperbolicPolicy_Slope_zero(const Params& Params)
+  {}
+
+  KOKKOS_INLINE_FUNCTION
+  PrimState compute_slope( PrimState qL, PrimState qC, PrimState qR, real_t dL, real_t dR) const
+  {
+    return {};
+  }
+
+};
+
+template< typename LegacyState_t >
 class HyperbolicPolicy_Slope_minmod
 {
 public:

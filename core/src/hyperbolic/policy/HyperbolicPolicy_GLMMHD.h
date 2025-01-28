@@ -97,6 +97,58 @@ DECLARE_STATE_GET( HyperbolicPolicy_PrimGLMMHDState, 6, By );
 DECLARE_STATE_GET( HyperbolicPolicy_PrimGLMMHDState, 7, Bz );
 DECLARE_STATE_GET( HyperbolicPolicy_PrimGLMMHDState, 8, psi );
 
+struct HyperbolicPolicy_GLMMHD_Params
+{
+  static HyperbolicPolicy_GLMMHD_Params from_configMap( ConfigMap& configMap )
+  {
+    // Computing the value of c_h according to the smallest cell size and hydro-cfl
+    const real_t cfl = configMap.getValue<real_t>("dt", "hydro_cfl", 0.8);
+    const uint32_t ndim = configMap.getValue<uint32_t>("mesh", "ndim", 3);
+    const real_t xmin = configMap.getValue<real_t>("mesh", "xmin", 0.0);
+    const real_t xmax = configMap.getValue<real_t>("mesh", "xmax", 1.0);
+    const real_t ymin = configMap.getValue<real_t>("mesh", "ymin", 0.0);
+    const real_t ymax = configMap.getValue<real_t>("mesh", "ymax", 1.0);
+    const real_t zmin = configMap.getValue<real_t>("mesh", "zmin", 0.0);
+    const real_t zmax = configMap.getValue<real_t>("mesh", "zmax", 1.0);
+
+    const uint32_t level_max = configMap.getValue<uint32_t>("amr", "level_max", 10);
+
+    const uint32_t bx = configMap.getValue<uint32_t>("amr", "bx", 0);
+    const uint32_t by = configMap.getValue<uint32_t>("amr", "by", 0);
+    const uint32_t bz = configMap.getValue<uint32_t>("amr", "bz", 1);
+
+    const real_t Lx = xmax - xmin;
+    const real_t Ly = ymax - ymin;
+    const real_t Lz = zmax - zmin; 
+
+    const real_t min_dx = Lx / ((1 << level_max) * bx);
+    const real_t min_dy = Ly / ((1 << level_max) * by);
+    const real_t min_dz = Lz / ((1 << level_max) * bz); 
+
+    real_t min_dh = FMIN(min_dx, min_dy);
+    if (ndim == 3)
+      min_dh = FMIN(min_dh, min_dz);
+
+    // This value should be divided by dt in the kernels where it appears !
+    real_t c_h = 0.5*cfl * min_dh;
+
+    return {
+      .ndim = configMap.getValue<int>("mesh", "ndim", 3),
+      .gamma0 = configMap.getValue<real_t>("hydro","gamma0", 1.4),
+      .smallr = configMap.getValue<real_t>("hydro", "smallr", 1e-10),
+      .smallp = configMap.getValue<real_t>("hydro", "smallp", 1e-10),
+      .smalle = configMap.getValue<real_t>("hydro", "smalle", 1e-5),
+      .c_h = c_h,
+    };
+  }
+
+  int ndim;
+  real_t gamma0;
+  real_t smallr;
+  real_t smallp;
+  real_t smalle;
+  real_t c_h;
+};
 
 class HyperbolicPolicy_State_GLMMHD
 {
@@ -110,8 +162,7 @@ public:
   using PrimState = HyperbolicPolicy_PrimGLMMHDState;
   using ConsState = HyperbolicPolicy_ConsGLMMHDState;
 
-  template< typename Params_t >
-  HyperbolicPolicy_State_GLMMHD( const Params_t& params )
+  HyperbolicPolicy_State_GLMMHD( const HyperbolicPolicy_GLMMHD_Params& params )
   : ndim(params.ndim),
     gamma0(params.gamma0)
   {}
@@ -291,9 +342,8 @@ public:
   using State = HyperbolicPolicy_State_GLMMHD;
   using PrimState = State::PrimState;
   using ConsState = State::ConsState;
-  template< typename Params_t >
-  
-  HyperbolicPolicy_RiemannSolver_GLMMHD_hlld( const Params_t& params, const ScalarSimulationData& scalar_data_dict )
+
+  HyperbolicPolicy_RiemannSolver_GLMMHD_hlld( const HyperbolicPolicy_GLMMHD_Params& params, const ScalarSimulationData& scalar_data_dict )
   : rparams( 
     {
       .gamma0 = params.gamma0, 
@@ -677,10 +727,10 @@ public:
 
   template < typename Array_t, typename Policy_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryValue_impl( const Policy_t      &policy, 
-                                   const Array_t       &U, 
-                                   const CellIndex     &iCell_boundary, 
-                                   const CellMetaData  &metadata) const 
+  ConsState getBoundaryValue( const Policy_t      &policy, 
+                              const Array_t       &U, 
+                              const CellIndex     &iCell_boundary, 
+                              const CellMetaData  &metadata) const 
   {
     CellIndex iCell_inside;
     offset_t  offset;    
@@ -773,11 +823,11 @@ public:
 
   template < typename Array_t, typename Policy_t >
   KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryFlux_impl( const Policy_t      &policy, 
-                                  const Array_t       &U, 
-                                  const CellIndex     &iCell_boundary, 
-                                  const PrimState     &q_in_reconstructed,
-                                  const CellMetaData  &metadata) const 
+  ConsState getBoundaryFlux(  const Policy_t      &policy, 
+                              const Array_t       &U, 
+                              const CellIndex     &iCell_boundary, 
+                              const PrimState     &q_in_reconstructed,
+                              const CellMetaData  &metadata) const 
   {
     CellIndex iCell_ref;
     offset_t  offset;    
@@ -885,87 +935,37 @@ private:
   using CellIndex     = ForeachCell::CellIndex;
   using CellMetaData  = ForeachCell::CellMetaData;
   using State = HyperbolicPolicy_State_GLMMHD;
+
+  using RiemannSolver_t = HyperbolicPolicy_RiemannSolver_GLMMHD_hlld;
+  using Slope_t = HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_GLMMHD>;
+  using BoundaryConditions_t = HyperbolicPolicy_BoundaryConditions_GLMMHD;
+
 public:
   using PrimState = State::PrimState;
   using ConsState = State::ConsState;
 
   struct Params
   {
-    int ndim;
-    real_t gamma0;
-    real_t smallr;
-    real_t smallp;
-    real_t smalle;
-    real_t c_h;
-    HyperbolicPolicy_BoundaryConditions_GLMMHD::Params bc_params;
-    HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_GLMMHD>::Params slope_params;    
+    HyperbolicPolicy_GLMMHD_Params policy_params;
+    BoundaryConditions_t::Params bc_params;
+    Slope_t::Params slope_params;    
   };
 
   static Params getParams( ConfigMap& configMap )
   {
-    // Computing the value of c_h according to the smallest cell size and hydro-cfl
-    const real_t cfl = configMap.getValue<real_t>("dt", "hydro_cfl", 0.8);
-    const uint32_t ndim = configMap.getValue<uint32_t>("mesh", "ndim", 3);
-    const real_t xmin = configMap.getValue<real_t>("mesh", "xmin", 0.0);
-    const real_t xmax = configMap.getValue<real_t>("mesh", "xmax", 1.0);
-    const real_t ymin = configMap.getValue<real_t>("mesh", "ymin", 0.0);
-    const real_t ymax = configMap.getValue<real_t>("mesh", "ymax", 1.0);
-    const real_t zmin = configMap.getValue<real_t>("mesh", "zmin", 0.0);
-    const real_t zmax = configMap.getValue<real_t>("mesh", "zmax", 1.0);
-
-    const uint32_t level_max = configMap.getValue<uint32_t>("amr", "level_max", 10);
-
-    const uint32_t bx = configMap.getValue<uint32_t>("amr", "bx", 0);
-    const uint32_t by = configMap.getValue<uint32_t>("amr", "by", 0);
-    const uint32_t bz = configMap.getValue<uint32_t>("amr", "bz", 1);
-
-    const real_t Lx = xmax - xmin;
-    const real_t Ly = ymax - ymin;
-    const real_t Lz = zmax - zmin; 
-
-    const real_t min_dx = Lx / ((1 << level_max) * bx);
-    const real_t min_dy = Ly / ((1 << level_max) * by);
-    const real_t min_dz = Lz / ((1 << level_max) * bz); 
-
-    real_t min_dh = FMIN(min_dx, min_dy);
-    if (ndim == 3)
-      min_dh = FMIN(min_dh, min_dz);
-
-    // This value should be divided by dt in the kernels where it appears !
-    real_t c_h = 0.5*cfl * min_dh;
-
     return Params{
-      .ndim = configMap.getValue<int>("mesh", "ndim", 3),
-      .gamma0 = configMap.getValue<real_t>("hydro","gamma0", 1.4),
-      .smallr = configMap.getValue<real_t>("hydro", "smallr", 1e-10),
-      .smallp = configMap.getValue<real_t>("hydro", "smallp", 1e-10),
-      .smalle = configMap.getValue<real_t>("hydro", "smalle", 1e-5),
-      .c_h = c_h,
-      .bc_params = HyperbolicPolicy_BoundaryConditions_GLMMHD::getParams(configMap),
-      .slope_params = HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_GLMMHD>::getParams(configMap)
+      .policy_params = HyperbolicPolicy_GLMMHD_Params::from_configMap(configMap),
+      .bc_params = BoundaryConditions_t::getParams(configMap),
+      .slope_params = Slope_t::getParams(configMap)
     };
   }
 
   HyperbolicPolicy_GLMMHD_impl( const Params& params, const ScalarSimulationData& scalar_data)
-  : HyperbolicPolicy_State_GLMMHD(params),
-    HyperbolicPolicy_RiemannSolver_GLMMHD_hlld(params, scalar_data),
-    HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_GLMMHD>(params.slope_params),
-    HyperbolicPolicy_BoundaryConditions_GLMMHD(params.bc_params, scalar_data)
+  : HyperbolicPolicy_State_GLMMHD(params.policy_params),
+    RiemannSolver_t(params.policy_params, scalar_data),
+    Slope_t(params.slope_params),
+    BoundaryConditions_t(params.bc_params, scalar_data)
   {}
-
-  template < typename Array_t, typename Policy_t >
-  KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryFlux( const Policy_t &policy, const Array_t &U, const CellIndex &iCell_boundary, const PrimState &q_in_reconstructed, const CellMetaData &metadata) const
-  {
-    return HyperbolicPolicy_BoundaryConditions_GLMMHD::getBoundaryFlux_impl(policy,U,iCell_boundary,q_in_reconstructed,metadata);
-  }
-
-  template < typename Array_t, typename Policy_t >
-  KOKKOS_INLINE_FUNCTION
-  ConsState getBoundaryValue( const Policy_t &policy, const Array_t &U, const CellIndex &iCell_boundary, const CellMetaData &metadata) const 
-  {
-    return HyperbolicPolicy_BoundaryConditions_GLMMHD::getBoundaryValue_impl(policy,U,iCell_boundary,metadata);
-  }
 };
 
 using HyperbolicPolicy_GLMMHD = HyperbolicPolicy_base< HyperbolicPolicy_GLMMHD_impl >;

@@ -36,6 +36,20 @@ DECLARE_STATE_GET( HyperbolicPolicy_RadState, 1, fx_rad );
 DECLARE_STATE_GET( HyperbolicPolicy_RadState, 2, fy_rad );
 DECLARE_STATE_GET( HyperbolicPolicy_RadState, 3, fz_rad );
 
+struct HyperbolicPolicy_Rad_Params 
+{
+  static HyperbolicPolicy_Rad_Params from_configmap(ConfigMap& configMap)
+  {
+    return {
+      .ndim = configMap.getValue<int>("mesh", "ndim", 3),
+      .ctilde_a0 = configMap.getValue<real_t>( "cosmology", "ctilde" ) / configMap.getValue<real_t>( "cosmology", "astart" ),
+    };
+  }
+
+  int ndim;
+  real_t ctilde_a0;
+};
+
 class HyperbolicPolicy_State_Rad
 {
 private:
@@ -46,8 +60,7 @@ public:
   using PrimState = HyperbolicPolicy_RadState;
   using ConsState = HyperbolicPolicy_RadState;
 
-  template< typename Params_t >
-  HyperbolicPolicy_State_Rad( const Params_t& params )
+  HyperbolicPolicy_State_Rad( const HyperbolicPolicy_Rad_Params& params )
   : ndim(params.ndim)
   {}
 
@@ -151,8 +164,7 @@ public:
   using PrimState = State::PrimState;
   using ConsState = State::ConsState;
 
-  template< typename Params_t >
-  HyperbolicPolicy_RiemannSolver_Rad_M1( const Params_t& params, const ScalarSimulationData& scalar_data_dict )
+  HyperbolicPolicy_RiemannSolver_Rad_M1( const HyperbolicPolicy_Rad_Params& params, const ScalarSimulationData& scalar_data_dict )
   : ctilde_a0(params.ctilde_a0),
     scalar_data( {.aexp = scalar_data_dict.get<real_t>("aexp")} )
   {}
@@ -303,7 +315,6 @@ public:
   struct Params{
     Kokkos::Array<BoundaryConditionType, 3> bc_min, bc_max;
   };
-
   
   static Params getParams( ConfigMap& configMap )
   {
@@ -429,39 +440,42 @@ public:
 class HyperbolicPolicy_Rad_impl
   : public HyperbolicPolicy_State_Rad,
     public HyperbolicPolicy_RiemannSolver_Rad_M1,
-    public HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Rad>,
-    public HyperbolicPolicy_BoundaryConditions_Rad_Default
+    public HyperbolicPolicy_Slope_zero<HyperbolicPolicy_State_Rad>,
+    public HyperbolicPolicy_BoundaryConditions_Rad_Default  // RT doesn't work with reconstruction
 {
 private:
   using CellIndex     = ForeachCell::CellIndex;
   using CellMetaData  = ForeachCell::CellMetaData;
   using State = HyperbolicPolicy_State_Rad;
+
+  using RiemannSolver_t = HyperbolicPolicy_RiemannSolver_Rad_M1;
+  using Slope_t = HyperbolicPolicy_Slope_zero<HyperbolicPolicy_State_Rad>;
+  using BoundaryConditions_t = HyperbolicPolicy_BoundaryConditions_Rad_Default;
+
 public:
   using PrimState = State::PrimState;
   using ConsState = State::ConsState;
 
   struct Params{
-    int ndim;
-    real_t ctilde_a0;
-    HyperbolicPolicy_BoundaryConditions_Rad_Default::Params bc_params; 
-    HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Rad>::Params slope_params; 
+    HyperbolicPolicy_Rad_Params policy_params;
+    BoundaryConditions_t::Params bc_params; 
+    Slope_t::Params slope_params; 
   };
 
   static Params getParams( ConfigMap& configMap )
   {
     return {
-      .ndim = configMap.getValue<int>("mesh", "ndim", 3),
-      .ctilde_a0 = configMap.getValue<real_t>( "cosmology", "ctilde" ) / configMap.getValue<real_t>( "cosmology", "astart" ),
-      .bc_params = HyperbolicPolicy_BoundaryConditions_Rad_Default::getParams(configMap),
-      .slope_params = HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Rad>::getParams(configMap)
+      .policy_params = HyperbolicPolicy_Rad_Params::from_configmap(configMap),
+      .bc_params = BoundaryConditions_t::getParams(configMap),
+      .slope_params = Slope_t::getParams(configMap)
     };
   }
 
   HyperbolicPolicy_Rad_impl( const Params& params, const ScalarSimulationData& scalar_data )
-  : HyperbolicPolicy_State_Rad(params),
-    HyperbolicPolicy_RiemannSolver_Rad_M1(params, scalar_data),
-    HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Rad>(params.slope_params),
-    HyperbolicPolicy_BoundaryConditions_Rad_Default(params.bc_params, scalar_data)
+  : HyperbolicPolicy_State_Rad(params.policy_params),
+    HyperbolicPolicy_RiemannSolver_Rad_M1(params.policy_params, scalar_data),
+    Slope_t(params.slope_params),
+    BoundaryConditions_t(params.bc_params, scalar_data)
   {}
 };
 
