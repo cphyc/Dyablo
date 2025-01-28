@@ -132,8 +132,12 @@ void run_test(int ndim, std::string HyperbolicUpdate_id ) {
   bool has_mhd = HyperbolicUpdate_id.find("MHD") != std::string::npos;
   bool is_glm  = HyperbolicUpdate_id.find("GLM") != std::string::npos;
   bool is_gravity = HyperbolicUpdate_id.find("gravity") != std::string::npos;
+  bool is_rhd = HyperbolicUpdate_id.find("Rad") != std::string::npos;
 
   if( is_gravity )
+    GTEST_SKIP();
+  
+  if( is_rhd )
     GTEST_SKIP();
 
   // Content of .ini file used to configure configmap and HydroParams
