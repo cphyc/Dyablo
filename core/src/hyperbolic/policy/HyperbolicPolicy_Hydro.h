@@ -407,11 +407,17 @@ private:
 
 namespace dyablo {
 
+using HyperbolicPolicy_BoundaryConditions_Hydro_dynamic = HyperbolicPolicy_BoundaryConditions_dynamic<
+    HyperbolicPolicy_State_Hydro,
+    HyperbolicPolicy_BoundaryConditions_Hydro_Default,
+    HyperbolicPolicy_BoundaryConditions_Hydro_DoubleMach
+  >;
+
 class HyperbolicPolicy_Hydro_impl
   : public HyperbolicPolicy_State_Hydro,
     public HyperbolicPolicy_RiemannSolver_Hydro_hllc,
     public HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Hydro>,
-    public HyperbolicPolicy_BoundaryConditions_Hydro_Default
+    public HyperbolicPolicy_BoundaryConditions_Hydro_dynamic
 {
 private:
   using CellIndex     = ForeachCell::CellIndex;
@@ -420,7 +426,7 @@ private:
 
   using RiemannSolver_t = HyperbolicPolicy_RiemannSolver_Hydro_hllc;
   using Slope_t = HyperbolicPolicy_Slope_dynamic<HyperbolicPolicy_State_Hydro>;
-  using BoundaryConditions_t = HyperbolicPolicy_BoundaryConditions_Hydro_Default;
+  using BoundaryConditions_t = HyperbolicPolicy_BoundaryConditions_Hydro_dynamic;
 
 public:
   using PrimState = State::PrimState;
