@@ -91,7 +91,7 @@ namespace dyablo {
   std::shared_ptr<AMRmesh> mesh_amrgrid_semiperiodic_sphere()
   {
     int level_min = 4;
-    int level_max = level_min + 0; // + 6;
+    int level_max = level_min + 3; // + 6;
     uint32_t bx = 4, by = 4, bz = 4;
 
 
@@ -156,7 +156,7 @@ namespace dyablo {
       "[run]\n"
       "solver_name=Hydro_Muscl_Block_3D \n"
       "[output]\n"
-      "outputPrefix=test_GravitySolver_multigrid_coarse\n"
+      "outputPrefix=test_GravitySolver_multigrid2\n"
       "write_variables=rho,gphi,gx,gy,gz,res,solution,rhs\n"
       "[amr]\n"
       "use_block_data=yes\n"
@@ -370,17 +370,6 @@ namespace dyablo {
       });
     };
 
-    auto initialise_lhs_intermediate = [&](const uint32_t level){
-      foreach_cell.foreach_intermediate_cell("Write potential", Uintermediate.getShape(),
-      KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
-      {
-        uint32_t current_level = cells.getLevel(iCell);
-        if (level == current_level){
-          const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-          Uintermediate.at(iCell, Isolution) = -Uintermediate.at(iCell, Irhs) / (2. / (size[IX]*size[IX]) + 2. / (size[IY]*size[IY]) + 2. / (size[IZ]*size[IZ])) ;
-        }
-      });
-    };
     // Coarse level and coarser
     auto residual_uniform = [&](const uint32_t level) {
       const auto cells = foreach_cell.getCellMetaData();
@@ -435,14 +424,12 @@ namespace dyablo {
             if ( iCell_L.status == ForeachCell::CellIndex::BIGGER ) {
               iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
               contrib_L[dir] = U.at(iCell_L, Isolution);
-            }
-            else contrib_L[dir] = Uintermediate.at(iCell_L, Isolution);
+            } else contrib_L[dir] = Uintermediate.at(iCell_L, Isolution);
             if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L[dir] = 0;
             if ( iCell_R.status == ForeachCell::CellIndex::BIGGER ) {
               iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
               contrib_R[dir] = U.at(iCell_R, Isolution);
-            }
-            else contrib_R[dir] = Uintermediate.at(iCell_R, Isolution);
+            } else contrib_R[dir] = Uintermediate.at(iCell_R, Isolution);
             if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R[dir] = 0;
             neighbors += (contrib_L[dir] + contrib_R[dir]) / (size[dir] * size[dir]);
           }
@@ -454,7 +441,7 @@ namespace dyablo {
 
     auto residual_amr = [&](const uint32_t level) {
       const auto cells = foreach_cell.getCellMetaData();
-      foreach_cell.foreach_cell("Residual", U.getShape(),
+      foreach_cell.foreach_cell("Residual leaves", U.getShape(),
         KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
       {
         const uint32_t current_level = lmesh.getLevel(iCell.iOct);
@@ -472,14 +459,14 @@ namespace dyablo {
               iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
               contrib_L[dir] = Uintermediate.at(iCell_L, Isolution);
             } else if (iCell_L.status == ForeachCell::CellIndex::BIGGER) {
-                contrib_L[dir] = U.at(iCell_L, Iphi); // Interpolate from coarser level (which has cell at iphi, not isolution which is used for correction term)
+                contrib_L[dir] = U.at(iCell_L, Iphi); // TODO: find better interpolation from coarser level?
             } else contrib_L[dir] = U.at(iCell_L, Isolution);
             if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L[dir] = 0;
             if ( iCell_R.status == ForeachCell::CellIndex::SMALLER ) { 
               iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
               contrib_R[dir] = Uintermediate.at(iCell_R, Isolution);
             } else if (iCell_R.status == ForeachCell::CellIndex::BIGGER) {
-                contrib_R[dir] = U.at(iCell_R, Iphi); // Interpolate from coarser level (which has cell at iphi, not isolution which is used for correction term)
+                contrib_R[dir] = U.at(iCell_R, Iphi); // TODO: find better interpolation from coarser level?
             } else contrib_R[dir] = U.at(iCell_R, Isolution);
             if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R[dir] = 0;
             neighbors += (contrib_L[dir] + contrib_R[dir]) / (size[dir] * size[dir]);
@@ -534,10 +521,8 @@ namespace dyablo {
           int ns = foreach_sibling( ndim, iCell_c0, Uintermediate.getShape(),
             [&]( const ForeachCell::CellIndex& iCell_c )
           {
-            if ( iCell_c.iOct.isIntermediate )
-              residual += Uintermediate.at(iCell_c, Iresidual);
-            else
-              residual += U.at(iCell_c, Iresidual);
+            if ( iCell_c.iOct.isIntermediate )  residual += Uintermediate.at(iCell_c, Iresidual);
+            else  residual += U.at(iCell_c, Iresidual);
             
           });
           Uintermediate.at( iCell, Irhs ) = residual/ns;
@@ -554,19 +539,19 @@ namespace dyablo {
         {
           ForeachCell::CellIndex iCell_c0 = iCell.getChildren(Uintermediate.getShape());
           const real_t solution = Uintermediate.at( iCell, Isolution );
-          const real_t rhs = Uintermediate.at( iCell, Irhs );
+          //const real_t rhs = Uintermediate.at( iCell, Irhs );
           foreach_sibling( ndim, iCell_c0, Uintermediate.getShape(),
             [&]( const ForeachCell::CellIndex& iCell_c )
           {
             if( iCell_c.iOct.isIntermediate )
             {
               Uintermediate.at(iCell_c, Isolution) = solution;
-              Uintermediate.at(iCell_c, Irhs) = rhs;
+              //Uintermediate.at(iCell_c, Irhs) = rhs;
             }
             else
             {
               U.at(iCell_c, Isolution) = solution;
-              U.at(iCell_c, Irhs) = rhs;
+              //U.at(iCell_c, Irhs) = rhs;
             }
           });
         }
@@ -585,17 +570,15 @@ namespace dyablo {
           foreach_sibling( ndim, iCell_c0, Uintermediate.getShape(),
             [&]( const ForeachCell::CellIndex& iCell_c )
           {
-            if( iCell_c.iOct.isIntermediate )
-              Uintermediate.at(iCell_c, Isolution) += correction;
-            else
-              U.at(iCell_c, Isolution) += correction;
+            if( iCell_c.iOct.isIntermediate ) Uintermediate.at(iCell_c, Isolution) += correction;
+            else  U.at(iCell_c, Isolution) += correction;
           });
         }
       }); 
     };
 
     auto get_neighbor_value = [&](const ForeachCell::CellIndex iCell, const ForeachCell::CellIndex::offset_t offset){
-      ForeachCell::CellIndex iCell_n = iCell.getNeighbor_ghost_intermediate(offset, Uintermediate.getShape()); // TODO: check if neighbor is at same level, good conditions
+      ForeachCell::CellIndex iCell_n = iCell.getNeighbor_ghost_intermediate(offset, Uintermediate.getShape());
       if (iCell_n.level_diff() != 0){
         iCell_n = iCell.getNeighbor_ghost(offset, U.getShape());
         return U.at( iCell_n, Isolution );
@@ -652,7 +635,7 @@ namespace dyablo {
             Uintermediate.at(iCell000, Isolution) += tmp0
                 + f1 * (tmp011 + tmp101 + tmp110)
                 + f2 * (tmp001 + tmp010 + tmp100)
-                + f3 * tmp000;//correction;
+                + f3 * tmp000;
             CellIndex iCell001 = iCell_c0.getNeighbor_ghost_intermediate({0, 0, 1}, Uintermediate.getShape());
             Uintermediate.at(iCell001, Isolution) += tmp0
                 + f1 * (tmp011 + tmp101 + tmp112)
@@ -735,27 +718,6 @@ namespace dyablo {
       }); 
     };
 
-    
-    auto zero_residual_and_solution = [&](const uint32_t level){
-      foreach_cell.foreach_cell("Zero leaf residual and solution", U.getShape(),
-      KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
-      {
-        uint32_t current_level = cells.getLevel(iCell);
-        if (level == current_level){
-          U.at(iCell, Isolution) = 0;
-          U.at(iCell, Iresidual) = 0;
-        }
-      });
-      foreach_cell.foreach_intermediate_cell("Zero intermediate residual and solution", Uintermediate.getShape(),
-      KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
-      {
-        uint32_t current_level = cells.getLevel(iCell);
-        if (level == current_level){
-          Uintermediate.at(iCell, Isolution) = 0;
-          Uintermediate.at(iCell, Iresidual) = 0;
-        }
-      });
-    };
 
     auto solution_to_potential = [&](const uint32_t level){
       foreach_cell.foreach_cell("Write potential", U.getShape(),
@@ -808,21 +770,18 @@ namespace dyablo {
                 iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
                 contrib_L[dir] = Uintermediate.at(iCell_L, Isolution);
               } else if (iCell_L.status == ForeachCell::CellIndex::BIGGER) {
-                contrib_L[dir] = U.at(iCell_L, Iphi); // Interpolate from coarser level (which has cell at iphi, not isolution which is used for correction term)
+                contrib_L[dir] = U.at(iCell_L, Iphi); // TODO: find better interpolation from coarser level?
               } else contrib_L[dir] = U.at(iCell_L, Isolution);
               if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L[dir] = 0;
               if ( iCell_R.status == ForeachCell::CellIndex::SMALLER ) {
                 iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
                 contrib_R[dir] = Uintermediate.at(iCell_R, Isolution);
               } else if (iCell_R.status == ForeachCell::CellIndex::BIGGER) {
-                 contrib_R[dir] = U.at(iCell_R, Iphi); // Interpolate from coarser level (which has cell at iphi, not isolution which is used for correction term)
+                contrib_R[dir] = U.at(iCell_R, Iphi); // TODO: find better interpolation from coarser level?
               } else contrib_R[dir] = U.at(iCell_R, Isolution);
               if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R[dir] = 0;
               neighbors += (contrib_L[dir] + contrib_R[dir]) / (size[dir] * size[dir]);             
             }
-            /* if (U.at(iCell, Irho) > 2.5e-1){
-              printf("Isolution = %.5e Irhs = %.5e Irho = %.5e neighbors = %.5e size = %.5e\n", U.at(iCell, Isolution), U.at(iCell, Irhs), U.at(iCell, Irho), neighbors, size[IX]);
-            } */
             U.at(iCell, Isolution) = (neighbors - U.at(iCell, Irhs)) / (2. / (size[IX]*size[IX]) + 2. / (size[IY]*size[IY]) + 2. / (size[IZ]*size[IZ]));
           }
         }
@@ -939,31 +898,26 @@ namespace dyablo {
       if (level == min_level_multigrid + 1) {
         smoothing_uniform(Npre, level - 1);
       }
-      else {
-        V_cycle_uniform(level - 1);
-      }
+      else V_cycle_uniform(level - 1);
+      
       prolongation(level);
       smoothing_uniform(Npost, level);
     };
     std::function<void (uint32_t)> V_cycle_amr = [&](const uint32_t level) {
-      printf("Level %d pre smoothing amr\n", level);
+      printf("Level %d smoothing/restriction\n", level);
       smoothing_amr(Npre, level);
-      printf("Level %d residual\n", level);
       residual_amr(level);
-      printf("Level %d restriction\n", level);
       restriction(level - 1);
-      if (level == level_coarse + 1) {
-        printf("SMOOTHING UNIFORM AT COARSE LEVEL\n");
-        initialise_lhs_intermediate(level - 1);    
-        smoothing_uniform_intermediate(Npre, level - 1);
+      initialise_lhs(level - 1);
+
+      if ( level_coarse == (level - 1) ) {
+        printf("Smoothing at coarse level\n");
+        smoothing_uniform_intermediate(Npre, level_coarse);
       }
-      else {
-        initialise_lhs(level - 1);
-        V_cycle_amr(level - 1); 
-      }
-      printf("Level %d prolongation\n", level);
+      else V_cycle_amr(level - 1); 
+      
+      printf("Level %d prolongation/smoothing\n", level);
       prolongation(level);      
-      printf("Level %d post smoothing amr\n", level);
       smoothing_amr(Npost, level);
     };
 
@@ -986,10 +940,10 @@ namespace dyablo {
       ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
       const real_t rho = U.at(iCell, Irho) - rho_mean;
       U.at(iCell, Irhs) = rho;
-      U.at(iCell, Isolution) = -U.at(iCell, Irhs) / (2. / (size[IX]*size[IX]) + 2. / (size[IY]*size[IY]) + 2. / (size[IZ]*size[IZ]));
+      U.at(iCell, Isolution) = -rho / (2. / (size[IX]*size[IX]) + 2. / (size[IY]*size[IY]) + 2. / (size[IZ]*size[IZ]));
     });
 
-    // Initialize RHS and solution on intermediate levels
+    // Initialize RHS on intermediate levels. Solution will be interpolated from coarser levels so no need to initialize
     for( uint32_t level = max_level_in_amr + 1; level >= level_coarse; level-- )
     {
       foreach_cell.foreach_intermediate_cell( "average_parent_cell", Uintermediate.getShape(),
@@ -998,17 +952,17 @@ namespace dyablo {
         const uint32_t current_level = lmesh.getLevel(iCell.iOct);
         if( current_level == level )
         {
-          const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
           ForeachCell::CellIndex iCell_c0 = iCell.getChildren(Uintermediate.getShape());
           real_t rho = 0;
           int ns = foreach_sibling( ndim, iCell_c0, Uintermediate.getShape(),
             [&]( const ForeachCell::CellIndex& iCell_c )
           {
-            if ( iCell_c.iOct.isIntermediate ) rho += Uintermediate.at(iCell_c, Irho) - rho_mean;
-            else rho += U.at(iCell_c, Irho) - rho_mean;
+            if ( iCell_c.iOct.isIntermediate ) rho += Uintermediate.at(iCell_c, Irho);
+            else rho += U.at(iCell_c, Irho);
           });
-          Uintermediate.at( iCell, Irhs ) = rho/ns;
-          Uintermediate.at(iCell, Isolution) = -Uintermediate.at(iCell, Irhs) / (2. / (size[IX]*size[IX]) + 2. / (size[IY]*size[IY]) + 2. / (size[IZ]*size[IZ]));
+          rho /= ns;
+          Uintermediate.at( iCell, Irho ) = rho;
+          Uintermediate.at( iCell, Irhs ) = rho - rho_mean;
         }
       }); 
     }
@@ -1023,7 +977,7 @@ namespace dyablo {
     
     // Multigrid
     printf("Coarse Multigrid\n");
-    for(uint32_t i = 0; i < 5; i++)
+    for(uint32_t i = 0; i < 3; i++)
     { 
       V_cycle_uniform(level_coarse);
       residual_uniform(level_coarse);
@@ -1036,14 +990,13 @@ namespace dyablo {
 
     printf("AMR Multigrid\n");
     for (uint32_t ilevel = level_coarse+1; ilevel <= max_level_in_amr; ilevel++) {
-      //zero_residual_and_solution(ilevel);
-      //prolongation(ilevel);
       prolongation0_inject(ilevel);
       solution_to_potential(ilevel);
       scalar_data.set<int>("iter", iter++);
       scalar_data.set<real_t>("time", time++);
       iomanager->save_snapshot(U_, scalar_data);
-      /* for(uint32_t i = 0; i < 10; i++)
+
+      for(uint32_t i = 0; i < 3; i++)
       { 
         V_cycle_amr(ilevel);
         residual_amr(ilevel);
@@ -1052,20 +1005,12 @@ namespace dyablo {
         scalar_data.set<int>("iter", iter++);
         scalar_data.set<real_t>("time", time++);
         iomanager->save_snapshot(U_, scalar_data);
-      } */
-      /* for (uint32_t i = 0; i < 100; i++) {
+      }
+      /* for (uint32_t i = 0; i < 10; i++) {
         smoothing_amr(Npre, ilevel);
         residual_amr(ilevel);
         solution_to_potential(ilevel);
         printf("Residual norm after V %.5e\n", std::sqrt(residual_norm_sqr(ilevel)));
-        scalar_data.set<int>("iter", iter++);
-        scalar_data.set<real_t>("time", time++);
-        iomanager->save_snapshot(U_, scalar_data);
-      }   */
-      /* for (uint32_t i = 0; i < 100; i++) {
-        smoothing_uniform_intermediate(Npre, level_coarse);
-        prolongation0_inject(ilevel);
-        solution_to_potential(ilevel);
         scalar_data.set<int>("iter", iter++);
         scalar_data.set<real_t>("time", time++);
         iomanager->save_snapshot(U_, scalar_data);
