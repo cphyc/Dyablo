@@ -84,8 +84,7 @@ public:
   std::string t_end_var; // scalar_data variable used to test for simulation end ("time" by default, but could be "aexp")
   real_t t_end; // End value for selected scalar_data variable t_end_var
   bool use_t_end; // enable/disable termination when end value is attaigned (default on t_end is positive, but can be overriden )
-  real_t t_end_epsilon = 0;
-  real_t omega_m=0, omega_v=0;
+  real_t a_end; 
 
   IterationHandler(ConfigMap& configMap, const ScalarSimulationData& scalar_data )
   : output_frequency     ( "iter", configMap.getValue<int>("run", "output_frequency",       -1), scalar_data ),
@@ -95,7 +94,8 @@ public:
     iter_end             ( configMap.getValue<int>("run", "nstepmax",                1000) ),
     t_end_var            ( configMap.getValue<std::string>("run", "t_end_var", "time") ),
     t_end                ( configMap.getValue<real_t>("run", "tEnd", 0.0) ),
-    use_t_end            ( configMap.getValue<bool>("run", "use_tEnd", t_end > 0) )
+    a_end                ( configMap.getValue<real_t>("cosmology", "aEnd", 0.0) ),
+    use_t_end            ( configMap.getValue<bool>("run", "use_tEnd", t_end > 0 || a_end > 0) )
   {
     // Translate output/checkpoint_expslice into 
     if( configMap.hasValue("run", "output_expslice") || configMap.hasValue("run", "checkpoint_expslice")  )
@@ -122,16 +122,12 @@ public:
     this->output_slice_var = configMap.getValue<std::string>("run", "output_slice_var", "time");
     this->output_timeslice     = Interval_trigger(output_slice_var, configMap.getValue<real_t>("run", "output_timeslice", -1), scalar_data);
     this->checkpoint_timeslice = Interval_trigger(output_slice_var, configMap.getValue<real_t>("run", "checkpoint_timeslice", -1), scalar_data);
-    
-    if( t_end_var == "aexp" )
-    {
-      this->t_end_epsilon = 2e-8; // This is related to romberg precision in CosmoManager
-      this->omega_m = configMap.getValue<real_t>( "cosmology", "omegam" );
-      this->omega_v = configMap.getValue<real_t>( "cosmology", "omegav" );
-    }
-    else if( t_end_var != "time" ) 
-      std::cout << "WARNING : can't correct dt to match t_end, possible overshoot. var=" << t_end_var << std::endl;
-
+    if(a_end >0.0){
+      t_end = scalar_data.get<real_t>("tfinal");
+    } 
+    if( t_end_var != "time" ) 
+        std::cout << "WARNING : can't correct dt to match t_end, possible overshoot. var=" << t_end_var << std::endl;
+  
   }
 
   /// return true if end of simulation
@@ -141,7 +137,7 @@ public:
     real_t time = scalar_data.get<real_t>(t_end_var); // time may not be time, can be some other variable user for end
 
     bool stop_iter = iter_end > 0 && iter >= iter_end;
-    bool stop_time = use_t_end    && time >= t_end - t_end_epsilon;
+    bool stop_time = use_t_end    && time >= t_end;
 
     return stop_iter || stop_time;
   }
@@ -186,19 +182,23 @@ public:
   {
     if( use_t_end )
     {
-      if( t_end_var == "time" ) // Keep check in constructor updated when adding cases
+      if(t_end_var == "time") // Keep check in constructor updated when adding cases
       {
         real_t time = scalar_data.get<real_t>("time");
         if (use_t_end && time + scalar_data.get<real_t>("dt") > t_end)
             scalar_data.get<real_t>("dt") = t_end - time;
       }
-      else if ( t_end_var == "aexp" )
+      /*
+      else if (  )
       {
+        
         real_t aexp = scalar_data.get<real_t>("aexp");
         real_t da_max = t_end/aexp;
         real_t dt_max = CosmoManager::static_compute_cosmo_dt(this->omega_m, this->omega_v, aexp, da_max);
         scalar_data.get<real_t>("dt") = std::min( scalar_data.get<real_t>("dt") , dt_max );
+        
       }
+      */
     }
   }
 
@@ -223,7 +223,7 @@ private:
   }
 public:
   /**
-   * Create ans initialize a simulation
+   * Create and initialize a simulation
    **/
   DyabloTimeLoop( ConfigMap& configMap )
   : m_communicator( GlobalMpiSession::get_comm_world() ),
@@ -276,10 +276,12 @@ public:
   
     this->cosmo_manager = std::make_unique<CosmoManager>( configMap );
     real_t t0_default = 0;
+    
     if( cosmo_manager->cosmo_run )
     {
       t0_default = cosmo_manager->expansionToTime( cosmo_manager->a_start );
       m_scalar_data.set("aexp", cosmo_manager->a_start);
+      m_scalar_data.set("tfinal",cosmo_manager->expansionToTime( cosmo_manager->a_end ));
     }
     else
     {
@@ -549,6 +551,14 @@ public:
     signal( SIGINT, SIG_DFL );
 
     timers.get("TimeLoop").stop();
+    // If cosmo, one final update before the dump
+    if( cosmo_manager->cosmo_run )
+    {
+      real_t time = m_scalar_data.get<real_t>("time");
+      real_t aexp = cosmo_manager->timeToExpansion(time);
+      m_scalar_data.set("aexp", aexp);
+      m_scalar_data.set("z", 1.0/(aexp)-1.0);
+    }
 
     // Always output after last iteration
     timers.get("outputs").start();

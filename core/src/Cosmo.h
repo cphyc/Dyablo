@@ -95,6 +95,7 @@ public:
       a_start(configMap.getValue<real_t>("cosmology",  "aStart",  1.0e-2)),
       a_end(configMap.getValue<real_t>("cosmology", "aEnd", 1.00)),
       da(configMap.getValue<real_t>("cosmology", "da", 1.02)),
+      t_end(configMap.getValue<real_t>("run", "tEnd", 1.00)),
       save_expansion_table(configMap.getValue<bool>("cosmology", "save_expansion_table", false)),
       lookup_size(configMap.getValue<size_t>("cosmology", "lookup_size", 1024)) {
     computeFLM();
@@ -111,7 +112,7 @@ public:
   }
 
   void computeFLM() {
-    const real_t a_ext = a_end * 1.1; // Getting a safety margin
+    const real_t a_ext = a_end;
     const real_t delta_a = a_ext - a_start;
     
     lookup_a.reserve(lookup_size);
@@ -156,7 +157,7 @@ public:
   real_t omega_m, omega_v; //!< Energy budget
   real_t a_start, a_end;   //!< Expansion factor at the start and at the end of the simulation
   real_t da;               //!< By how much do we need to multiplpy a for the next step
-
+  real_t t_end;            // the final time, can be an expansion factor if t_end_var=aexp
   bool save_expansion_table;
 
   size_t lookup_size;
