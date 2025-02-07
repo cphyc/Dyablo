@@ -269,7 +269,7 @@ void GravitySolver_cg::update_gravity_field( UserData& U, ScalarSimulationData& 
   rho_mean = MPI_Allreduce_scalar(rho_mean)/Vtot;
 
   bool cosmo_run = pdata->cosmo_run;
-  real_t aexp = 0;
+  real_t aexp = 1.0;
   if( cosmo_run )
     aexp = scalar_data.get<real_t>("aexp");
   real_t four_Pi_G = pdata->four_Pi_G;  
@@ -284,7 +284,7 @@ void GravitySolver_cg::update_gravity_field( UserData& U, ScalarSimulationData& 
     auto cell_size = cells.getCellSize(iCell_CGdata);
     real_t bi;
     if( cosmo_run )
-      bi = b_cosmo(Uin, iCell_CGdata, rho_mean, aexp, cell_size);
+      bi = b_cosmo(Uin, iCell_CGdata, rho_mean, 1.0, cell_size);
     else
       bi = b(Uin, iCell_CGdata, rho_mean, four_Pi_G, cell_size);
 
@@ -410,7 +410,7 @@ void GravitySolver_cg::update_gravity_field( UserData& U, ScalarSimulationData& 
 
       Kokkos::Array< VarIndex, 3 > IG = {IGX, IGY, IGZ};
 
-      Uout.at(iCell_Uout, IG[dir]) = (dphi_L + dphi_R)/2; 
+      Uout.at(iCell_Uout, IG[dir]) = (dphi_L + dphi_R)/2*aexp; 
     };
     gradient(IX);
     gradient(IY);
