@@ -26,7 +26,7 @@ public:
 
     ForeachCell& foreach_cell = this->foreach_cell;
 
-    timers.get("SourceUpdate_Ionization_Bunny::update").start();
+    timers.get("SourceUpdate_Ionization_Bunny").start();
 
     enum VarIndex {IDR,IUR,IVR,IWR};
 

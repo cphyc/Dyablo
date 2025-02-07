@@ -102,7 +102,8 @@ inline named_enum<DiffusivityMode>::init_list named_enum<DiffusivityMode>::names
 enum RadType {
   BUNNY,
   REGULAR,
-  STROMGREN
+  STROMGREN,
+  SHADOW
 };
 
 template<>
@@ -111,6 +112,7 @@ inline named_enum<RadType>::init_list named_enum<RadType>::names()
   return {
     {RadType::BUNNY, "bunny"},
     {RadType::REGULAR, "regular"},
-    {RadType::STROMGREN, "stromgren"}
+    {RadType::STROMGREN, "stromgren"},
+    {RadType::SHADOW, "shadow"}
   };
 }

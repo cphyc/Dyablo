@@ -23,7 +23,7 @@ struct AnalyticalFormula_rad_blast : public AnalyticalFormula_base{
     const int levelMin, bx;
     RadType rad_type;
     const real_t box_size;
-    const real_t temperature, temperature_bb, xe_start, zre_start;
+    const real_t temperature, temperature_bb, gas_density, xe_start, zre_start;
     real_t rhostar, pstar; 
     
     AnalyticalFormula_rad_blast( ConfigMap& configMap ) :
@@ -43,6 +43,7 @@ struct AnalyticalFormula_rad_blast : public AnalyticalFormula_base{
         box_size(configMap.getValue<real_t>("rad", "box_size", 6.6)),
         temperature(configMap.getValue<real_t>("rad", "temperature", 1e4)),
         temperature_bb(configMap.getValue<real_t>("ionization", "temp_black_body", 1e5)),
+        gas_density(configMap.getValue<real_t>("ionization", "gas_density", 1000.0)),
         xe_start(configMap.getValue<real_t>("rad", "xe_start", 1.2e-3)),
         zre_start(configMap.getValue<real_t>("ionization", "zre_start", -1000.0))
     {
@@ -55,7 +56,7 @@ struct AnalyticalFormula_rad_blast : public AnalyticalFormula_base{
         real_t tstar = 1.0 * Mega * 365.0*24.0*3600.0; // sec
         real_t vstar = rstar/tstar; //m/s
         real_t ctilde = clight_fraction * SPEEDOFLIGHT / vstar;
-        rhostar = 1e3 * PROTON_MASS; // 1000 atomes/m3
+        rhostar = gas_density * PROTON_MASS; // 1000 atomes/m3 par défaut
         pstar = rhostar * vstar * vstar;
 
         // Compute sigma_n, sigma_e and typical energy
@@ -63,19 +64,15 @@ struct AnalyticalFormula_rad_blast : public AnalyticalFormula_base{
 
         configMap.getValue<real_t>( "cosmology", "omegam", omegam );
         configMap.getValue<real_t>( "cosmology", "dx", dx );
-        configMap.getValue<real_t>( "cosmology", "vstar", vstar );
         configMap.getValue<real_t>( "cosmology", "rhostar", rhostar );
         configMap.getValue<real_t>( "cosmology", "tstar", tstar );
+        configMap.getValue<real_t>( "cosmology", "vstar", vstar );
         configMap.getValue<real_t>( "cosmology", "astart", 1.0 );
+        configMap.getValue<real_t>( "cosmology", "ctilde", ctilde);
+
         configMap.getValue<real_t>( "ionization", "sigma_n_c", s.sn * clight_fraction * SPEEDOFLIGHT );
         configMap.getValue<real_t>( "ionization", "sigma_e_c", s.se * clight_fraction * SPEEDOFLIGHT );
         configMap.getValue<real_t>( "ionization", "typical_energy", s.etyp);
-
-        if(rad_type==BUNNY)
-            configMap.getValue<real_t>( "cosmology", "ctilde", 0.1);
-        else
-            configMap.getValue<real_t>( "cosmology", "ctilde", ctilde);
-            //scalar_data : iter=0 aexp=1 clight_fraction=0.001 ctilde=0.1 dt=0.09375 dx=1.44641e+19 omegam=0 rhostar=1.67262e-24 time=0 tstar=3.1536e+13 vstar=1.46769e+07 z=0 
     }
 
     KOKKOS_INLINE_FUNCTION
@@ -98,63 +95,66 @@ struct AnalyticalFormula_rad_blast : public AnalyticalFormula_base{
 
         real_t temp = this->temperature * Kelvin;
 
+        res.fx_rad = 0.0;
+        res.fy_rad = 0.0;
+        res.fz_rad = 0.0;
+
+        res.xe = this->xe_start;
+        res.zre = this->zre_start;   
+
         if(rad_type==BUNNY){
-
-            // Quadrant size
-            real_t qsx = 1.0;
-            real_t qsy = 1.0;
-            real_t qsz = 1.0;
-            real_t qs = FMIN(qsx, FMIN( qsy, qsz ) );
-            real_t radius = 0.05*qs;
-
-            // Quadrant logical position
-            int qix = (int)(x / qsx);
-            int qiy = (int)(y / qsy);
-            int qiz = (int)(z / qsz);
-
-            // Quadrant physical center
-            real_t qcx = (qix+0.5)*qsx;
-            real_t qcy = (qiy+0.5)*qsy;
-            real_t qcz = (qiz+0.5)*qsz;
-
-            real_t r2 = (x-qcx)*(x-qcx) + (y-qcy)*(y-qcy);
-
-            if( this->ndim == 3 ) r2 += (z-qcz)*(z-qcz);
             
             res.e_rad = 7e-3; // dummy value
-
-            if (r2 < radius*radius) {
-                res.rho = 13.0;
-                res.e_tot = 17.0/(gamma0-1.0);
-            } else {
-                res.rho = 13.0;
-                res.e_tot = 17.0/(gamma0-1.0);
-            }
+            res.rho = 13.0;
+            res.e_tot = 17.0/(gamma0-1.0);           
+            res.temp = temp;
         }
 
-        // Stromgren and Iliev tests
+        // Stromgren and Iliev tests 2/5
         else if(rad_type==STROMGREN){
 
             res.e_rad = 0.0;
             res.rho_u = 0.0;
             res.rho_v = 0.0;
             res.rho_w = 0.0;
-            res.rho = 1e3 * PROTON_MASS / rhostar;
+            res.rho = gas_density * PROTON_MASS / rhostar;
 
-            real_t p_0 = (gamma0 - 1.0) * 1.5 * 1e3 * KBOLTZ * temp / pstar;
+            real_t p_0 = (gamma0 - 1.0) * 1.5 * gas_density * KBOLTZ * temp / pstar;
             res.e_tot = p_0/(gamma0-1.0);
+
+            res.temp = temp;
         }
 
-        res.fx_rad = 0.0;
-        res.fy_rad = 0.0;
-        res.fz_rad = 0.0;
-        res.xe = this->xe_start;
-        res.zre = this->zre_start;
-        res.temp = temp;
-        
-        return res;
+        // Iliev test 3/7
+        else if(rad_type==SHADOW){
 
-    } 
+            res.e_rad = 0.0;
+            res.rho_u = 0.0;
+            res.rho_v = 0.0;
+            res.rho_w = 0.0;
+
+            real_t radius = 0.8/box_size; // 0.8 kpc par rapport à 6.6 kpc. On veut une valeur entre 0 et 1
+            real_t pos_x = 5.0/box_size;   // 5kpc par rapport à 6.6kpc. On veut une valeur entre 0 et 1
+            real_t pos_y = 0.5;  // au milieu
+            real_t pos_z = 0.5;  // au milieu
+
+            real_t r2 = (x-pos_x)*(x-pos_x) + (y-pos_y)*(y-pos_y);
+            if( this->ndim == 3 ) r2 += (z-pos_z)*(z-pos_z);
+
+            real_t factor = 1.0;
+            if (r2 < radius*radius) {
+                factor = 200.0;
+            }
+
+            res.temp = temp / factor;
+            res.rho = gas_density * factor * PROTON_MASS / rhostar;
+
+            real_t p_0 = (gamma0 - 1.0) * 1.5 * gas_density * KBOLTZ * temp / pstar;
+            res.e_tot = p_0/(gamma0-1.0);
+        } 
+
+        return res;
+    }
 };
 
 } // namespace dyablo
