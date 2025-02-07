@@ -11,10 +11,11 @@ enum VarIndex_Chem{ Irho,Ie_tot, Irho_vx,Irho_vy,Irho_vz, Ie_rad, Ifx_rad,Ify_ra
 KOKKOS_INLINE_FUNCTION
 void apply_rad_chem( const ForeachCell::CellIndex& iCell_Uin,
                     const UserData::FieldAccessor& Uout,
-                    int ndim, real_t xpos, real_t ypos, real_t zpos, real_t gamma0, real_t rho_crit,
+                    int ndim, real_t xpos, real_t ypos, real_t zpos, real_t source_position,
+                    real_t gamma0, real_t rho_crit,
                     real_t dt, real_t dx, real_t ctilde, real_t aexp, real_t tstar, real_t rhostar, 
-                    real_t vstar, real_t size, real_t Ndot, RadType mode,
-                    bool apply_cooling, bool dynamic, real_t sigma_n_c, real_t sigma_e_c, real_t typical_energy)
+                    real_t vstar, real_t size, real_t Ndot, real_t box_size, RadType mode,
+                    bool apply_cooling, bool coupling, real_t sigma_n_c, real_t sigma_e_c, real_t typical_energy)
 {
   
   real_t dtSI = dt*tstar*(aexp*aexp); // Timestep in s
@@ -54,8 +55,8 @@ void apply_rad_chem( const ForeachCell::CellIndex& iCell_Uin,
   real_t pressure_SI = pressure*pstar/(aexp*aexp*aexp*aexp*aexp);
 
   real_t temp_SI = Uout.at(iCell_Uin, VarIndex_Chem::Itemp);
-  // In case of dynamic mode, we need to recompute the temperature related to the e_tot and rho
-  if(dynamic)
+  // In case of coupling mode, we need to recompute the temperature related to the e_tot and rho
+  if(coupling)
     temp_SI = pressure_SI /( (gamma0 - 1.0) * 1.5 * nHSI*(1+x) * Units::KBOLTZ);
 
   real_t temp_new_SI = temp_SI;
@@ -63,7 +64,7 @@ void apply_rad_chem( const ForeachCell::CellIndex& iCell_Uin,
 
   // Source of photons
   real_t deltaN = 0.0;
-  real_t x1 = 0.0, y1 = 0.0, z1 = 0.0;  // Position of the source
+  real_t x1 = source_position, y1 = source_position, z1 = source_position;  // Position of the source
   real_t r1 = (xpos-x1)*(xpos-x1)+(ypos-y1)*(ypos-y1)+(zpos-z1)*(zpos-z1);
   
   // Increase the photons number density due to sources when criterion is met
@@ -88,7 +89,7 @@ void apply_rad_chem( const ForeachCell::CellIndex& iCell_Uin,
   // xnew= x - (m*x*x*x +n*x*x +p*x +q)/(3*m*x*x +2*n*x +p);
 
   // Update NSI (equation 5 from  Aubert & Teyssier 2008)
-  real_t NSI_new = NSI - alphab*nHSI*nHSI*xnew*xnew*dtSI - nHSI*(xnew-x);
+  real_t NSI_new = NSI + beta*nHSI*nHSI*(1.-xnew)*xnew*dtSI - alphab*nHSI*nHSI*xnew*xnew*dtSI - nHSI*(xnew-x);
   NSI_new = (NSI_new/nstar)*(aexp*aexp*aexp); // switch back to code units
 
   // Update fluxes
@@ -125,6 +126,13 @@ void apply_rad_chem( const ForeachCell::CellIndex& iCell_Uin,
       zrenew = 1.0/aexp-1.0;
   }
 
+  // Special case for Iliev 3 test where we overwrite the flux
+  if(mode==SHADOW && xpos<=1.0/box_size){
+      FXSI = 1e10/(nstar*vstar);
+      FYSI = 0.0;
+      FZSI = 0.0;
+  }
+
   // Store results
   Uout.at(iCell_Uin, VarIndex_Chem::Ie_rad) = NSI_new; // there should be a NSMIN like PMIN
   Uout.at(iCell_Uin, VarIndex_Chem::Ifx_rad) = FXSI;
@@ -134,7 +142,7 @@ void apply_rad_chem( const ForeachCell::CellIndex& iCell_Uin,
   Uout.at(iCell_Uin, VarIndex_Chem::Izr) = zrenew;
   Uout.at(iCell_Uin, VarIndex_Chem::Itemp) = temp_new_SI;
 
- if(dynamic)
+ if(coupling)
     Uout.at( iCell_Uin, VarIndex_Chem::Ie_tot) = e_tot_new;
 }
 }
@@ -150,6 +158,7 @@ private:
 
   real_t gamma0;
   real_t rho_crit;
+  real_t source_position;
   real_t ndot;
   real_t sigma_n_c;
   real_t sigma_e_c;
@@ -159,7 +168,7 @@ private:
   RadType mode;
 
   bool apply_cooling;
-  bool dynamic;
+  bool coupling;
 
   // TODO use units for this
   real_t dx;
@@ -176,15 +185,16 @@ public:
 
     gamma0(configMap.getValue<real_t>("hydro", "gamma0", 1.666)),
     rho_crit(configMap.getValue<real_t>("ionization", "rho_crit", 0.3)),
+    source_position(configMap.getValue<real_t>("ionization", "source_position", 0.0)),
     ndot(configMap.getValue<real_t>("ionization", "ndot", 1e56)),
     sigma_n_c(configMap.getValue<real_t>( "ionization", "sigma_n_c" )),
     sigma_e_c(configMap.getValue<real_t>( "ionization", "sigma_e_c" )),
     typical_energy(configMap.getValue<real_t>( "ionization", "typical_energy" )),
-    ctilde_a0(configMap.getValue<real_t>( "cosmology", "ctilde" ) / configMap.getValue<real_t>( "cosmology", "astart" )),
     mode(configMap.getValue<RadType>("ionization", "mode", REGULAR)),
     apply_cooling(configMap.getValue<bool>("ionization", "apply_cooling", true)),
-    dynamic(configMap.getValue<bool>("ionization", "dynamic", false)),
+    coupling(configMap.getValue<bool>("ionization", "coupling", false)),
 
+    ctilde_a0(configMap.getValue<real_t>( "cosmology", "ctilde" ) / configMap.getValue<real_t>( "cosmology", "astart" )),
     dx(configMap.getValue<real_t>( "cosmology", "dx") ),
     tstar(configMap.getValue<real_t>( "cosmology", "tstar") ),    
     rhostar(configMap.getValue<real_t>( "cosmology", "rhostar") ),
@@ -223,6 +233,7 @@ public:
 
     real_t gamma0 = this->gamma0;
     real_t rho_crit = this->rho_crit;
+    real_t source_position = this->source_position;
     real_t ndot = this->ndot;
     real_t sigma_n_c = this->sigma_n_c;
     real_t sigma_e_c = this->sigma_e_c;
@@ -232,14 +243,15 @@ public:
     RadType mode = this->mode;
 
     bool apply_cooling = this->apply_cooling;
-    bool dynamic = this->dynamic;
+    bool coupling = this->coupling;
 
     // TODO use units for this
     real_t dx = this->dx;
     real_t tstar = this->tstar;
     real_t rhostar = this->rhostar;
-    real_t vstar = this->vstar;    
-
+    real_t vstar = this->vstar;  
+    real_t box_size = vstar*tstar/dx;  
+    
     ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
 
     foreach_cell.foreach_cell( "SourceUpdate_Ionization_Chem", Uout.getShape(), 
@@ -250,10 +262,10 @@ public:
       DYABLO_ASSERT_KOKKOS_DEBUG( size[IX] == size[IY] && size[IX] == size[IZ], "Only square cells supported" );
 
       apply_rad_chem( iCell_Uout, Uout, ndim,
-                      pos[IX], pos[IY], pos[IZ],
+                      pos[IX], pos[IY], pos[IZ], source_position,
                       gamma0, rho_crit, dt, dx, ctilde, aexp, 
-                      tstar, rhostar, vstar, size[IX], ndot, 
-                      mode, apply_cooling, dynamic, sigma_n_c, sigma_e_c, typical_energy);
+                      tstar, rhostar, vstar, size[IX], ndot, box_size,
+                      mode, apply_cooling, coupling, sigma_n_c, sigma_e_c, typical_energy);
     });
 
     timers.get("SourceUpdate_Ionization_Chem").stop();
