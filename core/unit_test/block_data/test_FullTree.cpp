@@ -34,6 +34,7 @@ void test_FullTree()
   int ndim = 3;
   int level_min = 3;
   int level_max = 7;
+  const int min_multigrid_level = 1;
   std::shared_ptr<AMRmesh> amr_mesh; //solver->amr_mesh 
   {
     amr_mesh = std::make_shared<AMRmesh>(ndim, ndim, std::array<bool,3>{false,false,false}, level_min, level_max);
@@ -105,7 +106,7 @@ void test_FullTree()
   U.new_intermediate_fields( {"px","py","pz"} );
   UserData::FieldAccessor Uintermediate = U.getAccessor_intermediate( {{"px", Px}, {"py", Py}, {"pz", Pz}} );
 
-  for( int level = level_max; level >= level_min; level-- )
+  for( int level = level_max; level >= min_multigrid_level; level-- )
   {
     foreach_cell.foreach_intermediate_cell( "average_parent_cell", Uintermediate.getShape(),
     KOKKOS_LAMBDA( ForeachCell::CellIndex& iCell)

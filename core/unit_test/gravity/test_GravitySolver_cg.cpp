@@ -88,7 +88,7 @@ std::shared_ptr<AMRmesh> mesh_amrgrid_semiperiodic_sphere()
   std::cout << "// =========================================\n";
   std::cout << "// Testing GravitySolver_gc...\n";
   std::cout << "// Grid : amr - blocks " << bx << " -  levels " << level_min << " -> " << level_max << " \n";
-  std::cout << "// Boundary conditions : (absorbing, absorbing, periodic) \n";
+  std::cout << "// Boundary conditions : (periodic, periodic, periodic) \n";
   std::cout << "// =========================================\n";
 
   std::cout << "Create mesh..." << std::endl;
@@ -96,7 +96,7 @@ std::shared_ptr<AMRmesh> mesh_amrgrid_semiperiodic_sphere()
   {
     int ndim = 3;   
 
-    amr_mesh = std::make_shared<AMRmesh>(ndim, ndim, std::array<bool,3>{false,false,true}, level_min, level_max);
+    amr_mesh = std::make_shared<AMRmesh>(ndim, ndim, std::array<bool,3>{true,true,true}, level_min, level_max);
 
     for(int level=level_min+1; level<level_max; level++)
     {
@@ -155,10 +155,10 @@ void test_GravitySolver( std::shared_ptr<AMRmesh> amr_mesh )
     "bz=4\n"
     "[mesh]\n"
     "ndim=3\n"
-    "boundary_type_xmin=absorbing\n"
-    "boundary_type_xmax=absorbing\n"
-    "boundary_type_ymin=absorbing\n"
-    "boundary_type_ymax=absorbing\n"
+    "boundary_type_xmin=periodic\n"
+    "boundary_type_xmax=periodic\n"
+    "boundary_type_ymin=periodic\n"
+    "boundary_type_ymax=periodic\n"
     "boundary_type_zmin=periodic\n"
     "boundary_type_zmax=periodic\n"
     "[gravity]\n"

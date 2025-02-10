@@ -851,7 +851,7 @@ CellIndex CellIndex::getNeighbor_ghost_intermediate( const offset_t& offset, con
     const LightOctree::OctantIndex& iOct = this->iOct; 
     if( lmesh.isBoundary( iOct, oct_offset ) )
     {
-      return CellIndex{iOct,i+bx,j+by,k+bz,bx,by,bz, CellIndex::BOUNDARY};;
+      return CellIndex{iOct,i+bx,j+by,k+bz,bx,by,bz, CellIndex::BOUNDARY};
     }
     
     LightOctree::NeighborList oct_neighbors = lmesh.findNeighbors_intermediate(iOct, oct_offset);
