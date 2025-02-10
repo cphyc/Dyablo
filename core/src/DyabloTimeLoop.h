@@ -188,17 +188,6 @@ public:
         if (use_t_end && time + scalar_data.get<real_t>("dt") > t_end)
             scalar_data.get<real_t>("dt") = t_end - time;
       }
-      /*
-      else if (  )
-      {
-        
-        real_t aexp = scalar_data.get<real_t>("aexp");
-        real_t da_max = t_end/aexp;
-        real_t dt_max = CosmoManager::static_compute_cosmo_dt(this->omega_m, this->omega_v, aexp, da_max);
-        scalar_data.get<real_t>("dt") = std::min( scalar_data.get<real_t>("dt") , dt_max );
-        
-      }
-      */
     }
   }
 
