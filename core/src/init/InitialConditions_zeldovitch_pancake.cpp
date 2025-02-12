@@ -42,9 +42,9 @@ struct AnalyticalFormula_Zeldovitch_pancake : public AnalyticalFormula_base{
 
     real_t dladt = astart * etastart;
 
-    real_t fomega;
-    real_t dcross;
-    real_t dplus;
+    real_t fomega = 0.0;
+    real_t dcross = 0.0;
+    real_t dplus = 0.0;
 
     if (omegam >= 1.0 && omegav <= 0.0)
       fomega = 1.0;

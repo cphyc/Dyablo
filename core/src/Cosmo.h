@@ -95,7 +95,6 @@ public:
       a_start(configMap.getValue<real_t>("cosmology",  "aStart",  1.0e-2)),
       a_end(configMap.getValue<real_t>("cosmology", "aEnd", 1.00)),
       da(configMap.getValue<real_t>("cosmology", "da", 1.02)),
-      t_end(configMap.getValue<real_t>("run", "tEnd", 1.00)),
       save_expansion_table(configMap.getValue<bool>("cosmology", "save_expansion_table", false)),
       lookup_size(configMap.getValue<size_t>("cosmology", "lookup_size", 1024)) {
     computeFLM();

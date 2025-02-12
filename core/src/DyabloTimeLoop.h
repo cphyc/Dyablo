@@ -84,7 +84,8 @@ public:
   std::string t_end_var; // scalar_data variable used to test for simulation end ("time" by default, but could be "aexp")
   real_t t_end; // End value for selected scalar_data variable t_end_var
   bool use_t_end; // enable/disable termination when end value is attaigned (default on t_end is positive, but can be overriden )
-  real_t a_end; 
+  real_t a_end;
+  bool cosmo_run; 
 
   IterationHandler(ConfigMap& configMap, const ScalarSimulationData& scalar_data )
   : output_frequency     ( "iter", configMap.getValue<int>("run", "output_frequency",       -1), scalar_data ),
@@ -93,9 +94,10 @@ public:
     amr_frequency        ( "iter", configMap.getValue<int>("amr", "cycle_frequency",         1), scalar_data),
     iter_end             ( configMap.getValue<int>("run", "nstepmax",                1000) ),
     t_end_var            ( configMap.getValue<std::string>("run", "t_end_var", "time") ),
-    t_end                ( configMap.getValue<real_t>("run", "tEnd", 0.0) ),
-    a_end                ( configMap.getValue<real_t>("cosmology", "aEnd", 0.0) ),
-    use_t_end            ( configMap.getValue<bool>("run", "use_tEnd", t_end > 0 || a_end > 0) )
+    t_end                ( configMap.getValue<real_t>("run", "tEnd", 1.0) ),
+    use_t_end            ( configMap.getValue<bool>("run", "use_tEnd", t_end > 0 || a_end > 0) ),
+    a_end                ( configMap.getValue<real_t>("cosmology", "aEnd", 1.0) ),
+    cosmo_run            ( configMap.getValue<bool>("cosmology", "active", false) )
   {
     // Translate output/checkpoint_expslice into 
     if( configMap.hasValue("run", "output_expslice") || configMap.hasValue("run", "checkpoint_expslice")  )
@@ -122,12 +124,12 @@ public:
     this->output_slice_var = configMap.getValue<std::string>("run", "output_slice_var", "time");
     this->output_timeslice     = Interval_trigger(output_slice_var, configMap.getValue<real_t>("run", "output_timeslice", -1), scalar_data);
     this->checkpoint_timeslice = Interval_trigger(output_slice_var, configMap.getValue<real_t>("run", "checkpoint_timeslice", -1), scalar_data);
-    if(a_end >0.0){
+    
+    if(cosmo_run && a_end >0.0){
       t_end = scalar_data.get<real_t>("tfinal");
     } 
     if( t_end_var != "time" ) 
         std::cout << "WARNING : can't correct dt to match t_end, possible overshoot. var=" << t_end_var << std::endl;
-  
   }
 
   /// return true if end of simulation
