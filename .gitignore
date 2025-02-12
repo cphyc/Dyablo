@@ -11,3 +11,13 @@ src/doxygen
 .vscode/settings.json
 .vscode/tasks.json
 src/Doxyfile
+.env
+dyablo.code-workspace
+.vscode/launch.json
+.gitignore
+run/*
+settings/cosmo/bunny.ini
+settings/cosmo/iliev_test2.ini
+settings/cosmo/iliev_test3.ini
+settings/cosmo/iliev_test5.ini
+settings/cosmo/iliev_test7.ini
