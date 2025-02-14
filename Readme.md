@@ -14,7 +14,7 @@ Modularity is also key to use state-of-the-art libraries interchangeably, reuse 
 
 ## Get the sources
 
-Dyablo includes Kokkos and PABLO as git submodules. Make sure to clone this repository recursively, this will also download Kokkos and PABLO from github.
+Dyablo includes Kokkos and other libraries as git submodules. Make sure to clone this repository recursively, this will also download Kokkos and other dependencies.
 
 ```bash
 git clone --recurse-submodules git@drf-gitlab.cea.fr:dyablo/dyablo.git
@@ -28,7 +28,7 @@ git submodule update --init
 
 For the latest version of Dyablo, we recommend that you use the `dev` (default) branch . 
 
-NOTE : If you don' have access to github from the machine (e.g at TGCC), you will need to populate the `external/` folder manually with [kokkos](https://github.com/kokkos/kokkos), [bitpit](https://github.com/pkestene/bitpit.git) and [backward-cpp](https://github.com/bombela/backward-cpp.git). If you want to build unit-tests you also need [gtest](https://github.com/google/googletest).
+NOTE : If you don't have access to github from the machine (e.g at TGCC), you will need to populate the `external/` folder manually with [kokkos](https://github.com/kokkos/kokkos) and [backward-cpp](https://github.com/bombela/backward-cpp.git). If you want to build unit-tests you also need [gtest](https://github.com/google/googletest). If you want to enable the legacy PABLO backend for AMR, you also need [bitpit](https://github.com/pkestene/bitpit.git).
  
 ## build dyablo
 
@@ -37,31 +37,37 @@ NOTE : If you don' have access to github from the machine (e.g at TGCC), you wil
 The CMake superbuild should automatically find dependencies and warn you if any dependency is missing. CMake version > 3.16 is needed to compile Kokkos.
 
 You will need a recent C++ compiler compatible with C++17 and capable of compiling Kokkos. Recommended compiler versions for Dyablo are :
-* `g++` > 8.2
+* `g++` > 12
 * `icc` > 19.0.5
-* `clang` > 8.0
-* `nvcc` > 11.2
+* `clang` > 11
+* `nvcc` > 12
 * ...
 
 Other dependencies include :
 * MPI
-* HDF5 (parallel)
+* HDF5 in parallel mode (apt install libhdf5-mpi-dev)
 * libxml2
 
 #### Dependencies for GPU
 
-To compile for GPU, a CUDA installation is needed, preferably newer than CUDA 11.2. Dyablo supports both CUDA-Aware and non CUDA-Aware MPI implementations when compiling for GPU, make sure that cuda-aware support has been correctly detected in the CMake logs.
+To compile for GPU (Nvidia), a CUDA installation is needed, preferably newer than CUDA 11.2. Dyablo supports both CUDA-Aware and non CUDA-Aware MPI implementations when compiling for GPU, make sure that cuda-aware support has been correctly detected in the CMake logs.
 
 Kokkos automatically detects and sets the CUDA compiler when Kokkos_ENABLE_CUDA is ON :
 * When the C++ compiler is not compatible with CUDA, Kokkos uses NVCC to compile device code. NVCC version must be >= 11.2
 * When the C++ compiler is compatible with CUDA (e.g clang), Kokkos uses this compiler
 For more details, see the [Kokkos documentation](https://github.com/kokkos/kokkos/wiki/Compiling)
 
-### Superbuild : build bitpit/PABLO, Kokkos and dyablo alltogether
+##### For other GPU vendors : 
 
-The top-level `CMakeLists.txt` uses the the super-build pattern to build Dyablo and its depencies (here PABLO and Kokkos) using cmake command [ExternalProject_Add](https://cmake.org/cmake/help/latest/module/ExternalProject.html). Using the superbuild is the recommended way to compile Dyablo because it ensures that the Kokkos compilation configuration (Architecture, enabled backends, etc...) is compatible with how Dyablo is configured.
+AMD and Intel GPUs are also supported, see "Build on specific systems" for details.
 
-To build bitpit, Kokkos and dyablo (for Kokkos/OpenMP backend which is the default)
+GPU-Aware auto-detection only works for OpenMPI on Nvidia, use `-DDYABLO_USE_MPI_CUDA_AWARE_ENFORCED=ON` if you know your MPI implementation is GPU-Aware but it was not detected automatically.
+
+### Superbuild : build Kokkos and Dyablo at the same time
+
+The top-level `CMakeLists.txt` uses the the super-build pattern to build Dyablo and its depencies (here Kokkos) using cmake command [ExternalProject_Add](https://cmake.org/cmake/help/latest/module/ExternalProject.html). Using the superbuild is the recommended way to compile Dyablo because it ensures that the Kokkos compilaton configuration (Architecture, enabled backends, etc...) is compatible with how Dyablo is configured.
+
+To build Kokkos and dyablo (for Kokkos/OpenMP backend which is the default)
 
 ```bash
 mkdir build_openmp; cd build_openmp
@@ -79,18 +85,18 @@ make
 Build commands for some linux distributions and supercomputers can be found [here](https://drf-gitlab.cea.fr/dyablo/dyablo/-/wikis/Build%20and%20Run/Build%20commands%20on%20specific%20systems) to help you find the right packages or modules as well as the command line to use to compile Dyablo.
 
 Configuration options for Dyablo ( `cmake -D` arguments ) include :
-- `-DCMAKE_BUILD_TYPE=<buildtype>` : `Release` (recommended for performance), `Debug` (enables asserts and debug symbols), `RelWithDebInfo`
-- `-DKokkos_ENABLE_CUDA=ON/OFF` : enable CUDA
-- `-DKokkos_ARCH="<arch1>,..."` : target specific architectures (i.e. set architecture-specific optimization flags) listed in the [Kokkos documentation](https://github.com/kokkos/kokkos/wiki/Compiling#table-43-architecture-variables). You may target multiple architectures : for example to compile for a machine with Intel Skylake CPU + V100 GPUs, you might want to set `-DKokkos_ARCH="SKX;VOLTA70"`. CUDA architecture is auto-detected if `Kokkos_ARCH` is not present.
+- `-DCMAKE_BUILD_TYPE=<buildtype>` : `Release` (recommended for performance), `Debug` (enables asserts and debug symbols), `RelWithDebINfo`
+- `-DKokkos_ENABLE_CUDA=ON/OFF` : enable CUDA (use Kokkos_ENABLE_HIP for AMD, ...)
+- `-DKokkos_ARCH="<arch1>,..."` : target specific architectures (i.e. set architecture-specific optimization flags) listed in the [Kokkos documentation](https://github.com/kokkos/kokkos/wiki/Compiling#table-43-architecture-variables). You may target multiple architectures : for example to compile for a machine with Intel Skylake CPU + V100 GPUs, you might want to set `-DKokkos_ARCH="SKX;VOLTA70"`. CUDA architecture is auto-detected if `Kokkos_ARCH` is not present. Default CPU architecture might not fully use vectorization features, don't forget to set a CPU architecture for OpenMP compilation.
 - `-DDYABLO_ENABLE_UNIT_TESTING=ON/OFF` : enable/disable unit tests. If enabled, run `make dyablo-test` from your build directory to run all tests
 
 Compilation may take a long time, we recommend you use parallel compilation with `make -j <number of cores>`.
 
 ## Run Dyablo
 
-The main executable `dyablo` is in `build/dyablo/bin`. The directory also contains some *.ini files that can passed to the executable on the command line. For instance, to run a 2d Sedov-blast on the block-AMR backend, the command will be `./dyablo test_blast_2D_block.ini`
+The main executable `dyablo` is in `build/dyablo/bin/`. The directory also contains some *.ini files that can passed to the executable on the command line. For instance, to run a 2d Sedov-blast on the block-AMR backend, the command will be `./dyablo test_blast_2D_block.ini`. Other .ini files are available in the `settings/` directory at the root of the project
 
-Beware, when recompiling, the .ini files may be reset to their original state.
+Beware, when recompiling, the .ini files in `bin` may be reset to their original state.
 
 run for instance `./dyablo test_blast_3D_block.ini` to run the 3D block-based blast test case. This executable accepts [Kokkos command-line parameters](https://github.com/kokkos/kokkos/wiki/Initialization).
 
