@@ -6,6 +6,7 @@ namespace dyablo {
 
 class GravitySolver_constant;
 class GravitySolver_cg;
+class GravitySolver_multigrid;
 
 template< typename T >
 class GravitySolver_analytical;
@@ -19,6 +20,7 @@ inline bool dyablo::GravitySolverFactory::init()
 {
   DECLARE_REGISTERED(dyablo::GravitySolver_constant);
   DECLARE_REGISTERED(dyablo::GravitySolver_cg);
+  DECLARE_REGISTERED(dyablo::GravitySolver_multigrid);
   DECLARE_REGISTERED(dyablo::GravitySolver_analytical<dyablo::AnalyticalFormula_gravity_point_mass>);
 
   return true;

@@ -157,7 +157,7 @@ namespace dyablo {
       "solver_name=Hydro_Muscl_Block_3D \n"
       "[output]\n"
       "outputPrefix=test_GravitySolver_multigrid5\n"
-      "write_variables=rho,gphi,gx,gy,gz,res,solution,rhs\n"
+      "write_variables=rho,gphi,gx,gy,gz,res,solution,rhs,mask\n"
       "[amr]\n"
       "use_block_data=yes\n"
       "bx=4\n"
@@ -195,11 +195,12 @@ namespace dyablo {
       Isolution,
       Irhs,
       Iresidual,
+      Imask,
     };
 
     UserData U_(configMap, foreach_cell);
-    U_.new_fields({ "rho", "gx", "gy", "gz", "gphi", "solution", "rhs",  "res" });
-    U_.new_intermediate_fields( {"rho","gphi", "solution", "rhs", "res"} );
+    U_.new_fields({ "rho", "gx", "gy", "gz", "gphi", "solution", "rhs",  "res", "mask" });
+    U_.new_intermediate_fields( {"rho","gphi", "solution", "rhs", "res", "mask"} );
 
 
     UserData::FieldAccessor U = U_.getAccessor({
@@ -211,20 +212,22 @@ namespace dyablo {
       {"solution", Isolution},
       {"rhs", Irhs},
       { "res", Iresidual },
+      { "mask", Imask },
       });
     
-    UserData::FieldAccessor Uintermediate = U_.getAccessor_intermediate( {
+    UserData::FieldAccessor Uintermediate = U_.getAccessor_intermediate({
       {"rho", Irho},
       {"gphi", Iphi},
       {"solution", Isolution},
       {"rhs", Irhs},
       { "res", Iresidual },
+      { "mask", Imask },
       });
 
 
     {
       // Initialize U
-      auto cells = foreach_cell.getCellMetaData();
+      const ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
       foreach_cell.foreach_cell("Init", U.getShape(),
         KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
       {
@@ -253,7 +256,7 @@ namespace dyablo {
     int iter = 0;
     int time = 0;
 
-    auto cells = foreach_cell.getCellMetaData();
+    const ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
     real_t ndim = configMap.getValue<real_t>("mesh", "ndim", 0);
     real_t xmin = configMap.getValue<real_t>("mesh", "xmin", 0);
     real_t ymin = configMap.getValue<real_t>("mesh", "ymin", 0);
@@ -363,23 +366,17 @@ namespace dyablo {
       for (int8_t k = 0; k <= offset_z; k++){
         for (int8_t l = 0; l <= 1; l++)
         {
-          const int8_t shift_x = l*offset[IX] + 2. * i * (2*(iCell.i % 2) - 1);
-          const int8_t shift_y = l*offset[IY] + 2. * j * (2*(iCell.j % 2) - 1);
-          const int8_t shift_z = l*offset[IZ] + 2. * k * (2*(iCell.k % 2) - 1);
+          const int8_t shift_x = 2* (l*offset[IX] + i * (2*(iCell.i % 2) - 1));
+          const int8_t shift_y = 2* (l*offset[IY] + j * (2*(iCell.j % 2) - 1));
+          const int8_t shift_z = 2* (l*offset[IZ] + k * (2*(iCell.k % 2) - 1));
           const ForeachCell::CellIndex::offset_t shift = {shift_x, shift_y, shift_z};
           const ForeachCell::CellIndex iCell_coarse = iCell.getNeighbor_ghost(shift, U.getShape());
           if (iCell_coarse.status == ForeachCell::CellIndex::BIGGER ) {
             result += tmp[counter]*U.at(iCell_coarse, Iphi);
-            auto lc = lmesh.get_logical_coords(iCell_coarse.iOct);
-            printf(" %d Leaf-------- %d %d %d ijk %d %d %d\n", counter, lc[IX], lc[IY], lc[IZ], iCell_coarse.i, iCell_coarse.j, iCell_coarse.k);
-            printf("counter %d tmp %f U.at %.5e\n", counter, tmp[counter], U.at(iCell_coarse, Iphi));
           }
           else {
             const ForeachCell::CellIndex iCell_parent = iCell_coarse.getParent(Uintermediate.getShape());
-            auto lc = lmesh.get_logical_coords(iCell_parent.iOct);
-            printf(" %d Intermediate %d %d %d ijk %d %d %d\n", counter, lc[IX], lc[IY], lc[IZ], iCell_parent.i, iCell_parent.j, iCell_parent.k);
             result += tmp[counter]*Uintermediate.at(iCell_parent, Iphi);
-            printf("counter %d tmp %f U.at %.5e\n", counter, tmp[counter], Uintermediate.at(iCell_parent, Iphi));
           }
         }
         counter++;
@@ -393,7 +390,7 @@ namespace dyablo {
       foreach_cell.reduce_cell("Compute residual norm", U.getShape(),
         KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell, real_t & update_residual_sqr)
       {
-        const uint32_t current_level = lmesh.getLevel(iCell.iOct);
+        const uint32_t current_level = cells.getLevel(iCell);
         if (current_level == level) {
           real_t residual_tmp = U.at(iCell, Iresidual);
           update_residual_sqr += residual_tmp * residual_tmp;
@@ -402,13 +399,12 @@ namespace dyablo {
       foreach_cell.reduce_intermediate_cell("Compute residual norm", U.getShape(),
         KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell, real_t & update_residual_sqr)
       {
-        const uint32_t current_level = lmesh.getLevel(iCell.iOct);
+        const uint32_t current_level = cells.getLevel(iCell);
         if (current_level == level) {
           real_t residual_tmp = Uintermediate.at(iCell, Iresidual);
           update_residual_sqr += residual_tmp * residual_tmp;
         }
       }, Kokkos::Sum<real_t>(residual_sqr_intermediate));
-      // printf("Level %d Residual**2, leaves %.3e intermediate %.3e\n", level, residual_sqr_leaves, residual_sqr_intermediate);
       return residual_sqr_leaves + residual_sqr_intermediate;
     };
 
@@ -416,7 +412,7 @@ namespace dyablo {
       foreach_cell.foreach_cell("Write potential", U.getShape(),
       KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
       {
-        uint32_t current_level = cells.getLevel(iCell);
+        const uint32_t current_level = cells.getLevel(iCell);
         if (level == current_level){
           const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
           U.at(iCell, Isolution) = -U.at(iCell, Irhs) / (2. / (size[IX]*size[IX]) + 2. / (size[IY]*size[IY]) + 2. / (size[IZ]*size[IZ]));
@@ -425,7 +421,7 @@ namespace dyablo {
       foreach_cell.foreach_intermediate_cell("Write potential", Uintermediate.getShape(),
       KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
       {
-        uint32_t current_level = cells.getLevel(iCell);
+        const uint32_t current_level = cells.getLevel(iCell);
         if (level == current_level){
           const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
           Uintermediate.at(iCell, Isolution) = -Uintermediate.at(iCell, Irhs) / (2. / (size[IX]*size[IX]) + 2. / (size[IY]*size[IY]) + 2. / (size[IZ]*size[IZ])) ;
@@ -433,52 +429,15 @@ namespace dyablo {
       });
     };
 
-    // Coarse level and coarser
-    auto residual_intermediate_uniform = [&](const uint32_t level) {
-      const auto cells = foreach_cell.getCellMetaData();
-      foreach_cell.foreach_intermediate_cell("Residual intermediate", Uintermediate.getShape(),
-        KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
-      {
-        const uint32_t current_level = lmesh.getLevel(iCell.iOct);
-        if (current_level == level) {
-          const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-          Kokkos::Array<real_t, 3> contrib_L, contrib_R;
-          real_t neighbors = 0;
-          for ( ComponentIndex3D dir : {IX,IY,IZ} )
-          {
-            ForeachCell::CellIndex::offset_t off_L = {}; off_L[dir] = -1;
-            ForeachCell::CellIndex::offset_t off_R = {}; off_R[dir] = +1;
-            ForeachCell::CellIndex iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
-            DYABLO_ASSERT_KOKKOS_DEBUG( iCell_L.level_diff() >= 0, "Intermediate cell cannot have smaller intermediate neighbor" );
-            ForeachCell::CellIndex iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
-            DYABLO_ASSERT_KOKKOS_DEBUG( iCell_R.level_diff() >= 0, "Intermediate cell cannot have smaller intermediate neighbor" );
-            if ( iCell_L.status == ForeachCell::CellIndex::BIGGER ) {
-              iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
-              contrib_L[dir] = U.at(iCell_L, Isolution);
-            } else contrib_L[dir] = Uintermediate.at(iCell_L, Isolution);
-            if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L[dir] = 0;
-            if ( iCell_R.status == ForeachCell::CellIndex::BIGGER ) {
-              iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
-              contrib_R[dir] = U.at(iCell_R, Isolution);
-            } else contrib_R[dir] = Uintermediate.at(iCell_R, Isolution);
-            if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R[dir] = 0;
-            neighbors += (contrib_L[dir] + contrib_R[dir]) / (size[dir] * size[dir]);
-          }
-          const real_t laplacian_solution = neighbors - Uintermediate.at(iCell, Isolution) * ( 2./(size[IX]*size[IX]) + 2./(size[IY]*size[IY]) + 2./(size[IZ]*size[IZ]) );
-          Uintermediate.at(iCell, Iresidual) = Uintermediate.at(iCell, Irhs) - laplacian_solution;
-        }
-      });
-    };
     auto residual_uniform = [&](const uint32_t level) {
-      const auto cells = foreach_cell.getCellMetaData();
+      const ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
       foreach_cell.foreach_cell("Residual", U.getShape(),
         KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
       {
-        const uint32_t current_level = lmesh.getLevel(iCell.iOct);
+        const uint32_t current_level = cells.getLevel(iCell);
         if (current_level == level) {
           const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-          Kokkos::Array<real_t, 3> contrib_L, contrib_R;
-          real_t neighbors = 0;
+          real_t neighbors(0);
           for ( ComponentIndex3D dir : {IX,IY,IZ} )
           {
             ForeachCell::CellIndex::offset_t off_L = {}; off_L[dir] = -1;
@@ -487,17 +446,18 @@ namespace dyablo {
             DYABLO_ASSERT_KOKKOS_DEBUG( iCell_L.level_diff() <= 0, "Leaf cell at coarse level cannot have coarser leaf neighbor" );
             ForeachCell::CellIndex iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
             DYABLO_ASSERT_KOKKOS_DEBUG( iCell_R.level_diff() <= 0, "Leaf cell at coarse level cannot have coarser leaf neighbor" );
+            real_t contrib_L(0), contrib_R(0);
             if ( iCell_L.status == ForeachCell::CellIndex::SMALLER ) {
               iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
-              contrib_L[dir] = Uintermediate.at(iCell_L, Isolution);
-            } else contrib_L[dir] = U.at(iCell_L, Isolution);
-            if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L[dir] = 0;
+              contrib_L = Uintermediate.at(iCell_L, Isolution);
+            } else contrib_L = U.at(iCell_L, Isolution);
+            if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L = 0;
             if ( iCell_R.status == ForeachCell::CellIndex::SMALLER ) {
               iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
-              contrib_R[dir] = Uintermediate.at(iCell_R, Isolution);
-            } else contrib_R[dir] = U.at(iCell_R, Isolution);
-            if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R[dir] = 0;
-            neighbors += (contrib_L[dir] + contrib_R[dir]) / (size[dir] * size[dir]);
+              contrib_R = Uintermediate.at(iCell_R, Isolution);
+            } else contrib_R = U.at(iCell_R, Isolution);
+            if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R = 0;
+            neighbors += (contrib_L + contrib_R) / (size[dir] * size[dir]);
           }
           const real_t laplacian_solution = neighbors - U.at(iCell, Isolution) * ( 2./(size[IX]*size[IX]) + 2./(size[IY]*size[IY]) + 2./(size[IZ]*size[IZ]) );
           U.at(iCell, Iresidual) = U.at(iCell, Irhs) - laplacian_solution;
@@ -506,11 +466,10 @@ namespace dyablo {
       foreach_cell.foreach_intermediate_cell("Residual intermediate", Uintermediate.getShape(),
         KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
       {
-        const uint32_t current_level = lmesh.getLevel(iCell.iOct);
+        const uint32_t current_level = cells.getLevel(iCell);
         if (current_level == level) {
           const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-          Kokkos::Array<real_t, 3> contrib_L, contrib_R;
-          real_t neighbors = 0;
+          real_t neighbors(0);
           for ( ComponentIndex3D dir : {IX,IY,IZ} )
           {
             ForeachCell::CellIndex::offset_t off_L = {}; off_L[dir] = -1;
@@ -519,17 +478,18 @@ namespace dyablo {
             DYABLO_ASSERT_KOKKOS_DEBUG( iCell_L.level_diff() >= 0, "Intermediate cell cannot have smaller intermediate neighbor" );
             ForeachCell::CellIndex iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
             DYABLO_ASSERT_KOKKOS_DEBUG( iCell_R.level_diff() >= 0, "Intermediate cell cannot have smaller intermediate neighbor" );
+            real_t contrib_L(0), contrib_R(0);
             if ( iCell_L.status == ForeachCell::CellIndex::BIGGER ) {
               iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
-              contrib_L[dir] = U.at(iCell_L, Isolution);
-            } else contrib_L[dir] = Uintermediate.at(iCell_L, Isolution);
-            if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L[dir] = 0;
+              contrib_L = U.at(iCell_L, Isolution);
+            } else contrib_L = Uintermediate.at(iCell_L, Isolution);
+            if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L = 0;
             if ( iCell_R.status == ForeachCell::CellIndex::BIGGER ) {
               iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
-              contrib_R[dir] = U.at(iCell_R, Isolution);
-            } else contrib_R[dir] = Uintermediate.at(iCell_R, Isolution);
-            if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R[dir] = 0;
-            neighbors += (contrib_L[dir] + contrib_R[dir]) / (size[dir] * size[dir]);
+              contrib_R = U.at(iCell_R, Isolution);
+            } else contrib_R = Uintermediate.at(iCell_R, Isolution);
+            if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R = 0;
+            neighbors += (contrib_L + contrib_R) / (size[dir] * size[dir]);
           }
           const real_t laplacian_solution = neighbors - Uintermediate.at(iCell, Isolution) * ( 2./(size[IX]*size[IX]) + 2./(size[IY]*size[IY]) + 2./(size[IZ]*size[IZ]) );
           Uintermediate.at(iCell, Iresidual) = Uintermediate.at(iCell, Irhs) - laplacian_solution;
@@ -537,88 +497,57 @@ namespace dyablo {
       });
     };
 
-    auto residual_leaves_amr_correction = [&](const uint32_t level) {
-      const auto cells = foreach_cell.getCellMetaData();
-      foreach_cell.foreach_cell("Residual leaves", U.getShape(),
-        KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
-      {
-        const uint32_t current_level = lmesh.getLevel(iCell.iOct);
-        if (current_level == level) {
-          const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-          Kokkos::Array<real_t, 3> contrib_L, contrib_R;
-          real_t laplacian_solution = 0;
-          //real_t neighbors = 0;
-          const real_t central_solution = U.at(iCell, Isolution);
-          for ( ComponentIndex3D dir : {IX,IY,IZ} )
-          {
-            ForeachCell::CellIndex::offset_t off_L = {}; off_L[dir] = -1;
-            ForeachCell::CellIndex::offset_t off_R = {}; off_R[dir] = +1;
-            ForeachCell::CellIndex iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
-            ForeachCell::CellIndex iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
-            real_t f_L(1), f_R(1), f_C(2);
-            if ( iCell_L.status == ForeachCell::CellIndex::SMALLER ) { 
-              iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
-              contrib_L[dir] = Uintermediate.at(iCell_L, Isolution);
-            } else if (iCell_L.status == ForeachCell::CellIndex::BIGGER) {
-                contrib_L[dir] = 0; // Zero BC for correction terms
-                f_L = 8./3.;
-                f_R = 4./3.;
-                f_C = 4.;
-            } else contrib_L[dir] = U.at(iCell_L, Isolution);
-            if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L[dir] = 0;
-            if ( iCell_R.status == ForeachCell::CellIndex::SMALLER ) { 
-              iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
-              contrib_R[dir] = Uintermediate.at(iCell_R, Isolution);
-            } else if (iCell_R.status == ForeachCell::CellIndex::BIGGER) {
-                contrib_R[dir] = 0; // Zero BC for correction terms
-                f_R = 8./3.;
-                f_L = 4./3.;
-                f_C = 4.;
-            } else contrib_R[dir] = U.at(iCell_R, Isolution);
-            if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R[dir] = 0;
-            laplacian_solution += (f_L*contrib_L[dir] + f_R*contrib_R[dir] - f_C*central_solution) / (size[dir] * size[dir]);
-
-          }
-          U.at(iCell, Iresidual) = U.at(iCell, Irhs) - laplacian_solution;
-        }
-      });
-    };
 
     auto residual_intermediate_amr_correction = [&](const uint32_t level) {
-      const auto cells = foreach_cell.getCellMetaData();
+      const ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
       foreach_cell.foreach_intermediate_cell("Residual intermediate", Uintermediate.getShape(),
         KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
       {
-        const uint32_t current_level = lmesh.getLevel(iCell.iOct);
-        if (current_level == level) {
+        const uint32_t current_level = cells.getLevel(iCell);
+        if (current_level == level)
+        if (Uintermediate.at(iCell, Imask) > 0) {
           const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-          Kokkos::Array<real_t, 3> contrib_L, contrib_R;
-          real_t laplacian_solution = 0;
+          real_t laplacian_solution(0);
           const real_t central_solution = Uintermediate.at(iCell, Isolution);
           for ( ComponentIndex3D dir : {IX,IY,IZ} )
           {
-            real_t f_L(1), f_R(1), f_C(2);
             ForeachCell::CellIndex::offset_t off_L = {}; off_L[dir] = -1;
             ForeachCell::CellIndex::offset_t off_R = {}; off_R[dir] = +1;
             ForeachCell::CellIndex iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
             DYABLO_ASSERT_KOKKOS_DEBUG( iCell_L.level_diff() >= 0, "Intermediate cell cannot have smaller intermediate neighbor" );
             ForeachCell::CellIndex iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
             DYABLO_ASSERT_KOKKOS_DEBUG( iCell_R.level_diff() >= 0, "Intermediate cell cannot have smaller intermediate neighbor" );
+            real_t a(1), b(1), contrib_L(0), contrib_R(0);
             if ( iCell_L.status == ForeachCell::CellIndex::BIGGER ) {
-              contrib_L[dir] = 0; // Zero BC for correction terms
-              f_L = 8./3.;
-              f_R = 4./3.;
-              f_C = 4.;
-            } else contrib_L[dir] = Uintermediate.at(iCell_L, Isolution);
-            if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L[dir] = 0;
+              contrib_L = 0; // Zero BC for correction terms
+              a = 0.5;
+            } else if (Uintermediate.at(iCell_L, Imask) < 0) { //TODO: Second-order reconstruction. Test something else? 
+              contrib_L = 0; // Zero BC for correction terms
+              const real_t cell_mask = Uintermediate.at(iCell, Imask);
+              const real_t neighbor_mask = Uintermediate.at(iCell_L, Imask);
+              a = cell_mask / (cell_mask - neighbor_mask);
+            } /* else if (Uintermediate.at(iCell_L, Imask) < 1) { // First-order reconstruction 
+              contrib_L = 0; // Zero BC for correction terms
+              a = 1;
+            } */ else contrib_L = Uintermediate.at(iCell_L, Isolution);
+            if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L = 0;
             if ( iCell_R.status == ForeachCell::CellIndex::BIGGER ) {
-              contrib_R[dir] = 0; // Zero BC for correction terms
-              f_R = 8./3.;
-              f_L = 4./3.;
-              f_C = 4.;
-            } else contrib_R[dir] = Uintermediate.at(iCell_R, Isolution);
-            if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R[dir] = 0;
-            laplacian_solution += (f_L*contrib_L[dir] + f_R*contrib_R[dir] - f_C*central_solution) / (size[dir] * size[dir]);
+              contrib_R = 0; // Zero BC for correction terms
+              b = 0.5;
+            } else if (Uintermediate.at(iCell_R, Imask) < 0) { // TODO: Second-order reconstruction. Test something else?  
+              contrib_R = 0; // Zero BC for correction terms
+              const real_t cell_mask = Uintermediate.at(iCell, Imask);
+              const real_t neighbor_mask = Uintermediate.at(iCell_R, Imask);
+              b = cell_mask / (cell_mask - neighbor_mask);
+            } /* else if (Uintermediate.at(iCell_R, Imask) < 1) { // First-order reconstruction 
+              contrib_R = 0; // Zero BC for correction terms
+              b = 1;
+            } */ else contrib_R = Uintermediate.at(iCell_R, Isolution);
+            if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R = 0;
+            const real_t f_L = 2. / (a * (a + b));
+            const real_t f_R = 2. / (b*  (a + b));
+            const real_t f_C = 2. / (a*b);
+            laplacian_solution += (f_L*contrib_L + f_R*contrib_R - f_C*central_solution) / (size[dir] * size[dir]);
           }
           Uintermediate.at(iCell, Iresidual) = Uintermediate.at(iCell, Irhs) - laplacian_solution;
         }
@@ -626,15 +555,14 @@ namespace dyablo {
     };
 
     auto residual_amr_finest = [&](const uint32_t level) {
-      const auto cells = foreach_cell.getCellMetaData();
+      const ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
       foreach_cell.foreach_cell("Residual leaves", U.getShape(),
         KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
       {
-        const uint32_t current_level = lmesh.getLevel(iCell.iOct);
+        const uint32_t current_level = cells.getLevel(iCell);
         if (current_level == level) {
           const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-          Kokkos::Array<real_t, 3> contrib_L, contrib_R;
-          real_t laplacian_solution = 0;
+          real_t laplacian_solution(0);
           const real_t central_solution = U.at(iCell, Isolution);
           for ( ComponentIndex3D dir : {IX,IY,IZ} )
           {
@@ -642,38 +570,31 @@ namespace dyablo {
             ForeachCell::CellIndex::offset_t off_R = {}; off_R[dir] = +1;
             ForeachCell::CellIndex iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
             ForeachCell::CellIndex iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
-            real_t f_L(1), f_R(1), f_C(2);
+            real_t a(1), b(1), contrib_L(0), contrib_R(0);
             if ( iCell_L.status == ForeachCell::CellIndex::SMALLER ) { 
               iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
-              contrib_L[dir] = Uintermediate.at(iCell_L, Isolution);
+              contrib_L = Uintermediate.at(iCell_L, Isolution);
             } else if (iCell_L.status == ForeachCell::CellIndex::BIGGER) {
-                //contrib_L[dir] = U.at(iCell_L, Iphi); // TODO: find better interpolation from coarser level?
-                contrib_L[dir] = average_4bigger_neighbors(iCell, off_L);
-                f_L = 8./15.;
-                f_R = 4./5.;
-                f_C = 4./3.;
-                /* contrib_L[dir] = average_8bigger_neighbors(iCell, off_L);
-                f_L = 8./3.;
-                f_R = 4./3.;
-                f_C = 4.; */
-            } else contrib_L[dir] = U.at(iCell_L, Isolution);
-            if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L[dir] = 0;
+                /* contrib_L = average_4bigger_neighbors(iCell, off_L);
+                a = 1.5; */
+                contrib_L = average_8bigger_neighbors(iCell, off_L);
+                a = 0.5;
+            } else contrib_L = U.at(iCell_L, Isolution);
+            if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L = 0;
             if ( iCell_R.status == ForeachCell::CellIndex::SMALLER ) { 
               iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
-              contrib_R[dir] = Uintermediate.at(iCell_R, Isolution);
+              contrib_R = Uintermediate.at(iCell_R, Isolution);
             } else if (iCell_R.status == ForeachCell::CellIndex::BIGGER) {
-                //contrib_R[dir] = U.at(iCell_R, Iphi); // TODO: find better interpolation from coarser level?
-                contrib_R[dir] = average_4bigger_neighbors(iCell, off_R);
-                f_R = 8./15.;
-                f_L = 4./5.;
-                f_C = 4./3.;
-                /* contrib_R[dir] = average_8bigger_neighbors(iCell, off_R);
-                f_R = 8./3.;
-                f_L = 4./3.;
-                f_C = 4.; */
-            } else contrib_R[dir] = U.at(iCell_R, Isolution);
-            if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R[dir] = 0;
-            laplacian_solution += (f_L*contrib_L[dir] + f_R*contrib_R[dir] - f_C*central_solution) / (size[dir] * size[dir]);
+                /* contrib_R = average_4bigger_neighbors(iCell, off_R);
+                b = 1.5; */
+                contrib_R = average_8bigger_neighbors(iCell, off_R);
+                b = 0.5;
+            } else contrib_R = U.at(iCell_R, Isolution);
+            if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R = 0;
+            const real_t f_L = 2. / (a * (a + b));
+            const real_t f_R = 2. / (b*  (a + b));
+            const real_t f_C = 2. / (a*b);
+            laplacian_solution += (f_L*contrib_L + f_R*contrib_R - f_C*central_solution) / (size[dir] * size[dir]);
           }
           U.at(iCell, Iresidual) = U.at(iCell, Irhs) - laplacian_solution;
         }
@@ -681,13 +602,13 @@ namespace dyablo {
       foreach_cell.foreach_intermediate_cell("Residual intermediate", Uintermediate.getShape(),
         KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
       {
-        const uint32_t current_level = lmesh.getLevel(iCell.iOct);
+        const uint32_t current_level = cells.getLevel(iCell);
         if (current_level == level) {
           const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-          Kokkos::Array<real_t, 3> contrib_L, contrib_R;
-          real_t neighbors = 0;
+          real_t neighbors(0);
           for ( ComponentIndex3D dir : {IX,IY,IZ} )
           {
+            real_t contrib_L(0), contrib_R(0);
             ForeachCell::CellIndex::offset_t off_L = {}; off_L[dir] = -1;
             ForeachCell::CellIndex::offset_t off_R = {}; off_R[dir] = +1;
             ForeachCell::CellIndex iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
@@ -696,15 +617,15 @@ namespace dyablo {
             DYABLO_ASSERT_KOKKOS_DEBUG( iCell_R.level_diff() >= 0, "Intermediate cell cannot have smaller intermediate neighbor" );
             if ( iCell_L.status == ForeachCell::CellIndex::BIGGER ) {
               iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
-              contrib_L[dir] = U.at(iCell_L, Isolution);
-            } else contrib_L[dir] = Uintermediate.at(iCell_L, Isolution);
-            if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L[dir] = 0;
+              contrib_L = U.at(iCell_L, Isolution);
+            } else contrib_L = Uintermediate.at(iCell_L, Isolution);
+            if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L = 0;
             if ( iCell_R.status == ForeachCell::CellIndex::BIGGER ) {
               iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
-              contrib_R[dir] = U.at(iCell_R, Isolution);
-            } else contrib_R[dir] = Uintermediate.at(iCell_R, Isolution);
-            if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R[dir] = 0;
-            neighbors += (contrib_L[dir] + contrib_R[dir]) / (size[dir] * size[dir]);
+              contrib_R = U.at(iCell_R, Isolution);
+            } else contrib_R = Uintermediate.at(iCell_R, Isolution);
+            if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R = 0;
+            neighbors += (contrib_L + contrib_R) / (size[dir] * size[dir]);
           }
           const real_t laplacian_solution = neighbors - Uintermediate.at(iCell, Isolution) * ( 2./(size[IX]*size[IX]) + 2./(size[IY]*size[IY]) + 2./(size[IZ]*size[IZ]) );
           Uintermediate.at(iCell, Iresidual) = Uintermediate.at(iCell, Irhs) - laplacian_solution;
@@ -720,15 +641,22 @@ namespace dyablo {
         if( current_level == level )
         {
           ForeachCell::CellIndex iCell_c0 = iCell.getChildren(Uintermediate.getShape());
-          real_t residual = 0;
+          real_t residual(0), mask(0);
           int ns = foreach_sibling( ndim, iCell_c0, Uintermediate.getShape(),
             [&]( const ForeachCell::CellIndex& iCell_c )
           {
-            if ( iCell_c.iOct.isIntermediate )  residual += Uintermediate.at(iCell_c, Iresidual);
-            else  residual += U.at(iCell_c, Iresidual);
+            if ( iCell_c.iOct.isIntermediate ) {
+              residual += Uintermediate.at(iCell_c, Iresidual);
+              mask += Uintermediate.at(iCell_c, Imask);
+            } 
+            else {
+              residual += U.at(iCell_c, Iresidual);
+              mask += U.at(iCell_c, Imask);
+            }
             
           });
           Uintermediate.at( iCell, Irhs ) = residual/ns;
+          Uintermediate.at( iCell, Imask ) = mask/ns;
         }
       }); 
     };
@@ -832,7 +760,6 @@ namespace dyablo {
           // Interpolate to children
           const ForeachCell::CellIndex iCell_c0 = iCell.getChildren(Uintermediate.getShape());
           // foreach_sibling
-          // CellIndex get_sibling_cell TODO: check if sibling cells are necessary leaf or intermediate, similar to iCell_c0
           if( iCell_c0.iOct.isIntermediate ){
             CellIndex iCell000 = iCell_c0.getNeighbor_ghost_intermediate({0, 0, 0}, Uintermediate.getShape());
             Uintermediate.at(iCell000, Isolution) += tmp0
@@ -965,7 +892,6 @@ namespace dyablo {
           // Interpolate to children
           const ForeachCell::CellIndex iCell_c0 = iCell.getChildren(Uintermediate.getShape());
           // foreach_sibling
-          // CellIndex get_sibling_cell TODO: check if sibling cells are necessary leaf or intermediate, similar to iCell_c0
           if( iCell_c0.iOct.isIntermediate ){
             CellIndex iCell000 = iCell_c0.getNeighbor_ghost_intermediate({0, 0, 0}, Uintermediate.getShape());
             Uintermediate.at(iCell000, Isolution) += tmp0
@@ -1017,17 +943,31 @@ namespace dyablo {
       KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
       {
         uint32_t current_level = cells.getLevel(iCell);
-        if (level == current_level){
-          U.at(iCell, Isolution) = 0;
-        }
+        if (level == current_level) U.at(iCell, Isolution) = 0;
       });
       foreach_cell.foreach_intermediate_cell("Write potential", Uintermediate.getShape(),
       KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
       {
         uint32_t current_level = cells.getLevel(iCell);
-        if (level == current_level){
-          Uintermediate.at(iCell, Isolution) = 0;
-        }
+        if (level == current_level) Uintermediate.at(iCell, Isolution) = 0;
+      });
+    };
+
+    auto initialise_mask = [&](const uint32_t finest_level){
+      foreach_cell.foreach_cell("Write potential", U.getShape(),
+      KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
+      {
+        uint32_t current_level = cells.getLevel(iCell);
+        if (current_level < finest_level) U.at(iCell, Imask) = -1;
+        else if ( current_level == finest_level )  U.at(iCell, Imask) = 1;
+        
+      });
+      foreach_cell.foreach_intermediate_cell("Write potential", Uintermediate.getShape(),
+      KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
+      {
+        uint32_t current_level = cells.getLevel(iCell);
+        if (current_level < finest_level) Uintermediate.at(iCell, Imask) = -1;
+        else if ( current_level == finest_level )  Uintermediate.at(iCell, Imask) = 1;
       });
     };
 
@@ -1086,248 +1026,196 @@ namespace dyablo {
     // AMR, loop on all leaves
     // GS on correction term. Bigger neighbors set to zero
     auto gauss_seidel_intermediate_amr_correction = [&](auto is_coloured, const uint32_t level) {
-      const auto cells = foreach_cell.getCellMetaData();
+      const ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
       foreach_cell.foreach_intermediate_cell("Gauss-Seidel", U.getShape(),
         KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
       {
-        const uint32_t current_level = lmesh.getLevel(iCell.iOct);
-        if (current_level == level) {
-          if (is_coloured(iCell)) {
-            const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-            Kokkos::Array<real_t, 3> f_L, f_R, f_C;
-            real_t neighbors(0), contrib_L(0), contrib_R(0);
-            const real_t w_relax(1.);
-            for ( const ComponentIndex3D dir : {IX,IY,IZ} )
-            {
-              f_L[dir] = 1.;
-              f_R[dir] = 1.;
-              f_C[dir] = 2.;
-              ForeachCell::CellIndex::offset_t off_L = {}; off_L[dir] = -1;
-              ForeachCell::CellIndex::offset_t off_R = {}; off_R[dir] = +1;
-              ForeachCell::CellIndex iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, U.getShape());
-              ForeachCell::CellIndex iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, U.getShape());
-              DYABLO_ASSERT_KOKKOS_DEBUG( iCell_L.level_diff() >= 0, "Intermediate L cell cannot have smaller intermediate neighbor" );
-              DYABLO_ASSERT_KOKKOS_DEBUG( iCell_R.level_diff() >= 0, "Intermediate R cell cannot have smaller intermediate neighbor" );
-              if (iCell_L.status == ForeachCell::CellIndex::BIGGER) {
-                contrib_L = 0; // Zero BC for correction terms
-                f_L[dir] = 8./3.;
-                f_R[dir] = 4./3.;
-                f_C[dir] = 4.;
-              } else contrib_L = U.at(iCell_L, Isolution);
-              if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L = 0;
-              if (iCell_R.status == ForeachCell::CellIndex::BIGGER) {
-                contrib_R = 0; // Zero BC for correction terms
-                f_R[dir] = 8./3.;
-                f_L[dir] = 4./3.;
-                f_C[dir] = 4.;
-              } else contrib_R = U.at(iCell_R, Isolution);
-              if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R = 0;
-              neighbors += (f_L[dir] * contrib_L + f_R[dir] * contrib_R) / (size[dir] * size[dir]);                   
-            }
-            U.at(iCell, Isolution) += w_relax * (
-              (neighbors - U.at(iCell, Irhs)) / ( 
-              f_C[IX] / (size[IX]*size[IX]) + f_C[IY] / (size[IY]*size[IY]) + f_C[IZ] / (size[IZ]*size[IZ])
-              ) - U.at(iCell, Isolution)
-            );
+        const uint32_t current_level = cells.getLevel(iCell);
+        if (current_level == level) 
+        if (is_coloured(iCell))
+        if (Uintermediate.at(iCell, Imask) > 0) {
+          const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
+          Kokkos::Array<real_t, 3> f_C;
+          real_t neighbors(0);
+          const real_t w_relax(1.);
+          for ( const ComponentIndex3D dir : {IX,IY,IZ} )
+          {
+            ForeachCell::CellIndex::offset_t off_L = {}; off_L[dir] = -1;
+            ForeachCell::CellIndex::offset_t off_R = {}; off_R[dir] = +1;
+            ForeachCell::CellIndex iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
+            DYABLO_ASSERT_KOKKOS_DEBUG( iCell_L.level_diff() >= 0, "Intermediate L cell cannot have smaller intermediate neighbor" );
+            ForeachCell::CellIndex iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
+            DYABLO_ASSERT_KOKKOS_DEBUG( iCell_R.level_diff() >= 0, "Intermediate R cell cannot have smaller intermediate neighbor" );
+            real_t a(1), b(1), contrib_L(0), contrib_R(0), f_R(0), f_L(0);
+            if (iCell_L.status == ForeachCell::CellIndex::BIGGER) {
+              contrib_L = 0; // Zero BC for correction terms
+              a = 0.5;
+            } else if (Uintermediate.at(iCell_L, Imask) < 0) { // TODO: Second-order reconstruction. Test something else? 
+              contrib_L = 0; // Zero BC for correction terms
+              const real_t cell_mask = Uintermediate.at(iCell, Imask);
+              const real_t left_neighbor_mask = Uintermediate.at(iCell_L, Imask);
+              a = cell_mask / (cell_mask - left_neighbor_mask);
+            } /* else if (Uintermediate.at(iCell_L, Imask) < 1) { // First-order reconstruction 
+              contrib_L = 0; // Zero BC for correction terms
+              a = 1;
+            } */ else contrib_L = Uintermediate.at(iCell_L, Isolution);
+            if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L = 0;
+            if (iCell_R.status == ForeachCell::CellIndex::BIGGER) {
+              contrib_R = 0; // Zero BC for correction terms
+              b = 0.5;
+            } else if (Uintermediate.at(iCell_R, Imask) < 0) { // TODO: Second-order reconstruction. Test something else?
+              contrib_R = 0; // Zero BC for correction terms
+              const real_t cell_mask = Uintermediate.at(iCell, Imask);
+              const real_t right_neighbor_mask = Uintermediate.at(iCell_R, Imask);
+              b = cell_mask / (cell_mask - right_neighbor_mask);
+            } /* else if (Uintermediate.at(iCell_R, Imask) < 1) { // First-order reconstruction 
+              contrib_R = 0; // Zero BC for correction terms
+              b = 1;
+            } */ else contrib_R = Uintermediate.at(iCell_R, Isolution);
+            if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R = 0;
+            f_L = 2. / (a * (a + b));
+            f_R = 2. / (b * (a + b));
+            f_C[dir] = 2. / (a*b);
+            neighbors += (f_L * contrib_L + f_R * contrib_R) / (size[dir] * size[dir]);                   
           }
-        }
+          Uintermediate.at(iCell, Isolution) += w_relax * (
+            (neighbors - Uintermediate.at(iCell, Irhs)) / ( 
+            f_C[IX] / (size[IX]*size[IX]) + f_C[IY] / (size[IY]*size[IY]) + f_C[IZ] / (size[IZ]*size[IZ])
+            ) - Uintermediate.at(iCell, Isolution)
+          );
+        } 
       });
     };
-    
-    auto gauss_seidel_leaves_amr_correction = [&](auto is_coloured, const uint32_t level) {
-      const auto cells = foreach_cell.getCellMetaData();
-      foreach_cell.foreach_cell("Gauss-Seidel", U.getShape(),
-        KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
-      {
-        const uint32_t current_level = lmesh.getLevel(iCell.iOct);
-        if (current_level == level) {
-          if (is_coloured(iCell)) {
-            const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-            Kokkos::Array<real_t, 3> f_L, f_R, f_C;
-            real_t neighbors(0), contrib_L(0), contrib_R(0);
-            const real_t w_relax(1.);
-            for ( const ComponentIndex3D dir : {IX,IY,IZ} )
-            {
-              f_L[dir] = 1.;
-              f_R[dir] = 1.;
-              f_C[dir] = 2.;
-              ForeachCell::CellIndex::offset_t off_L = {}; off_L[dir] = -1;
-              ForeachCell::CellIndex::offset_t off_R = {}; off_R[dir] = +1;
-              ForeachCell::CellIndex iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
-              ForeachCell::CellIndex iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
-              if ( iCell_L.status == ForeachCell::CellIndex::SMALLER ) {
-                iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
-                contrib_L = Uintermediate.at(iCell_L, Isolution);
-              } else if (iCell_L.status == ForeachCell::CellIndex::BIGGER) {
-                contrib_L = 0; // Zero BC for correction terms
-                f_L[dir] = 8./3.;
-                f_R[dir] = 4./3.;
-                f_C[dir] = 4.;
-              } else contrib_L = U.at(iCell_L, Isolution);
-              if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L = 0;
-              if ( iCell_R.status == ForeachCell::CellIndex::SMALLER ) {
-                iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
-                contrib_R = Uintermediate.at(iCell_R, Isolution);
-              } else if (iCell_R.status == ForeachCell::CellIndex::BIGGER) {
-                contrib_R = 0; // Zero BC for correction terms
-                f_R[dir] = 8./3.;
-                f_L[dir] = 4./3.;
-                f_C[dir] = 4.;
-              } else contrib_R = U.at(iCell_R, Isolution);
-              if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R = 0;
-              neighbors += (f_L[dir] * contrib_L + f_R[dir] * contrib_R) / (size[dir] * size[dir]);                   
-            }
-            U.at(iCell, Isolution) += w_relax * (
-              (neighbors - U.at(iCell, Irhs)) / ( 
-              f_C[IX] / (size[IX]*size[IX]) + f_C[IY] / (size[IY]*size[IY]) + f_C[IZ] / (size[IZ]*size[IZ])
-              ) - U.at(iCell, Isolution)
-            );
-          }
-        }
-      });
-    };
-
-    // GS on potential. Bigger neighbors are necessarily Iphi
 
     auto gauss_seidel_leaves_amr_finest = [&](auto is_coloured, const uint32_t level) {
-      const auto cells = foreach_cell.getCellMetaData();
+      const ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
       foreach_cell.foreach_cell("Gauss-Seidel", U.getShape(),
         KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
       {
-        const uint32_t current_level = lmesh.getLevel(iCell.iOct);
-        if (current_level == level) {
-          if (is_coloured(iCell)) {
-            const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-            Kokkos::Array<real_t, 3> f_L, f_R, f_C;
-            real_t neighbors(0), contrib_L(0), contrib_R(0);
-            const real_t w_relax(1.);
-            for ( const ComponentIndex3D dir : {IX,IY,IZ} )
-            {
-              f_L[dir] = 1.;
-              f_R[dir] = 1.;
-              f_C[dir] = 2.;
-              ForeachCell::CellIndex::offset_t off_L = {}; off_L[dir] = -1;
-              ForeachCell::CellIndex::offset_t off_R = {}; off_R[dir] = +1;
-              ForeachCell::CellIndex iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
-              ForeachCell::CellIndex iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
-              if ( iCell_L.status == ForeachCell::CellIndex::SMALLER ) {
-                iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
-                contrib_L = Uintermediate.at(iCell_L, Isolution);
-              } else if (iCell_L.status == ForeachCell::CellIndex::BIGGER) {
-                //contrib_L = U.at(iCell_L, Iphi); // TODO: find better interpolation from coarser level?
-                contrib_L = average_4bigger_neighbors(iCell, off_L);
-                f_L[dir] = 8./15.;
-                f_R[dir] = 4./5.;
-                f_C[dir] = 4./3.;
-                /* contrib_L = average_8bigger_neighbors(iCell, off_L);
-                f_L[dir] = 8./3.;
-                f_R[dir] = 4./3.;
-                f_C[dir] = 4.; */
-              } else contrib_L = U.at(iCell_L, Isolution);
-              if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L = 0;
-              if ( iCell_R.status == ForeachCell::CellIndex::SMALLER ) {
-                iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
-                contrib_R = Uintermediate.at(iCell_R, Isolution);
-              } else if (iCell_R.status == ForeachCell::CellIndex::BIGGER) {
-                //contrib_R = U.at(iCell_R, Iphi); // TODO: find better interpolation from coarser level?
-                contrib_R = average_4bigger_neighbors(iCell, off_R);
-                f_R[dir] = 8./15.;
-                f_L[dir] = 4./5.;
-                f_C[dir] = 4./3.;
-                /* contrib_R = average_8bigger_neighbors(iCell, off_R);
-                f_R[dir] = 8./3.;
-                f_L[dir] = 4./3.;
-                f_C[dir] = 4.; */
-              } else contrib_R = U.at(iCell_R, Isolution);
-              if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R = 0;
-              neighbors += (f_L[dir] * contrib_L + f_R[dir] * contrib_R) / (size[dir] * size[dir]);             
-            }
-            U.at(iCell, Isolution) += w_relax * (
-              (neighbors - U.at(iCell, Irhs)) / ( 
-              f_C[IX] / (size[IX]*size[IX]) + f_C[IY] / (size[IY]*size[IY]) + f_C[IZ] / (size[IZ]*size[IZ])
-              ) - U.at(iCell, Isolution)
-            );
+        const uint32_t current_level = cells.getLevel(iCell);
+        if (current_level == level) 
+        if (is_coloured(iCell)) {
+          const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
+          Kokkos::Array<real_t, 3> f_C;
+          real_t neighbors(0);
+          const real_t w_relax(1.);
+          for ( const ComponentIndex3D dir : {IX,IY,IZ} )
+          {
+            real_t a(1), b(1), contrib_L(0), contrib_R(0), f_L(0), f_R(0);
+            ForeachCell::CellIndex::offset_t off_L = {}; off_L[dir] = -1;
+            ForeachCell::CellIndex::offset_t off_R = {}; off_R[dir] = +1;
+            ForeachCell::CellIndex iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
+            ForeachCell::CellIndex iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
+            if ( iCell_L.status == ForeachCell::CellIndex::SMALLER ) {
+              iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
+              contrib_L = Uintermediate.at(iCell_L, Isolution);
+            } else if (iCell_L.status == ForeachCell::CellIndex::BIGGER) {
+              /* contrib_L = average_4bigger_neighbors(iCell, off_L);
+              a = 1.5; */
+              contrib_L = average_8bigger_neighbors(iCell, off_L);
+              a = 0.5;
+            } else contrib_L = U.at(iCell_L, Isolution);
+            if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L = 0;
+            if ( iCell_R.status == ForeachCell::CellIndex::SMALLER ) {
+              iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
+              contrib_R = Uintermediate.at(iCell_R, Isolution);
+            } else if (iCell_R.status == ForeachCell::CellIndex::BIGGER) {
+              /* contrib_R = average_4bigger_neighbors(iCell, off_R);
+              b = 1.5; */
+              contrib_R = average_8bigger_neighbors(iCell, off_R);
+              b = 0.5;
+            } else contrib_R = U.at(iCell_R, Isolution);
+            if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R = 0;
+            f_L = 2. / (a * (a + b));
+            f_R = 2. / (b*  (a + b));
+            f_C[dir] = 2. / (a*b);
+            neighbors += (f_L * contrib_L + f_R * contrib_R) / (size[dir] * size[dir]);             
           }
+          U.at(iCell, Isolution) += w_relax * (
+            (neighbors - U.at(iCell, Irhs)) / ( 
+            f_C[IX] / (size[IX]*size[IX]) + f_C[IY] / (size[IY]*size[IY]) + f_C[IZ] / (size[IZ]*size[IZ])
+            ) - U.at(iCell, Isolution)
+          );
         }
       });
     };
 
     // PM-like, loop on all leaves
     auto gauss_seidel_leaves_uniform = [&](auto is_coloured, const uint32_t level) {
-      const auto cells = foreach_cell.getCellMetaData();
+      const ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
       foreach_cell.foreach_cell("Gauss-Seidel", U.getShape(),
         KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
       {
-        const uint32_t current_level = lmesh.getLevel(iCell.iOct);
-        if (current_level == level) {
-          if (is_coloured(iCell)) {
-            const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-            Kokkos::Array<real_t, 3> contrib_L, contrib_R;
-            real_t neighbors = 0;
-            const real_t w_relax(1.);
-            for ( const ComponentIndex3D dir : {IX,IY,IZ} )
-            {
-              ForeachCell::CellIndex::offset_t off_L = {}; off_L[dir] = -1;
-              ForeachCell::CellIndex::offset_t off_R = {}; off_R[dir] = +1;
-              ForeachCell::CellIndex iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
-              ForeachCell::CellIndex iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
-              if ( iCell_L.level_diff() != 0 ) {
-                iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
-                contrib_L[dir] = Uintermediate.at(iCell_L, Isolution);
-              } else contrib_L[dir] = U.at(iCell_L, Isolution);
-              if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L[dir] = 0;
-              if ( iCell_R.level_diff() != 0 ) {
-                iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
-                contrib_R[dir] = Uintermediate.at(iCell_R, Isolution);
-              } else contrib_R[dir] = U.at(iCell_R, Isolution);
-              if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R[dir] = 0;
-              neighbors += (contrib_L[dir] + contrib_R[dir]) / (size[dir] * size[dir]);             
-            }
-            U.at(iCell, Isolution) += w_relax * (
-              (neighbors - U.at(iCell, Irhs)) / (2. / (size[IX]*size[IX]) + 2. / (size[IY]*size[IY]) + 2. / (size[IZ]*size[IZ]))
-              - U.at(iCell, Isolution)
-            );
+        const uint32_t current_level = cells.getLevel(iCell);
+        if (current_level == level)
+        if (is_coloured(iCell)) {
+          const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
+          real_t neighbors(0);
+          const real_t w_relax(1.);
+          for ( const ComponentIndex3D dir : {IX,IY,IZ} )
+          {
+            real_t contrib_L(0), contrib_R(0);
+            ForeachCell::CellIndex::offset_t off_L = {}; off_L[dir] = -1;
+            ForeachCell::CellIndex::offset_t off_R = {}; off_R[dir] = +1;
+            ForeachCell::CellIndex iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
+            ForeachCell::CellIndex iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
+            if ( iCell_L.level_diff() != 0 ) {
+              iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
+              contrib_L = Uintermediate.at(iCell_L, Isolution);
+            } else contrib_L = U.at(iCell_L, Isolution);
+            if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L = 0;
+            if ( iCell_R.level_diff() != 0 ) {
+              iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
+              contrib_R = Uintermediate.at(iCell_R, Isolution);
+            } else contrib_R = U.at(iCell_R, Isolution);
+            if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R = 0;
+            neighbors += (contrib_L + contrib_R) / (size[dir] * size[dir]);             
           }
+          U.at(iCell, Isolution) += w_relax * (
+            (neighbors - U.at(iCell, Irhs)) / (2. / (size[IX]*size[IX]) + 2. / (size[IY]*size[IY]) + 2. / (size[IZ]*size[IZ]))
+            - U.at(iCell, Isolution)
+          );
         }
       });
     };
       
     // PM-like, loop on all intermediate octants
     auto gauss_seidel_intermediate = [&](auto is_coloured, const uint32_t level) {
-      const auto cells = foreach_cell.getCellMetaData();
+      const ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
       foreach_cell.foreach_intermediate_cell("Gauss-Seidel", Uintermediate.getShape(),
         KOKKOS_LAMBDA(const ForeachCell::CellIndex & iCell)
       {
-        const uint32_t current_level = lmesh.getLevel(iCell.iOct);
-        if (current_level == level) {
-          if (is_coloured(iCell)) {
-            const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-            Kokkos::Array<real_t, 3> contrib_L, contrib_R;
-            real_t neighbors = 0;
-            const real_t w_relax(1.);
-            for ( ComponentIndex3D dir : {IX,IY,IZ} )
-            {
-              ForeachCell::CellIndex::offset_t off_L = {}; off_L[dir] = -1;
-              ForeachCell::CellIndex::offset_t off_R = {}; off_R[dir] = +1;
-              ForeachCell::CellIndex iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
-              ForeachCell::CellIndex iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
-              if ( iCell_L.level_diff() != 0 ) {
-                iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
-                contrib_L[dir] = U.at(iCell_L, Isolution);
-              } else contrib_L[dir] = Uintermediate.at(iCell_L, Isolution);
-              if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L[dir] = 0;
-              if ( iCell_R.level_diff() != 0 ) {
-                iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
-                contrib_R[dir] = U.at(iCell_R, Isolution);
-              } else contrib_R[dir] = Uintermediate.at(iCell_R, Isolution);
-              if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R[dir] = 0;
-              neighbors += (contrib_L[dir] + contrib_R[dir]) / (size[dir] * size[dir]);
-            }
-            Uintermediate.at(iCell, Isolution) += w_relax * (
-              (neighbors - Uintermediate.at(iCell, Irhs)) / (2. / (size[IX]*size[IX]) + 2. / (size[IY]*size[IY]) + 2. / (size[IZ]*size[IZ]))
-              - Uintermediate.at(iCell, Isolution)
-            );
+        const uint32_t current_level = cells.getLevel(iCell);
+        if (current_level == level)
+        if (is_coloured(iCell)) {
+          const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
+          real_t neighbors(0);
+          const real_t w_relax(1.);
+          for ( ComponentIndex3D dir : {IX,IY,IZ} )
+          {
+            real_t contrib_L(0), contrib_R(0);
+            ForeachCell::CellIndex::offset_t off_L = {}; off_L[dir] = -1;
+            ForeachCell::CellIndex::offset_t off_R = {}; off_R[dir] = +1;
+            ForeachCell::CellIndex iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
+            DYABLO_ASSERT_KOKKOS_DEBUG( iCell_L.level_diff() >= 0, "Intermediate L cell cannot have smaller intermediate neighbor" );
+            ForeachCell::CellIndex iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
+            DYABLO_ASSERT_KOKKOS_DEBUG( iCell_R.level_diff() >= 0, "Intermediate R cell cannot have smaller intermediate neighbor" );
+            if ( iCell_L.status == ForeachCell::CellIndex::BIGGER ) {
+              iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
+              contrib_L = U.at(iCell_L, Isolution);
+            } else contrib_L = Uintermediate.at(iCell_L, Isolution);
+            if ( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L = 0;
+            if ( iCell_R.status == ForeachCell::CellIndex::BIGGER ) {
+              iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
+              contrib_R = U.at(iCell_R, Isolution);
+            } else contrib_R = Uintermediate.at(iCell_R, Isolution);
+            if ( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R = 0;
+            neighbors += (contrib_L + contrib_R) / (size[dir] * size[dir]);
           }
+          Uintermediate.at(iCell, Isolution) += w_relax * (
+            (neighbors - Uintermediate.at(iCell, Irhs)) / (2. / (size[IX]*size[IX]) + 2. / (size[IY]*size[IY]) + 2. / (size[IZ]*size[IZ]))
+            - Uintermediate.at(iCell, Isolution)
+          );
         }
       });
     };
@@ -1347,15 +1235,8 @@ namespace dyablo {
         gauss_seidel_intermediate(isBlack, level);
       }
     };
-    auto smoothing_all_amr_correction = [&](const uint32_t nIterations, const uint32_t level) {
-      for (uint32_t i = 0; i < nIterations; i++) {
-        gauss_seidel_leaves_amr_correction(isRed, level);
-        gauss_seidel_intermediate_amr_correction(isRed, level);
-        gauss_seidel_leaves_amr_correction(isBlack, level);
-        gauss_seidel_intermediate_amr_correction(isBlack, level);
-      }
-    };
-    auto smoothing_all_amr_finest = [&](const uint32_t nIterations, const uint32_t level) {
+
+    auto smoothing_amr_finest = [&](const uint32_t nIterations, const uint32_t level) {
       for (uint32_t i = 0; i < nIterations; i++) {
         gauss_seidel_leaves_amr_finest(isRed, level);
         gauss_seidel_intermediate(isRed, level);
@@ -1367,7 +1248,7 @@ namespace dyablo {
     // RUN
     const uint32_t Npre = 2; // Number of pre smoothing
     const uint32_t Npost = 2; // Number of post smoothing
-    const uint32_t Ncycles = 1; // Number of multigrid cycles
+    const uint32_t Ncycles = 30; // Number of multigrid cycles
     real_t rho_mean = 0;
 
     std::function<void (uint32_t)> V_cycle_uniform = [&](const uint32_t level) {
@@ -1387,12 +1268,9 @@ namespace dyablo {
     std::function<void (uint32_t, uint32_t)> V_cycle_amr = [&](const uint32_t current_level, const uint32_t finest_level) {
 
       if ( current_level == finest_level ) {
-        smoothing_all_amr_finest(Npre, current_level);
+        smoothing_amr_finest(Npre, current_level);
         residual_amr_finest(current_level);
-      } else if ( current_level == finest_level - 1 ) {
-        smoothing_intermediate_amr_correction(Npre, current_level);
-        residual_intermediate_amr_correction(current_level);
-      } else { // TODO: Subdomain of intermediate cells
+      } else {
         smoothing_intermediate_amr_correction(Npre, current_level);
         residual_intermediate_amr_correction(current_level);
       }
@@ -1400,18 +1278,16 @@ namespace dyablo {
       restriction(current_level - 1);
       initialise_lhs(current_level - 1);
 
-      if (finest_level == level_coarse + 1) {
-        smoothing_intermediate_amr_correction(Npre, current_level);
-      } else if ( level_coarse == (current_level - 1) ) { // TODO: Subdomain of intermediate cells
-        smoothing_intermediate_amr_correction(Npre, current_level);
+      if ( level_coarse == (current_level - 1) ) {
+        smoothing_intermediate_amr_correction(Npre, level_coarse);
       } else V_cycle_amr(current_level - 1, finest_level); 
       
       if ( current_level == finest_level ) {
         prolongation(current_level);
-        smoothing_all_amr_finest(Npost, current_level);
+        smoothing_amr_finest(Npost, current_level);
       } else {
         prolongation_on_intermediate(current_level);  
-        smoothing_all_amr_correction(Npost, current_level);
+        smoothing_intermediate_amr_correction(Npost, current_level);
       }    
       
     };
@@ -1444,7 +1320,7 @@ namespace dyablo {
       foreach_cell.foreach_intermediate_cell( "average_parent_cell", Uintermediate.getShape(),
       KOKKOS_LAMBDA( ForeachCell::CellIndex& iCell)
       {
-        const uint32_t current_level = lmesh.getLevel(iCell.iOct);
+        const uint32_t current_level = cells.getLevel(iCell);
         if( current_level == level )
         {
           ForeachCell::CellIndex iCell_c0 = iCell.getChildren(Uintermediate.getShape());
@@ -1472,7 +1348,7 @@ namespace dyablo {
     
     // Multigrid
     printf("Coarse Multigrid\n");
-    for(uint32_t i = 0; i < 3; i++)
+    for(uint32_t i = 0; i < Ncycles; i++)
     { 
       V_cycle_uniform(level_coarse);
       residual_uniform(level_coarse);
@@ -1490,11 +1366,12 @@ namespace dyablo {
       zero_solution_residual_rhs(ilevel-1);
       solution_to_potential(ilevel);
       residual_amr_finest(ilevel);
+      initialise_mask(ilevel);
       scalar_data.set<int>("iter", iter++);
       scalar_data.set<real_t>("time", time++);
       iomanager->save_snapshot(U_, scalar_data);
 
-      for(uint32_t i = 0; i < 30; i++)
+      for(uint32_t i = 0; i < Ncycles; i++)
       { 
         V_cycle_amr(ilevel, ilevel);
         residual_amr_finest(ilevel);
@@ -1504,15 +1381,6 @@ namespace dyablo {
         scalar_data.set<real_t>("time", time++);
         iomanager->save_snapshot(U_, scalar_data);
       }
-      /* for (uint32_t i = 0; i < 30; i++) {
-        smoothing_amr_finest(Npre, ilevel);
-        residual_amr_finest(ilevel);
-        solution_to_potential(ilevel);
-        printf("Residual norm after V %.5e\n", std::sqrt(residual_norm_sqr(ilevel)));
-        scalar_data.set<int>("iter", iter++);
-        scalar_data.set<real_t>("time", time++);
-        iomanager->save_snapshot(U_, scalar_data);
-      } */
     }
 
     // Test against analytical prediction
@@ -1521,7 +1389,7 @@ namespace dyablo {
       real_t Phi_ana_mean = 0;
       real_t Phi_num_mean = 0;
       real_t Vcore = 0;
-      auto cells = foreach_cell.getCellMetaData();
+      const ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
       foreach_cell.reduce_cell( "Init", U.getShape(),
         KOKKOS_LAMBDA( const ForeachCell::CellIndex& iCell, real_t& Phi_ana_mean, real_t& Phi_num_mean, real_t& Vcore )
       {

@@ -116,6 +116,10 @@ dyablo_add_test(utest_GravitySolver_multigrid ON
   gravity/test_GravitySolver_multigrid.cpp
   main.cpp)
 
+  dyablo_add_test(utest_GravitySolver_multigrid_refactored ON
+  gravity/test_GravitySolver_multigrid_refactored.cpp
+  main.cpp)
+
 foreach( test "${utest_GravitySolver_cg_TEST_LIST}" )
   set_tests_properties(${test} PROPERTIES TIMEOUT 100) 
 endforeach()
