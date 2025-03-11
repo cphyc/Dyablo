@@ -25,6 +25,10 @@ public:
   ~GravitySolver_multigrid();
   void update_gravity_field( UserData& U, ScalarSimulationData& scalar_data);
 
+  // RHS
+  real_t b(const UserData::FieldAccessor& Uin, const ForeachCell::CellIndex& iCell_Uin, real_t rho_mean, real_t four_Pi_G);
+  real_t b_cosmo(const UserData::FieldAccessor& Uin, const ForeachCell::CellIndex& iCell_Uin, real_t rho_mean, real_t aexp);
+
   // Mesh
   static bool isRed(const ForeachCell::CellIndex iCell);
   static bool isBlack(const ForeachCell::CellIndex iCell);
@@ -42,6 +46,9 @@ public:
   template< typename Array_t >  void zero_solution_residual_rhs(const Array_t& U, const Array_t& Uintermediate, const uint32_t level);
   template< typename Array_t >  void solution_to_potential(const Array_t& U, const Array_t& Uintermediate, const uint32_t level);
 
+  template< typename Array_t >  void gradient0(const Array_t& U);
+  template< typename Array_t >  void gradient(const Array_t& U, const Array_t& Uintermediate);
+
   // Multigrid 
 
   template< typename Array_t >  void V_cycle_uniform(const Array_t& U, const Array_t& Uintermediate, const uint32_t level);
@@ -49,7 +56,7 @@ public:
   
   // Laplacian
   template< typename Array_t >  void initialise_lhs(const Array_t& U, const Array_t& Uintermediate, const uint32_t level);
-  template< typename Array_t > real_t residual_norm_sqr(const Array_t& U, const Array_t& Uintermediate, const uint32_t level);
+  template< typename Array_t >  real_t residual_norm_sqr(const Array_t& U, const Array_t& Uintermediate, const uint32_t level);
   template< typename Array_t >  void residual_amr_finest(const Array_t& U, const Array_t& Uintermediate, const uint32_t level);
   template< typename Array_t >  void residual_uniform(const Array_t& U, const Array_t& Uintermediate, const uint32_t level);
   template< typename Array_t >  void residual_intermediate_amr_correction(const Array_t& Uintermediate, const uint32_t level);  
@@ -60,7 +67,7 @@ public:
   template< typename Array_t >  void smoothing_intermediate_amr_correction(const Array_t& Uintermediate, const uint32_t nIterations, const uint32_t level);
   template< typename Array_t >  void smoothing_uniform(const Array_t& U, const Array_t& Uintermediate, const uint32_t nIterations, const uint32_t level);                 
   template< typename Array_t >  void smoothing_amr_finest(const Array_t& U, const Array_t& Uintermediate, const uint32_t nIterations, const uint32_t level);
-   struct Data;
+  struct Data;
 private:
   std::unique_ptr<Data> pdata;
 };

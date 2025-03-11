@@ -210,6 +210,11 @@ public:
         field_index.erase( name );
     }
 
+    void delete_intermediate_field( const std::string& name )
+    {
+        field_index_intermediate.erase( name );
+    }
+
     /// Get the number of active fields in UserData_fields
     int nbFields() const
     {

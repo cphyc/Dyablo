@@ -65,11 +65,10 @@ GravitySolver_multigrid::GravitySolver_multigrid(
       -1.0, // gravity_constant 4*Pi*G, defined later
       configMap.getValue<real_t>("gravity", "MG_eps", 1E-3),
       configMap.getValue<bool>("gravity", "print_mg_iter", false),
-      configMap.getValue<uint32_t>("amr", "level_min", 2),
+      4,
       configMap.getValue<uint32_t>("gravity", "Npre", 2),
-      configMap.getValue<uint32_t>("gravity", "Npost", 2),
-      configMap.getValue<uint32_t>("gravity", "Ncycles", 30),
-
+      configMap.getValue<uint32_t>("gravity", "Npost", 1),
+      configMap.getValue<uint32_t>("gravity", "Ncycles", 2),
     })
 {
   int ndim = configMap.getValue<int>("mesh", "ndim", 3);
@@ -86,6 +85,112 @@ GravitySolver_multigrid::~GravitySolver_multigrid()
 {}
 
 //namespace{
+
+
+/**
+ * @brief Old Gradient method.
+ * 
+ * Old three-point gradient 
+ * 
+ * @param U[in]: The data to read from
+ * @param dir[in]: Direction along wich we compute the gradient
+*/
+template< typename Array_t >
+KOKKOS_INLINE_FUNCTION
+void GravitySolver_multigrid::gradient0(const Array_t& U)
+{
+  const ForeachCell::CellMetaData cells = pdata->foreach_cell.getCellMetaData();
+
+  pdata->foreach_cell.foreach_cell("Gravity_mg::construct_force_field", U.getShape(), 
+    KOKKOS_LAMBDA(const CellIndex& iCell)
+  { 
+    const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
+    const real_t phi_C = U.at(iCell, Iphi);
+
+    for ( ComponentIndex3D dir : {IX,IY,IZ} )
+    {
+      CellIndex::offset_t off_L = {}; off_L[dir] = -1;
+      CellIndex::offset_t off_R = {}; off_R[dir] = +1;
+      const CellIndex iCell_L = iCell.getNeighbor_ghost(off_L, U);
+      const CellIndex iCell_R = iCell.getNeighbor_ghost(off_R, U);
+      const real_t phi_L = get_value( U, iCell_L, Iphi, off_L );
+      const real_t phi_R = get_value( U, iCell_R, Iphi, off_R );
+
+      // If neighbor is bigger h (which was dx_small) becomes ( dx_small/2 + dx_big/2 = 3/2*dx_small )
+      real_t hl = size[dir];
+      if( iCell_L.level_diff()==1 ) hl *= 1.5;
+      if( iCell_L.level_diff()==-1 ) hl *= 0.75;
+      real_t hr = size[dir];
+      if( iCell_R.level_diff()==1 ) hr *= 1.5;
+      if( iCell_R.level_diff()==-1 ) hr *= 0.75;
+      
+      real_t dphi_L = (phi_L - phi_C)/hl;
+      real_t dphi_R = (phi_C - phi_R)/hr;
+
+      if( pdata->boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) dphi_L = 0;
+      if( pdata->boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) dphi_R = 0;
+
+      Kokkos::Array< VarIndex, 3 > IG = {Igx, Igy, Igz};
+
+      U.at(iCell, IG[dir]) = (dphi_L + dphi_R)/2; 
+    }
+  });
+}
+
+/**
+ * @brief Gradient method.
+ * 
+ * Three-point gradient 
+ * 
+ * @param U[in]: The data to read from
+ * @param dir[in]: Direction along wich we compute the gradient
+*/
+template< typename Array_t >
+KOKKOS_INLINE_FUNCTION
+void GravitySolver_multigrid::gradient(const Array_t& U, const Array_t& Uintermediate)
+{
+  const ForeachCell::CellMetaData cells = pdata->foreach_cell.getCellMetaData();
+
+  pdata->foreach_cell.foreach_cell("Gravity_mg::construct_force_field", U.getShape(), 
+    KOKKOS_LAMBDA(const CellIndex& iCell)
+  { 
+    const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
+
+    for ( ComponentIndex3D dir : {IX,IY,IZ} )
+    {
+      CellIndex::offset_t off_L = {}; off_L[dir] = -1;
+      CellIndex::offset_t off_R = {}; off_R[dir] = +1;
+      CellIndex iCell_L = iCell.getNeighbor_ghost(off_L, U);
+      CellIndex iCell_R = iCell.getNeighbor_ghost(off_R, U);
+
+      real_t phi_L(0), phi_R(0), a(1), b(1);
+
+      if (iCell_L.status == CellIndex::BIGGER) {
+        phi_L = average_8bigger_neighbors(U, Uintermediate, iCell, off_L);
+        a = 0.5;
+      } else if (iCell_L.status == CellIndex::SMALLER) {
+        iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
+        phi_L = Uintermediate.at(iCell_L, Iphi);
+      } else phi_L = U.at(iCell_L, Iphi);
+
+      if (iCell_R.status == CellIndex::BIGGER) {
+        phi_R = average_8bigger_neighbors(U, Uintermediate, iCell, off_R);
+        b = 0.5;
+      } else if (iCell_R.status == CellIndex::SMALLER) {
+        iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
+        phi_R = Uintermediate.at(iCell_R, Iphi);
+      } else phi_R = U.at(iCell_R, Iphi);
+      
+
+      if( pdata->boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) phi_L = 0;
+      if( pdata->boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) phi_R = 0;
+
+      Kokkos::Array< VarIndex, 3 > IG = {Igx, Igy, Igz};
+
+      U.at(iCell, IG[dir]) = (phi_L - phi_R)/( size[dir] * (a + b) ); 
+    }
+  });
+}
 
 /**
  * @brief Method returning the value of a given cell.
@@ -394,32 +499,25 @@ void GravitySolver_multigrid::residual_intermediate_amr_correction(const Array_t
         CellIndex iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
         DYABLO_ASSERT_KOKKOS_DEBUG( iCell_R.level_diff() >= 0, "Intermediate cell cannot have smaller intermediate neighbor" );
         real_t a(1), b(1), contrib_L(0), contrib_R(0);
-        if ( iCell_L.status == CellIndex::BIGGER ) {
-          contrib_L = 0; // Zero BC for correction terms
-          a = 0.5;
-        } else if (Uintermediate.at(iCell_L, Imask) < 0) { //TODO: Second-order reconstruction. Test something else? 
-          contrib_L = 0; // Zero BC for correction terms
+
+        if ( iCell_L.status == CellIndex::BIGGER ) a = 0.5;
+        else if (Uintermediate.at(iCell_L, Imask) < 0) { // Second-order reconstruction 
           const real_t cell_mask = Uintermediate.at(iCell, Imask);
           const real_t neighbor_mask = Uintermediate.at(iCell_L, Imask);
           a = cell_mask / (cell_mask - neighbor_mask);
-        } /* else if (Uintermediate.at(iCell_L, Imask) < 1) { // First-order reconstruction 
-          contrib_L = 0; // Zero BC for correction terms
-          a = 1;
-        } */ else contrib_L = Uintermediate.at(iCell_L, Isolution);
+        } // else if (Uintermediate.at(iCell_L, Imask) < 1) a = 1; // First-order reconstruction 
+        else contrib_L = Uintermediate.at(iCell_L, Isolution);
         if ( pdata->boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L = 0;
-        if ( iCell_R.status == CellIndex::BIGGER ) {
-          contrib_R = 0; // Zero BC for correction terms
-          b = 0.5;
-        } else if (Uintermediate.at(iCell_R, Imask) < 0) { // TODO: Second-order reconstruction. Test something else?  
-          contrib_R = 0; // Zero BC for correction terms
+
+        if ( iCell_R.status == CellIndex::BIGGER ) b = 0.5;
+        else if (Uintermediate.at(iCell_R, Imask) < 0) { // Second-order reconstruction. Test something else?  
           const real_t cell_mask = Uintermediate.at(iCell, Imask);
           const real_t neighbor_mask = Uintermediate.at(iCell_R, Imask);
           b = cell_mask / (cell_mask - neighbor_mask);
-        } /* else if (Uintermediate.at(iCell_R, Imask) < 1) { // First-order reconstruction 
-          contrib_R = 0; // Zero BC for correction terms
-          b = 1;
-        } */ else contrib_R = Uintermediate.at(iCell_R, Isolution);
+        } //else if (Uintermediate.at(iCell_R, Imask) < 1) b = 1; // First-order reconstruction 
+        else contrib_R = Uintermediate.at(iCell_R, Isolution);
         if ( pdata->boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R = 0;
+
         const real_t f_L = 2. / (a * (a + b));
         const real_t f_R = 2. / (b * (a + b));
         const real_t f_C = 2. / (a*b);
@@ -1094,32 +1192,25 @@ void GravitySolver_multigrid::gauss_seidel_intermediate_amr_correction(const Arr
         CellIndex iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
         DYABLO_ASSERT_KOKKOS_DEBUG( iCell_R.level_diff() >= 0, "Intermediate R cell cannot have smaller intermediate neighbor" );
         real_t a(1), b(1), contrib_L(0), contrib_R(0), f_R(0), f_L(0);
-        if (iCell_L.status == CellIndex::BIGGER) {
-          contrib_L = 0; // Zero BC for correction terms
-          a = 0.5;
-        } else if (Uintermediate.at(iCell_L, Imask) < 0) { // TODO: Second-order reconstruction. Test something else? 
-          contrib_L = 0; // Zero BC for correction terms
+        
+        if (iCell_L.status == CellIndex::BIGGER) a = 0.5;
+        else if (Uintermediate.at(iCell_L, Imask) < 0) { // Second-order reconstruction. 
           const real_t cell_mask = Uintermediate.at(iCell, Imask);
           const real_t left_neighbor_mask = Uintermediate.at(iCell_L, Imask);
           a = cell_mask / (cell_mask - left_neighbor_mask);
-        } /* else if (Uintermediate.at(iCell_L, Imask) < 1) { // First-order reconstruction 
-          contrib_L = 0; // Zero BC for correction terms
-          a = 1;
-        } */ else contrib_L = Uintermediate.at(iCell_L, Isolution);
+        } // else if (Uintermediate.at(iCell_L, Imask) < 1) a = 1; // First-order reconstruction 
+        else contrib_L = Uintermediate.at(iCell_L, Isolution);
         if ( pdata->boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) contrib_L = 0;
-        if (iCell_R.status == CellIndex::BIGGER) {
-          contrib_R = 0; // Zero BC for correction terms
-          b = 0.5;
-        } else if (Uintermediate.at(iCell_R, Imask) < 0) { // TODO: Second-order reconstruction. Test something else?
-          contrib_R = 0; // Zero BC for correction terms
+
+        if (iCell_R.status == CellIndex::BIGGER) b = 0.5;
+        else if (Uintermediate.at(iCell_R, Imask) < 0) { // Second-order reconstruction.
           const real_t cell_mask = Uintermediate.at(iCell, Imask);
           const real_t right_neighbor_mask = Uintermediate.at(iCell_R, Imask);
           b = cell_mask / (cell_mask - right_neighbor_mask);
-        } /* else if (Uintermediate.at(iCell_R, Imask) < 1) { // First-order reconstruction 
-          contrib_R = 0; // Zero BC for correction terms
-          b = 1;
-        } */ else contrib_R = Uintermediate.at(iCell_R, Isolution);
+        } //else if (Uintermediate.at(iCell_R, Imask) < 1) b = 1;  // First-order reconstruction 
+        else contrib_R = Uintermediate.at(iCell_R, Isolution);
         if ( pdata->boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) contrib_R = 0;
+
         f_L = 2. / (a * (a + b));
         f_R = 2. / (b * (a + b));
         f_C[dir] = 2. / (a*b);
@@ -1421,8 +1512,9 @@ void GravitySolver_multigrid::V_cycle_amr(const Array_t& U, const Array_t& Uinte
   restriction(U, Uintermediate, current_level - 1);
   initialise_lhs(U, Uintermediate, current_level - 1);
 
-  if ( pdata->level_coarse == (current_level - 1) ) {
-    smoothing_intermediate_amr_correction(Uintermediate, pdata->Npre, pdata->level_coarse);
+  //if ( pdata->level_coarse == (current_level - 1) ) {
+  if ( finest_level - 3 == current_level ) { // finest - 2 seems to works aswell for spherical case. 
+      smoothing_intermediate_amr_correction(Uintermediate, pdata->Npre, pdata->level_coarse);
   } else V_cycle_amr(U, Uintermediate, current_level - 1, finest_level); 
   
   if ( current_level == finest_level ) {
@@ -1433,6 +1525,41 @@ void GravitySolver_multigrid::V_cycle_amr(const Array_t& U, const Array_t& Uinte
     smoothing_intermediate_amr_correction(Uintermediate, pdata->Npost, current_level);
   }    
   
+}
+
+/**
+ * @brief Right hand term of the poisson equation in the non-cosmo case
+ * 
+ * The right handside of the Poisson equation for gravity in non-cosmological case
+ * is 4*pi*G*rho
+ * 
+ * @param Uin[in]: Array to read the density from
+ * @param iCell_Uin[in]: cell index where to read the density
+ * @param rho_mean[in]: average value of rho in the box for periodic cases
+ * @param four_Pi_G[in]: value of four*pi*G
+ */
+KOKKOS_INLINE_FUNCTION
+real_t GravitySolver_multigrid::b(const UserData::FieldAccessor& Uin, const CellIndex& iCell_Uin, real_t rho_mean, real_t four_Pi_G)
+{
+  return four_Pi_G*(Uin.at(iCell_Uin, Irho)-rho_mean);
+}
+
+/**
+ * @brief Right hand term of the poisson equation in the cosmo case
+ * 
+ * The right hand side of the Poisson equation for gravity in cosmological cases.
+ * This expression comes from Martel & Shapiro 1998, eq. (38)
+ * 
+ * @param Uin[in]: Array to read the density from
+ * @param iCell_Uin[in]: cell index where to read the density
+ * @param rho_mean[in]: average value of rho in the box for periodic cases
+ * @param aexp[in]: expansion factor
+ * @param size[in]: sizes of the cell at iCell_Uin
+ */
+KOKKOS_INLINE_FUNCTION
+real_t GravitySolver_multigrid::b_cosmo(const UserData::FieldAccessor& Uin, const CellIndex& iCell_Uin, real_t rho_mean, real_t aexp)
+{
+  return 6.0*aexp*(Uin.at(iCell_Uin, Irho)/rho_mean-1.0);
 }
 
 
@@ -1459,8 +1586,6 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   U_.new_fields({"solution", "rhs",  "res", "mask" });
   U_.new_intermediate_fields( {"rho","gphi", "solution", "rhs", "res", "mask"} );
 
-  printf("New fields done\n");
-
   UserData::FieldAccessor U = U_.getAccessor({
     {"rho", Irho},
     {"gphi", Iphi},
@@ -1469,9 +1594,7 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
     { "res", Iresidual },
     { "mask", Imask },
     });
-
-    printf("Get accessor done\n");
-  
+ 
   UserData::FieldAccessor Uintermediate = U_.getAccessor_intermediate({
     {"rho", Irho},
     {"gphi", Iphi},
@@ -1481,16 +1604,11 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
     { "mask", Imask },
     });
 
-    printf("Get intermediate accessor done\n");
-
 
   const ForeachCell::CellMetaData cells = pdata->foreach_cell.getCellMetaData();
 
-  printf("cells done\n");
-
   // Min/max AMR level, and intermediate per level
   const LightOctree& lmesh = U.getShape().lmesh;
-  printf("lmesh done\n");
   const uint32_t numOctants = lmesh.getNumOctants();
   uint32_t max_level_in_amr = 0;
   Kokkos::parallel_for( "Get max level in AMR", 
@@ -1511,6 +1629,7 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   const uint32_t min_level_multigrid = 0;
   const uint32_t max_level = lmesh.get_level_max();
   const uint32_t level_coarse = lmesh.get_level_min();
+  pdata->level_coarse = level_coarse;
   printf("min_level AMR %d, max_level AMR = %d\n", min_level_in_amr, max_level_in_amr);
   printf("coarse_level ICs %d, max_level ICs = %d\n", level_coarse, max_level);
   printf("numOcts %d, numGhosts = %d, numTotal = %u\n", lmesh.getNumOctants(), lmesh.getNumGhosts(), lmesh.getNumOctants()+lmesh.getNumGhosts());
@@ -1554,7 +1673,6 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   const uint8_t ndim = pdata->foreach_cell.getDim();
   const real_t xmin(pdata->xmin), ymin(pdata->ymin), zmin(pdata->zmin);
   const real_t xmax(pdata->xmax), ymax(pdata->ymax), zmax(pdata->zmax);
-  Kokkos::Array<BoundaryConditionType, 3> boundarycondition = pdata->boundarycondition;
   printf("Before rho mean\n");
   pdata->foreach_cell.reduce_cell("Compute rho_mean", U.getShape(),
   KOKKOS_LAMBDA(const CellIndex & iCell, real_t & update_rhomean)
@@ -1566,15 +1684,21 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   real_t Vtot = (xmax - xmin) * (ymax - ymin) * (zmax - zmin);
   rho_mean = MPI_Allreduce_scalar(rho_mean) / Vtot;
   printf("rhomean = %.5e\n", rho_mean);
+
+  bool cosmo_run = pdata->cosmo_run;
+  real_t aexp = 0;
+  if( cosmo_run )
+    aexp = scalar_data.get<real_t>("aexp");
+  real_t four_Pi_G = pdata->four_Pi_G;  
   
   // Initialize RHS and solution on leaves
   pdata->foreach_cell.foreach_cell("Init RHS and potential", U.getShape(),
     KOKKOS_LAMBDA(const CellIndex & iCell)
   {
     ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-    const real_t rho = U.at(iCell, Irho) - rho_mean;
-    U.at(iCell, Irhs) = rho;
-    U.at(iCell, Isolution) = -rho / (2. / (size[IX]*size[IX]) + 2. / (size[IY]*size[IY]) + 2. / (size[IZ]*size[IZ]));
+    const real_t rhs = (cosmo_run) ? b_cosmo(U, iCell, rho_mean, aexp) : b(U, iCell, rho_mean, four_Pi_G);//U.at(iCell, Irho) - rho_mean;
+    U.at(iCell, Irhs) = rhs;
+    U.at(iCell, Isolution) = -rhs / (2. / (size[IX]*size[IX]) + 2. / (size[IY]*size[IY]) + 2. / (size[IZ]*size[IZ]));
   });
 
   // Initialize RHS on intermediate levels. Solution will be interpolated from coarser levels so no need to initialize
@@ -1596,7 +1720,7 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
         });
         rho /= ns;
         Uintermediate.at( iCell, Irho ) = rho;
-        Uintermediate.at( iCell, Irhs ) = rho - rho_mean;
+        Uintermediate.at( iCell, Irhs ) = (cosmo_run) ? b_cosmo(Uintermediate, iCell, rho_mean, aexp) : b(Uintermediate, iCell, rho_mean, four_Pi_G); //rho - rho_mean;
       }
     }); 
   }
@@ -1633,55 +1757,26 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
     }
   }
 
-
   // Update force field in U from potential
 
-  /* UserData::FieldAccessor Uout = U_.getAccessor({ 
+  UserData::FieldAccessor Uout = U_.getAccessor({
     {"gx", Igx},
     {"gy", Igy},
     {"gz", Igz},
     {"gphi", Iphi}
-  });
-  pdata->foreach_cell.foreach_cell( "Gravity_mg::construct_force_field", Uout.getShape(), 
-    KOKKOS_LAMBDA(const CellIndex& iCell_Uout)
-  { 
-    auto size = cells.getCellSize(iCell_Uout);
-    CellIndex iCell = U.convert_index(iCell_Uout);
+    });
 
-    auto gradient = [&](ComponentIndex3D dir)
-    {
-      real_t phi_C = U.at(iCell, Iphi);
-      Uout.at(iCell_Uout, Iphi) = phi_C;
-      CellIndex::offset_t off_L = {}; off_L[dir] = -1;
-      CellIndex::offset_t off_R = {}; off_R[dir] = +1;
-      CellIndex iCell_L = iCell.getNeighbor_ghost(off_L, U);
-      CellIndex iCell_R = iCell.getNeighbor_ghost(off_R, U);
-      real_t phi_L = get_value( U, iCell_L, Iphi, off_L );
-      real_t phi_R = get_value( U, iCell_R, Iphi, off_R );
+  UserData::FieldAccessor Uoutintermediate = U_.getAccessor_intermediate({
+    {"gphi", Iphi},
+    });
 
-      // If neighbor is bigger h (which was dx_small) becomes ( dx_small/2 + dx_big/2 = 3/2*dx_small )
-      real_t hl = size[dir];
-      if( iCell_L.level_diff()==1 ) hl *= 1.5;
-      if( iCell_L.level_diff()==-1 ) hl *= 0.75;
-      real_t hr = size[dir];
-      if( iCell_R.level_diff()==1 ) hr *= 1.5;
-      if( iCell_R.level_diff()==-1 ) hr *= 0.75;
-      
-      real_t dphi_L = (phi_L - phi_C)/hl;
-      real_t dphi_R = (phi_C - phi_R)/hr;
+    //gradient0(Uout);
+  gradient(Uout, Uoutintermediate);
 
-      if( pdata->boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) dphi_L = 0;
-      if( pdata->boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) dphi_R = 0;
-
-      Kokkos::Array< VarIndex, 3 > IG = {Igx, Igy, Igz};
-
-      Uout.at(iCell_Uout, IG[dir]) = (dphi_L + dphi_R)/2; 
-    };
-    gradient(IX);
-    gradient(IY);
-    if(ndim==3) gradient(IZ);
-
-  }); */
+  for (std::string name : {"solution", "rhs",  "res", "mask" })
+    U_.delete_field(name);
+  for (std::string name : {"rho","gphi", "solution", "rhs", "res", "mask"})
+    U_.delete_intermediate_field(name);
 
   pdata->timers.get("GravitySolver_multigrid").stop();
 }
