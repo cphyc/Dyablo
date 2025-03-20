@@ -113,7 +113,7 @@ public:
                 logical_coords.i /= 2;
                 logical_coords.j /= 2;
                 logical_coords.k /= 2;
-                oct_map_t::insert_result inserted = this->oct_map_intermediate.insert( logical_coords, OctantIndex{0, false, true} );
+                oct_map_t::insert_result inserted = oct_map_intermediate.insert( logical_coords, OctantIndex{0, false, true} );
                 if( inserted.existing() )
                     break;
                 DYABLO_ASSERT_KOKKOS_DEBUG(inserted.success(), "oct_map::insert() failed");

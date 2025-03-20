@@ -20,7 +20,7 @@ public:
     class FieldAccessor; 
     struct FieldAccessor_FieldInfo;
 
-private:
+public: // FIXME: When cuda is enabled, needs to be put public for some reason...
     struct field_index_t
     {
         int index;

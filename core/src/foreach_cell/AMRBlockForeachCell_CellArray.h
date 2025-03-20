@@ -177,6 +177,7 @@ struct CellIndex
 
   KOKKOS_INLINE_FUNCTION
   CellIndex getChildren(const CellArray_shape_ghosted& array) const;
+  KOKKOS_INLINE_FUNCTION
   CellIndex getParent(const CellArray_shape_ghosted& array) const;
 
   KOKKOS_INLINE_FUNCTION

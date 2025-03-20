@@ -98,7 +98,7 @@ std::shared_ptr<AMRmesh> mesh_amrgrid_semiperiodic_sphere()
 
     amr_mesh = std::make_shared<AMRmesh>(ndim, ndim, std::array<bool,3>{true,true,true}, level_min, level_max);
 
-    for(int level=level_min+1; level<level_max; level++)
+    for(int level=level_min+1; level <= level_max; level++)
     {
       for( uint32_t iOct=0; iOct<amr_mesh->getNumOctants(); iOct++ )
       {
