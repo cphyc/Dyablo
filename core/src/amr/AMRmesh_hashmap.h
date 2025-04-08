@@ -6,6 +6,8 @@
 #include "utils/misc/Dyablo_assert.h"
 #include "utils/mpi/GlobalMpiSession.h"
 #include "kokkos_shared.h"
+#include "amr/LightOctree_storage.h"
+#include "amr/LightOctree_forward.h"
 
 namespace dyablo {
 
@@ -29,6 +31,7 @@ public:
     using markers_device_t = Kokkos::UnorderedMap<uint32_t, int>;
     using oct_view_t = oct_view_device_t::HostMirror ;
     using markers_t = markers_device_t::HostMirror;
+    using Storage_t = LightOctree_storage< Kokkos::DefaultHostExecutionSpace::memory_space >;
 
 private: 
     uint8_t dim;
@@ -52,6 +55,20 @@ public:
     uint8_t getDim() const
     {
         return dim;
+    }
+
+    void init_intermediates(const LightOctree& lmesh) const
+    {
+        DYABLO_ASSERT_HOST_RELEASE(false, "init_intermediates() cannot be use without AMRmesh_hashmap_new");
+    }
+
+    const Storage_t& getStorage() const
+    {
+        DYABLO_ASSERT_HOST_RELEASE(false, "getStorage() cannot be use without AMRmesh_hashmap_new");
+    }
+    const Storage_t& getStorageIntermediate() const
+    {
+        DYABLO_ASSERT_HOST_RELEASE(false, "getStorageIntermediate() cannot be use without AMRmesh_hashmap_new");
     }
 
     std::array<bool, 6> getPeriodic() const
@@ -117,6 +134,13 @@ public:
     {
         return ghost_octs_coord.extent(1);
     }
+
+    uint32_t getNumIntermediateOctants() const
+    {DYABLO_ASSERT_HOST_RELEASE(false, "getNumIntermediateOctants() cannot be used without AMRmesh_hashmap_new");}
+
+
+    uint32_t getNumIntermediateGhosts() const
+    {DYABLO_ASSERT_HOST_RELEASE(false, "getNumIntermediateGhosts() cannot be used without AMRmesh_hashmap_new");}
 
     uint32_t getGlobalNumOctants() const
     {

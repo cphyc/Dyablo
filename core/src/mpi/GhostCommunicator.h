@@ -37,6 +37,10 @@ public:
   {
     return Impl::getNumGhosts();
   }
+  uint32_t getNumIntermediateGhosts() const
+  {
+    return Impl::getNumIntermediateGhosts();
+  }
 
   /***
    * Send ghosts cells for the selected Fields in the accessor
@@ -48,6 +52,10 @@ public:
   {
     Impl::exchange_ghosts(U);
   }
+  void exchange_intermediate_ghosts( const UserData::FieldAccessor& U ) const
+  {
+    Impl::exchange_intermediate_ghosts(U);
+  }
 
   /***
    * Send ghosts cells for all fields in the CellArray
@@ -57,6 +65,10 @@ public:
   void exchange_ghosts( const ForeachCell::CellArray_global_ghosted& U ) const
   {
     Impl::exchange_ghosts(U);
+  }
+  void exchange_intermediate_ghosts( const ForeachCell::CellArray_global_ghosted& U ) const
+  {
+    Impl::exchange_intermediate_ghosts(U);
   }
 
 
@@ -76,6 +88,15 @@ public:
   void reduce_ghosts( ForeachCell::CellArray_global_ghosted& U ) const
   {
     Impl::reduce_ghosts(U);
+  }
+
+  void init_intermediates( 
+    const AMRmesh& mesh, 
+    const ForeachCell::CellArray_global_ghosted::Shape_t& shape, 
+    const uint32_t ghost_count, 
+    const MpiComm& mpi_comm )
+  {
+    Impl::init_intermediates(mesh.getMesh(), shape, ghost_count, mpi_comm);
   }
 
 };

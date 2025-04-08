@@ -81,6 +81,30 @@ void AMRmesh_impl<Impl_t>::updateLightOctree()
 }
 
 template<typename Impl_t>
+void AMRmesh_impl<Impl_t>::updateLightOctreeWithIntermediates()
+{ 
+  Impl_t::pmesh_epoch++;
+    // Update LightOctree
+  if( !lmesh_uptodate() )
+  {
+    using morton_t = uint64_t;
+    const Kokkos::View<morton_t*> morton_intervals = this->getLightOctree().getMortonIntervals();
+    lmesh = nullptr;
+    lmesh = std::make_unique<LightOctree_hashmap>(
+      this->getMesh().getStorage(), 
+      this->getMesh().getStorageIntermediate(), 
+      level_min, 
+      level_max,
+      Kokkos::Array<bool,3>{  this->getMesh().getPeriodic(2*IX), 
+                              this->getMesh().getPeriodic(2*IY), 
+                              this->getMesh().getPeriodic(2*IZ) },
+      morton_intervals
+    );
+    this->lmesh_epoch = Impl_t::pmesh_epoch;
+  }
+}
+
+template<typename Impl_t>
 const LightOctree& AMRmesh_impl<Impl_t>::getLightOctree()
 { 
   // Update LightOctree if needed
@@ -88,6 +112,18 @@ const LightOctree& AMRmesh_impl<Impl_t>::getLightOctree()
   DYABLO_ASSERT_HOST_RELEASE( lmesh->getNumOctants() == this->getNumOctants(), "LightOctree::getLightOctree() is outdated pmesh " << this->getNumOctants() << "octs vs lmesh " << lmesh->getNumOctants() << "octs" );
   DYABLO_ASSERT_HOST_RELEASE( lmesh->getNumGhosts() == this->getNumGhosts(), "LightOctree::getLightOctree() is outdated pmesh " << this->getNumGhosts() << "ghosts vs lmesh " << lmesh->getNumGhosts() << "ghosts" );
   return *lmesh; 
+}
+
+template<typename Impl_t>
+void AMRmesh_impl<Impl_t>::deleteIntermediates() 
+{ 
+  // Update LightOctree if needed
+  DYABLO_ASSERT_HOST_RELEASE(false, "deleteIntermediates() is not implemented yet");
+
+  DYABLO_ASSERT_HOST_RELEASE( this->getNumIntermediateOctants() == 0, "AMRmesh is outdated pmesh " << this->getNumIntermediateOctants() << " should be zero" );
+  DYABLO_ASSERT_HOST_RELEASE( this->getNumIntermediateGhosts() == 0, "AMRmesh is outdated pmesh " << this->getNumIntermediateGhosts() << " should be zero" );
+  DYABLO_ASSERT_HOST_RELEASE( lmesh->getNumIntermediateOctants() == 0, "LightOctree::getLightOctree() is outdated lmesh " << lmesh->getNumIntermediateOctants() << " should be zero" );
+  DYABLO_ASSERT_HOST_RELEASE( lmesh->getNumIntermediateGhosts() == 0, "LightOctree::getLightOctree() is outdated lmesh " << lmesh->getNumIntermediateGhosts() << " should be zero" );
 }
 
 #ifdef DYABLO_COMPILE_PABLO

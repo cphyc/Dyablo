@@ -36,22 +36,35 @@ public:
                          Kokkos::Array<bool,3> periodic )
     : storage( std::move(storage) ),
       oct_map(storage.getNumOctants()+storage.getNumGhosts()),
-      oct_map_intermediate(storage.getNumOctants()+storage.getNumGhosts()),
       min_level(level_min), max_level(level_max),
       is_periodic(periodic)
     {
         private_init();
     }
 
+    LightOctree_hashmap( const Storage_t& storage, const Storage_t& storage_intermediate, 
+                         uint8_t level_min, uint8_t level_max,
+                         Kokkos::Array<bool,3> periodic,
+                         Kokkos::View<morton_t*> morton_intervals )
+    : storage( storage ), storage_intermediate( storage_intermediate ),
+      oct_map(storage.getNumOctants()+storage.getNumGhosts()),
+      oct_map_intermediate(storage_intermediate.getNumOctants()+storage_intermediate.getNumGhosts()),
+      min_level(level_min), max_level(level_max),
+      is_periodic(periodic),
+      morton_intervals( morton_intervals )
+    {
+        private_init_with_intermediates();
+    }
+
+
     template < typename AMRmesh_t >
     LightOctree_hashmap( const AMRmesh_t* pmesh, uint8_t level_min, uint8_t level_max )
     : storage( *pmesh ),
       oct_map(pmesh->getNumOctants()+pmesh->getNumGhosts()),
-      oct_map_intermediate(storage.getNumOctants()+storage.getNumGhosts()),
       min_level(level_min), max_level(level_max),
       is_periodic( {pmesh->getPeriodic(2*IX), pmesh->getPeriodic(2*IY), pmesh->getPeriodic(2*IZ)} ),
       morton_intervals( "morton_intervals", pmesh->getMpiComm().MPI_Comm_size()+1 )
-    {    
+    {     
         private_init();
 
         // TODO use logical coords directly or even morton_intervals from AMRmesh
@@ -82,59 +95,135 @@ public:
     void private_init()
     {
         const Storage_t& storage = this->storage;
-        Storage_t& storage_intermediate = this->storage_intermediate;
         const oct_map_t& oct_map = this->oct_map;
-        const oct_map_t& oct_map_intermediate = this->oct_map_intermediate;
         uint32_t nbOcts = storage.getNumOctants();
         uint32_t numOctants_tot = nbOcts + storage.getNumGhosts();
-        const level_t min_multigrid_level = 0;
+
         // Put octants into hashmap on device
         Kokkos::parallel_for( "LightOctree_hashmap::hash",
+                        Kokkos::RangePolicy<>(0, numOctants_tot),
+                        KOKKOS_LAMBDA(uint32_t ioct_local)
+        {   
+            const OctantIndex iOct = OctantIndex::iOctLocal_to_OctantIndex( ioct_local, nbOcts );
+            const auto logical_coords = storage.get_logical_coords( iOct );
+            const level_t level = storage.getLevel( iOct );
+            key_t key;
+            key.level = level;
+            key.i = logical_coords[IX];
+            key.j = logical_coords[IY];
+            key.k = logical_coords[IZ];           
+
+            [[maybe_unused]] oct_map_t::insert_result inserted = oct_map.insert( key, iOct );
+            DYABLO_ASSERT_KOKKOS_DEBUG(inserted.success(), "oct_map::insert() failed");
+        });
+    }
+
+    void private_init_with_intermediates()
+    {
+        const Storage_t& storage = this->storage;
+        Storage_t& storage_intermediate = this->storage_intermediate;
+        const oct_map_t& oct_map = this->oct_map;
+        oct_map_t& oct_map_intermediate = this->oct_map_intermediate;
+        uint32_t nbOcts = storage.getNumOctants();
+        uint32_t numOctants_tot = nbOcts + storage.getNumGhosts();
+        uint32_t nbIntermediates = storage_intermediate.getNumOctants();
+        uint32_t numIntermediates_tot = nbIntermediates + storage_intermediate.getNumGhosts();
+        const level_t min_multigrid_level = 0;
+        // Put octants into hashmap on device
+        if (nbIntermediates){ // storage_intermediate is already provided
+            oct_map_intermediate.rehash(numIntermediates_tot);
+            Kokkos::parallel_for( "LightOctree_hashmap::hash",
                             Kokkos::RangePolicy<>(0, numOctants_tot),
                             KOKKOS_LAMBDA(uint32_t ioct_local)
-        {   
-            OctantIndex iOct = OctantIndex::iOctLocal_to_OctantIndex( ioct_local, nbOcts );
+            {   
+                const OctantIndex iOct = OctantIndex::iOctLocal_to_OctantIndex( ioct_local, nbOcts );
+                const auto logical_coords = storage.get_logical_coords( iOct );
+                level_t level = storage.getLevel( iOct );
+                key_t key;
+                key.level = level;
+                key.i = logical_coords[IX];
+                key.j = logical_coords[IY];
+                key.k = logical_coords[IZ];           
 
-            auto logical_pos = storage.get_logical_coords( iOct );
-            level_t level = storage.getLevel( iOct );
-            key_t logical_coords;
-            logical_coords.level = level;
-            logical_coords.i = logical_pos[IX];
-            logical_coords.j = logical_pos[IY];
-            logical_coords.k = logical_pos[IZ];           
-
-            [[maybe_unused]] oct_map_t::insert_result inserted = oct_map.insert( logical_coords, iOct );
-            DYABLO_ASSERT_KOKKOS_DEBUG(inserted.success(), "oct_map::insert() failed");
-
-            //for( level_t i_level = level-1; i_level >= min_level; i_level-- )
-            for( level_t i_level = level; i_level-- > min_multigrid_level; )
-            {
-                logical_coords.level = i_level;
-                logical_coords.i /= 2;
-                logical_coords.j /= 2;
-                logical_coords.k /= 2;
-                oct_map_t::insert_result inserted = oct_map_intermediate.insert( logical_coords, OctantIndex{0, false, true} );
-                if( inserted.existing() )
-                    break;
+                [[maybe_unused]] oct_map_t::insert_result inserted = oct_map.insert( key, iOct );
                 DYABLO_ASSERT_KOKKOS_DEBUG(inserted.success(), "oct_map::insert() failed");
-            }
-        });
-
-        uint32_t nbIntermediate = 0;
-        Kokkos::parallel_scan("LightOctree_hashmap::intermediate_numbering",oct_map_intermediate.capacity(), 
-            KOKKOS_LAMBDA(uint32_t i, uint32_t& iOct, bool final)
-        {
-            if( oct_map_intermediate.valid_at(i) )
+            });
+            Kokkos::parallel_for( "LightOctree_hashmap::hash",
+                            Kokkos::RangePolicy<>(0, numIntermediates_tot),
+                            KOKKOS_LAMBDA(uint32_t ioct_local)
+            {   
+                OctantIndex iOct = OctantIndex::iOctLocal_to_OctantIndex( ioct_local, nbIntermediates );
+                iOct.isIntermediate = true;
+                const auto logical_coords = storage_intermediate.get_logical_coords( iOct );
+                const level_t level = storage_intermediate.getLevel( iOct );
+                key_t key;
+                key.level = level;
+                key.i = logical_coords[IX];
+                key.j = logical_coords[IY];
+                key.k = logical_coords[IZ];     
+                      
+                [[maybe_unused]] oct_map_t::insert_result inserted = oct_map_intermediate.insert( key, iOct );
+                DYABLO_ASSERT_KOKKOS_DEBUG(inserted.success(), "oct_map_intermediate::insert() failed");
+            });
+        } else { // create storage_intermediate
+            // Count how many intermediates I need
+            Kokkos::parallel_reduce( "Count number of octs per level", 
+                                    Kokkos::RangePolicy<>(0, nbOcts),
+                                    KOKKOS_LAMBDA( const uint32_t ioct_local , uint32_t& local_nbIntermediates)
             {
-                if( final )
-                {
-                    oct_map_intermediate.value_at(i).iOct = iOct;
+                const OctantIndex iOct = {ioct_local, false};
+                uint32_t level = storage.getLevel(iOct);
+                auto logical_coords = storage.get_logical_coords(iOct);
+                while (logical_coords[IX] % 2 == 0 && logical_coords[IY] % 2 == 0 && logical_coords[IZ] % 2 == 0 && level > min_multigrid_level) {
+                    level--;
+                    logical_coords[IX] /= 2;
+                    logical_coords[IY] /= 2;
+                    logical_coords[IZ] /= 2;
+                    local_nbIntermediates++;
+                } 
+            }, nbIntermediates);
+            oct_map_intermediate.rehash(nbIntermediates);
+            // Fill oct_map_intermediate
+            Kokkos::parallel_for( "LightOctree_hashmap::hash",
+                                Kokkos::RangePolicy<>(0, nbOcts),
+                                KOKKOS_LAMBDA(uint32_t ioct_local)
+            {   
+                const OctantIndex iOct = {ioct_local, false};
+                auto logical_coords = storage.get_logical_coords( iOct );
+                const level_t level = storage.getLevel( iOct );
+                key_t key;
+                key.level = level;
+                key.i = logical_coords[IX];
+                key.j = logical_coords[IY];
+                key.k = logical_coords[IZ];           
+
+                [[maybe_unused]] oct_map_t::insert_result inserted = oct_map.insert( key, iOct );
+                DYABLO_ASSERT_KOKKOS_DEBUG(inserted.success(), "oct_map::insert() failed");
+
+                while (key.i % 2 == 0 && key.j % 2 == 0 && key.k % 2 == 0 && key.level > min_multigrid_level) {
+                    key.level--;
+                    key.i /= 2;
+                    key.j /= 2;
+                    key.k /= 2;
+                    [[maybe_unused]] oct_map_t::insert_result inserted = oct_map_intermediate.insert( key, OctantIndex{0, false, true} );
+                    DYABLO_ASSERT_KOKKOS_DEBUG(inserted.success(), "oct_map::insert() failed");
                 }
-                iOct++;
-            }
-        }, nbIntermediate);
-        //storage_intermediate = LightOctree_storage( storage.ndim, nbIntermediate, 0, min_level, storage.coarse_grid_size);
-        storage_intermediate = LightOctree_storage( storage.ndim, nbIntermediate, 0, min_multigrid_level, storage.coarse_grid_size);
+            });
+            Kokkos::parallel_scan("LightOctree_hashmap::intermediate_numbering", oct_map_intermediate.capacity(), 
+                KOKKOS_LAMBDA(uint32_t i, uint32_t& iOct, bool final)
+            {
+                if( oct_map_intermediate.valid_at(i) )
+                {
+                    if( final )
+                    {
+                        oct_map_intermediate.value_at(i).iOct = iOct;
+                    }
+                    iOct++;
+                }
+            }, nbIntermediates);
+            storage_intermediate = LightOctree_storage( storage.ndim, nbIntermediates, 0, min_multigrid_level, storage.coarse_grid_size);
+        }
+
         auto& oct_data_intermediate = storage_intermediate.oct_data;
         using oct_data_field_t = Storage_t::oct_data_field_t;
 
@@ -143,13 +232,13 @@ public:
         {
             if( oct_map_intermediate.valid_at(i) )
             {
-                uint32_t iOct = oct_map_intermediate.value_at(i).iOct;
-                key_t logical_coords = oct_map_intermediate.key_at(i);
-
-                oct_data_intermediate( iOct, oct_data_field_t::ICORNERX ) = logical_coords.i;
-                oct_data_intermediate( iOct, oct_data_field_t::ICORNERY ) = logical_coords.j;
-                oct_data_intermediate( iOct, oct_data_field_t::ICORNERZ ) = logical_coords.k;
-                oct_data_intermediate( iOct, oct_data_field_t::ILEVEL) = logical_coords.level;
+                const OctantIndex iOct = oct_map_intermediate.value_at(i);
+                const uint32_t ioct_local = OctantIndex::OctantIndex_to_iOctLocal(iOct, nbIntermediates);
+                const key_t key = oct_map_intermediate.key_at(i);
+                oct_data_intermediate( ioct_local, oct_data_field_t::ICORNERX ) = key.i;
+                oct_data_intermediate( ioct_local, oct_data_field_t::ICORNERY ) = key.j;
+                oct_data_intermediate( ioct_local, oct_data_field_t::ICORNERZ ) = key.k;
+                oct_data_intermediate( ioct_local, oct_data_field_t::ILEVEL) = key.level;
             }
         });
     }
@@ -167,8 +256,11 @@ public:
     {return storage.getNumGhosts();}
 
     KOKKOS_INLINE_FUNCTION
-    uint32_t getNumIntermediate() const
+    uint32_t getNumIntermediateOctants() const
     {return storage_intermediate.getNumOctants();}
+    KOKKOS_INLINE_FUNCTION
+    uint32_t getNumIntermediateGhosts() const
+    {return storage_intermediate.getNumGhosts();}
     
     KOKKOS_INLINE_FUNCTION
     pos_t getCenter(const OctantIndex& iOct)  const
@@ -191,6 +283,10 @@ public:
     {return iOct.isIntermediate? storage_intermediate.getBound(iOct) : storage.getBound(iOct);}
 
     KOKKOS_INLINE_FUNCTION
+    const Kokkos::View<morton_t*> getMortonIntervals()  const
+    {return this->morton_intervals;}
+
+    KOKKOS_INLINE_FUNCTION
     uint32_t get_level_min()  const
     {return this->min_level;}
 
@@ -198,11 +294,11 @@ public:
     uint32_t get_level_max()  const
     {return this->max_level;}
 
-    const Storage_t getStorage() const 
+    const Storage_t& getStorage() const 
     {
         return storage;
     }
-    const Storage_t getStorageIntermediate() const 
+    const Storage_t& getStorageIntermediate() const 
     {
         return storage_intermediate;
     }
@@ -225,7 +321,6 @@ public:
     {
         return {(logical_coords[IX] << 1) + offset[IX], (logical_coords[IY] << 1) + offset[IY], (logical_coords[IZ] << 1) + offset[IZ] };
     }
-    
     
     //! @copydoc LightOctree_base::findNeighbors()
     KOKKOS_INLINE_FUNCTION NeighborList findNeighbors( const OctantIndex& iOct, const offset_t& offset )  const

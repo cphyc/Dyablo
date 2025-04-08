@@ -154,8 +154,8 @@ public:
 
     void new_intermediate_fields( const std::set<std::string>& names)
     {
-        size_t nbOcts = this->foreach_cell.get_amr_mesh().getLightOctree().getNumIntermediate();
-        size_t nbGhosts = 0;
+        size_t nbOcts = this->foreach_cell.get_amr_mesh().getLightOctree().getNumIntermediateOctants();
+        size_t nbGhosts = this->foreach_cell.get_amr_mesh().getLightOctree().getNumIntermediateGhosts();
         int& max_field_count = this->max_field_count_intermediate;
         std::map<std::string, field_index_t>& field_index = this->field_index_intermediate;
         FieldView_t& fields = this->fields_intermediate;

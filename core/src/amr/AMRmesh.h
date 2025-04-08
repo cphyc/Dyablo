@@ -140,7 +140,9 @@ public:
   const LightOctree& getLightOctree();
   
   /// Update LightOctree to make sure next call to getLightOctree() will not reallocate
+  void deleteIntermediates();
   void updateLightOctree();
+  void updateLightOctreeWithIntermediates();
 
   //----- MPI info -----
   MpiComm getMpiComm() const
@@ -160,6 +162,14 @@ public:
   /// Get number of ghost octants
   uint32_t getNumGhosts() const
   { return Impl::getNumGhosts(); }
+
+  /// Get number of local octants
+  uint32_t getNumIntermediateOctants() const
+  { return Impl::getNumIntermediateOctants(); }
+
+  /// Get number of ghost octants
+  uint32_t getNumIntermediateGhosts() const
+  { return Impl::getNumIntermediateGhosts(); }
 
   /// Get total number of octants across all MPI process
   uint64_t getGlobalNumOctants() const
@@ -227,6 +237,12 @@ public:
   { return Impl::getLevelGhost(idx); }
 
   //----- Mesh modification -----
+
+  void init_intermediates()
+  { 
+    Impl::init_intermediates(this->getLightOctree());
+  }  
+
   /**
    * Change octants distribution to evenly redistribute the load
    * @param compact_levels are the number of levels to keep compact at the bottom of the tree

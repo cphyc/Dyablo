@@ -247,7 +247,7 @@ public:
   }
 
   int ndim;
-  uint32_t numOctants, numGhosts; //! Number of local octants (no ghosts), Number of ghosts.
+  uint32_t numOctants = 0, numGhosts = 0; //! Number of local octants (no ghosts), Number of ghosts.
   level_t level_min;
   coarse_grid_size_t coarse_grid_size;
 

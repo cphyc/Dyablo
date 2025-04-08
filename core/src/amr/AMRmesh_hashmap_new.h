@@ -2,6 +2,7 @@
 
 #include "utils/mpi/GlobalMpiSession.h"
 #include "amr/LightOctree_storage.h"
+#include "amr/LightOctree_forward.h"
 #include "kokkos_shared.h"
 
 namespace dyablo {
@@ -39,10 +40,19 @@ public:
     return storage;
   }
 
+  const Storage_t& getStorageIntermediate() const
+  {
+    return storage_intermediate;
+  }
+
   oct_index_t getNumOctants() const
   { return storage.getNumOctants(); }
   oct_index_t getNumGhosts() const
   { return storage.getNumGhosts(); }
+  oct_index_t getNumIntermediateOctants() const
+  { return storage_intermediate.getNumOctants(); }
+  oct_index_t getNumIntermediateGhosts() const
+  { return storage_intermediate.getNumGhosts(); }
 
   uint8_t getDim() const
   { return storage.getNdim(); }
@@ -134,6 +144,7 @@ public:
   // Output is not used in AMRmesh_impl
   GhostMap_t loadBalance( level_t compact_levels );
   void loadBalance_userdata( level_t compact_levels, UserData& userData );
+  void init_intermediates(const LightOctree& lmesh);
 
   void setMarker(uint32_t iOct, int marker);
   void setMarkers( const Kokkos::View<int*>& oct_marker );
@@ -142,6 +153,7 @@ public:
   void adaptGlobalRefine();
 
   const GhostMap_t& getGhostMap() const;
+  const GhostMap_t& getGhostMapIntermediate() const;
 
   bool check21Balance()
   {
@@ -156,7 +168,7 @@ public:
   }
 
 private : 
-  Storage_t storage;
+  Storage_t storage, storage_intermediate;
 
   Kokkos::Array<bool,3> periodic;
   MpiComm mpi_comm;
