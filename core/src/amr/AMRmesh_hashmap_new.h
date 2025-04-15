@@ -144,7 +144,7 @@ public:
   // Output is not used in AMRmesh_impl
   GhostMap_t loadBalance( level_t compact_levels );
   void loadBalance_userdata( level_t compact_levels, UserData& userData );
-  void init_intermediates(const LightOctree& lmesh);
+  void init_intermediates(const LightOctree& lmesh, const uint8_t first_mpi_multigrid_level = 0);
 
   void setMarker(uint32_t iOct, int marker);
   void setMarkers( const Kokkos::View<int*>& oct_marker );

@@ -610,22 +610,22 @@ CellIndex CellIndex::getParent(const CellArray_shape_ghosted& array) const
 
   DYABLO_ASSERT_KOKKOS_DEBUG( this->is_valid(), "Index needs to be valid to get parent");
 
-  auto lc = lmesh.get_logical_coords(this->iOct);
+  const auto lc = lmesh.get_logical_coords(this->iOct);
 
   Kokkos::Array<uint32_t, 3> logical_coords;
   logical_coords[IX] = (lc[IX] >> 1);
   logical_coords[IY] = (lc[IY] >> 1);
   logical_coords[IZ] = (lc[IZ] >> 1);
 
-  int8_t quadrant_x = lc[IX] % 2;
-  int8_t quadrant_y = lc[IY] % 2;
-  int8_t quadrant_z = lc[IZ] % 2;
+  const int8_t quadrant_x = lc[IX] % 2;
+  const int8_t quadrant_y = lc[IY] % 2;
+  const int8_t quadrant_z = lc[IZ] % 2;
 
-  LightOctree::OctantIndex iOct_p = lmesh.findParent(this->iOct);
+  const LightOctree::OctantIndex iOct_p = lmesh.findParent(this->iOct);
 
-  uint32_t i_p = ( i + bx * quadrant_x ) >> 1;
-  uint32_t j_p = ( j + by * quadrant_y ) >> 1;
-  uint32_t k_p = ( k + bz * quadrant_z ) >> 1;
+  const uint32_t i_p = ( i + bx * quadrant_x ) >> 1;
+  const uint32_t j_p = ( j + by * quadrant_y ) >> 1;
+  const uint32_t k_p = ( k + bz * quadrant_z ) >> 1;
 
   return CellIndex{iOct_p, i_p, j_p, k_p, bx,by,bz, CellIndex::BIGGER};
 }

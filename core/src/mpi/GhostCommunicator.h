@@ -84,10 +84,35 @@ public:
   {
     Impl::reduce_ghosts(U);
   }
+  void reduce_intermediate_ghosts( UserData::FieldAccessor& U ) const
+  {
+    Impl::reduce_intermediate_ghosts(U);
+  }
+  void reduce_intermediate_ghosts_at_level( UserData::FieldAccessor& U, const uint8_t level) const
+  {
+    Impl::reduce_intermediate_ghosts_at_level(U, level);
+  }
+  void reduce_intermediate_ghosts_at_level( UserData::FieldAccessor& U, const uint8_t level, const Kokkos::View<int*> iFields) const
+  {
+    Impl::reduce_intermediate_ghosts_at_level(U, level, iFields);
+  }
 
   void reduce_ghosts( ForeachCell::CellArray_global_ghosted& U ) const
   {
     Impl::reduce_ghosts(U);
+  }
+  void reduce_intermediate_ghosts( ForeachCell::CellArray_global_ghosted& U ) const
+  {
+    Impl::reduce_intermediate_ghosts(U);
+  }
+
+  void reduce_intermediate_ghosts_at_level( ForeachCell::CellArray_global_ghosted& U, const uint8_t level) const
+  {
+    Impl::reduce_intermediate_ghosts_at_level(U, level);
+  }
+  void reduce_intermediate_ghosts_at_level( ForeachCell::CellArray_global_ghosted& U, const uint8_t level, const Kokkos::View<int*> iFields) const
+  {
+    Impl::reduce_intermediate_ghosts_at_level(U, level, iFields);
   }
 
   void init_intermediates( 

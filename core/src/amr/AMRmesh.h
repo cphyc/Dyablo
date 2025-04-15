@@ -142,7 +142,7 @@ public:
   /// Update LightOctree to make sure next call to getLightOctree() will not reallocate
   void deleteIntermediates();
   void updateLightOctree();
-  void updateLightOctreeWithIntermediates();
+  void updateLightOctreeWithIntermediates(const uint8_t first_mpi_multigrid_level = 0);
 
   //----- MPI info -----
   MpiComm getMpiComm() const
@@ -238,9 +238,9 @@ public:
 
   //----- Mesh modification -----
 
-  void init_intermediates()
+  void init_intermediates(const uint8_t first_mpi_multigrid_level = 0)
   { 
-    Impl::init_intermediates(this->getLightOctree());
+    Impl::init_intermediates(this->getLightOctree(), first_mpi_multigrid_level);
   }  
 
   /**

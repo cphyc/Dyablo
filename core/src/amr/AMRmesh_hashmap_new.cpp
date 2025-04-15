@@ -29,7 +29,8 @@ AMRmesh_hashmap_new::GhostMap_t discover_ghosts_intermediate(
     const Kokkos::View<morton_t*> morton_intervals_device,
     level_t level_max, 
     const Kokkos::Array<bool,3>& periodic,
-    const MpiComm& mpi_comm);
+    const MpiComm& mpi_comm, 
+    const uint8_t first_mpi_multigrid_level = 0);
 }
 
 struct AMRmesh_hashmap_new::PData{
@@ -509,8 +510,10 @@ AMRmesh_hashmap_new::GhostMap_t discover_ghosts_intermediate(
   const Kokkos::View<morton_t*> morton_intervals_device,
   level_t level_max, 
   const Kokkos::Array<bool,3>& periodic,
-  const MpiComm& mpi_comm)
+  const MpiComm& mpi_comm,
+  const uint8_t first_mpi_multigrid_level)
 {
+  printf("first_mpi_multigrid_level = %d\n", first_mpi_multigrid_level);
   using CellMask = AMRmesh_hashmap_new::GhostMap_t::CellMask;
   using Face = AMRmesh_hashmap_new::GhostMap_t::Face;
 
@@ -583,78 +586,82 @@ AMRmesh_hashmap_new::GhostMap_t discover_ghosts_intermediate(
         }
       };
 
-      Kokkos::Array<logical_coord_t, 3> pos = storage_intermediate_device.get_logical_coords( {iOct, false, true} );
-      level_t level = storage_intermediate_device.getLevel( {iOct, false, true} );
+      const level_t level = storage_intermediate_device.getLevel( {iOct, false, true} );
 
-      DYABLO_ASSERT_KOKKOS_DEBUG(find_rank(compute_morton(pos, level)) == mpi_rank, "Expected local rank but found remote instead");
-
-      logical_coord_t max_ix = storage_intermediate_device.cell_count(IX, level);
-      logical_coord_t max_iy = storage_intermediate_device.cell_count(IY, level);
-      logical_coord_t max_iz = storage_intermediate_device.cell_count(IZ, level);
-      int dz_max = (ndim == 2)? 0:1;
-      for( int dz=-dz_max; dz<=dz_max; dz++ )
-      for( int dy=-1; dy<=1; dy++ )
-      for( int dx=-1; dx<=1; dx++ )
-      if(   (dx!=0 || dy!=0 || dz!=0)
-          && (periodic[IX] || ( /* 0<=pos[IX]+dx && */ pos[IX]+dx<max_ix ))
-          && (periodic[IY] || ( /* 0<=pos[IY]+dy && */ pos[IY]+dy<max_iy ))
-          && (periodic[IZ] || ( /* 0<=pos[IZ]+dz && */ pos[IZ]+dz<max_iz )) )
+      if (level >= first_mpi_multigrid_level)
       {
-        Kokkos::Array<logical_coord_t, 3> pos_n{
-          (pos[IX]+dx+max_ix)%max_ix, 
-          (pos[IY]+dy+max_iy)%max_iy, 
-          (pos[IZ]+dz+max_iz)%max_iz
-        };
-        morton_t morton_n = compute_morton( pos_n, level );
-        int neighbor_rank = find_rank( morton_n );  
+        Kokkos::Array<logical_coord_t, 3> pos = storage_intermediate_device.get_logical_coords( {iOct, false, true} );
 
-        Face neighbor_face; // face of current cell facing neighbor
-        if      ( dx==-1 ) neighbor_face = Face::XL; // Whole face is included for corners 
-        else if ( dx== 1 ) neighbor_face = Face::XR; 
-        else if ( dy==-1 ) neighbor_face = Face::YL;
-        else if ( dy== 1 ) neighbor_face = Face::YR;
-        else if ( dz==-1 ) neighbor_face = Face::ZL;
-        else if ( dz== 1 ) neighbor_face = Face::ZR;
-        else 
+        DYABLO_ASSERT_KOKKOS_DEBUG(find_rank(compute_morton(pos, level)) == mpi_rank, "Expected local rank but found remote instead");
+
+        logical_coord_t max_ix = storage_intermediate_device.cell_count(IX, level);
+        logical_coord_t max_iy = storage_intermediate_device.cell_count(IY, level);
+        logical_coord_t max_iz = storage_intermediate_device.cell_count(IZ, level);
+        int dz_max = (ndim == 2)? 0:1;
+        for( int dz=-dz_max; dz<=dz_max; dz++ )
+        for( int dy=-1; dy<=1; dy++ )
+        for( int dx=-1; dx<=1; dx++ )
+        if(   (dx!=0 || dy!=0 || dz!=0)
+            && (periodic[IX] || ( /* 0<=pos[IX]+dx && */ pos[IX]+dx<max_ix ))
+            && (periodic[IY] || ( /* 0<=pos[IY]+dy && */ pos[IY]+dy<max_iy ))
+            && (periodic[IZ] || ( /* 0<=pos[IZ]+dz && */ pos[IZ]+dz<max_iz )) )
         {
-          DYABLO_ASSERT_KOKKOS_DEBUG( false, "discover_ghosts : cannot determine face");
-        }
-
-        // Verify that the whole same-size virtual neighbor is owned by neighbor_rank
-        // i.e : last suboctant of same-size neighbor is owned by the same MPI
-        // TODO : get morton of last neighbor to filter even more
-        morton_t morton_next = shift_level(morton_n, level-level_max) + 1;
-                morton_next = shift_level(morton_next, level_max-level);
-        if( level<level_max && morton_next < morton_intervals_device(neighbor_rank+1) )
-        {// Neighbors are owned by only one MPI
-          register_neighbor(neighbor_rank, neighbor_face);
-        }
-        else
-        {// Neighbors may be scattered between multiple MPIs  
-          
-          // Apply offset to get smaller origin neighbor
-          Kokkos::Array<logical_coord_t, 3> pos_n_smaller_origin{
-            (pos_n[IX] << 1) + (dx == -1), // add one level + right half of suboctant if left of original cell
-            (pos_n[IY] << 1) + (dy == -1),
-            (pos_n[IZ] << 1) + (dz == -1),
+          Kokkos::Array<logical_coord_t, 3> pos_n{
+            (pos[IX]+dx+max_ix)%max_ix, 
+            (pos[IY]+dy+max_iy)%max_iy, 
+            (pos[IZ]+dz+max_iz)%max_iz
           };
+          morton_t morton_n = compute_morton( pos_n, level );
+          int neighbor_rank = find_rank( morton_n );  
 
-          // Iterate over neighbor suboctants
-          int sx_max = (dx==0); // constrained to the same plane as origin if offset in this direction
-          int sy_max = (dy==0);
-          int sz_max = (ndim==2) ? 0 : (dz==0);
-          for( int16_t sz=0; sz<=sz_max; sz++ )
-          for( int16_t sy=0; sy<=sy_max; sy++ )
-          for( int16_t sx=0; sx<=sx_max; sx++ )
+          Face neighbor_face; // face of current cell facing neighbor
+          if      ( dx==-1 ) neighbor_face = Face::XL; // Whole face is included for corners 
+          else if ( dx== 1 ) neighbor_face = Face::XR; 
+          else if ( dy==-1 ) neighbor_face = Face::YL;
+          else if ( dy== 1 ) neighbor_face = Face::YR;
+          else if ( dz==-1 ) neighbor_face = Face::ZL;
+          else if ( dz== 1 ) neighbor_face = Face::ZR;
+          else 
           {
-            Kokkos::Array<logical_coord_t, 3> pos_n_smaller{
-              pos_n_smaller_origin[IX] + sx,
-              pos_n_smaller_origin[IY] + sy,
-              pos_n_smaller_origin[IZ] + sz,
-            };
-            morton_t m_suboctant = compute_morton( pos_n_smaller, level+1 );
-            int neighbor_rank = find_rank(m_suboctant);
+            DYABLO_ASSERT_KOKKOS_DEBUG( false, "discover_ghosts : cannot determine face");
+          }
+
+          // Verify that the whole same-size virtual neighbor is owned by neighbor_rank
+          // i.e : last suboctant of same-size neighbor is owned by the same MPI
+          // TODO : get morton of last neighbor to filter even more
+          morton_t morton_next = shift_level(morton_n, level-level_max) + 1;
+                  morton_next = shift_level(morton_next, level_max-level);
+          if( level<level_max && morton_next < morton_intervals_device(neighbor_rank+1) )
+          {// Neighbors are owned by only one MPI
             register_neighbor(neighbor_rank, neighbor_face);
+          }
+          else
+          {// Neighbors may be scattered between multiple MPIs  
+            
+            // Apply offset to get smaller origin neighbor
+            Kokkos::Array<logical_coord_t, 3> pos_n_smaller_origin{
+              (pos_n[IX] << 1) + (dx == -1), // add one level + right half of suboctant if left of original cell
+              (pos_n[IY] << 1) + (dy == -1),
+              (pos_n[IZ] << 1) + (dz == -1),
+            };
+
+            // Iterate over neighbor suboctants
+            int sx_max = (dx==0); // constrained to the same plane as origin if offset in this direction
+            int sy_max = (dy==0);
+            int sz_max = (ndim==2) ? 0 : (dz==0);
+            for( int16_t sz=0; sz<=sz_max; sz++ )
+            for( int16_t sy=0; sy<=sy_max; sy++ )
+            for( int16_t sx=0; sx<=sx_max; sx++ )
+            {
+              Kokkos::Array<logical_coord_t, 3> pos_n_smaller{
+                pos_n_smaller_origin[IX] + sx,
+                pos_n_smaller_origin[IY] + sy,
+                pos_n_smaller_origin[IZ] + sz,
+              };
+              morton_t m_suboctant = compute_morton( pos_n_smaller, level+1 );
+              int neighbor_rank = find_rank(m_suboctant);
+              register_neighbor(neighbor_rank, neighbor_face);
+            }
           }
         }
       }
@@ -717,23 +724,23 @@ AMRmesh_hashmap_new::GhostMap_t discover_ghosts_intermediate(
 
 } // namespace
 
-void AMRmesh_hashmap_new::init_intermediates(const LightOctree& lmesh){
+void AMRmesh_hashmap_new::init_intermediates(const LightOctree& lmesh, const uint8_t first_mpi_multigrid_level){
 
   const level_t level_max = pdata->level_max;
-
   const LightOctree_storage<>& storage_intermediate_device = lmesh.getStorageIntermediate();
   const Kokkos::View<morton_t*> morton_intervals_device = lmesh.getMortonIntervals();
 
-  pdata->ghostmap_intermediate = discover_ghosts_intermediate( storage_intermediate_device, morton_intervals_device, level_max, this->periodic, this->mpi_comm );
+  pdata->ghostmap_intermediate = discover_ghosts_intermediate( storage_intermediate_device, morton_intervals_device, level_max, this->periodic, this->mpi_comm, first_mpi_multigrid_level );
 
   // Prepare communication to copy ghosts
   const int dim = storage_intermediate_device.getNdim();
-  ViewCommunicator ghost_comm( pdata->ghostmap_intermediate.send_sizes, pdata->ghostmap_intermediate.send_iOcts, mpi_comm  );
+  const ViewCommunicator ghost_comm( pdata->ghostmap_intermediate.send_sizes, pdata->ghostmap_intermediate.send_iOcts, mpi_comm  );
   const oct_index_t nbGhosts = ghost_comm.getNumGhosts();
-  LightOctree_storage<> storage_device_ghosts(dim, 0, nbGhosts, storage_intermediate_device.level_min, storage_intermediate_device.coarse_grid_size );
+  const LightOctree_storage<> storage_device_ghosts(dim, 0, nbGhosts, storage_intermediate_device.level_min, storage_intermediate_device.coarse_grid_size );
+  
   ghost_comm.exchange_ghosts<0>( storage_intermediate_device.oct_data, storage_device_ghosts.oct_data );
 
-  LightOctree_storage<> storage_device2( dim, storage_intermediate_device.getNumOctants(), nbGhosts, storage_intermediate_device.level_min, storage_intermediate_device.coarse_grid_size );
+  const LightOctree_storage<> storage_device2( dim, storage_intermediate_device.getNumOctants(), nbGhosts, storage_intermediate_device.level_min, storage_intermediate_device.coarse_grid_size );
   Kokkos::deep_copy( storage_device2.getLocalSubview(), storage_intermediate_device.getLocalSubview() );
   Kokkos::deep_copy( storage_device2.getGhostSubview(), storage_device_ghosts.getGhostSubview() );
 

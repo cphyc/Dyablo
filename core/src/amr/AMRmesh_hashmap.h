@@ -57,18 +57,18 @@ public:
         return dim;
     }
 
-    void init_intermediates(const LightOctree& lmesh) const
+    void init_intermediates(const LightOctree& lmesh, const uint8_t first_mpi_multigrid_level = 0) const
     {
-        DYABLO_ASSERT_HOST_RELEASE(false, "init_intermediates() cannot be use without AMRmesh_hashmap_new");
+        DYABLO_ASSERT_HOST_RELEASE(false, "init_intermediates() cannot be used without AMRmesh_hashmap_new");
     }
 
     const Storage_t& getStorage() const
     {
-        DYABLO_ASSERT_HOST_RELEASE(false, "getStorage() cannot be use without AMRmesh_hashmap_new");
+        DYABLO_ASSERT_HOST_RELEASE(false, "getStorage() cannot be used without AMRmesh_hashmap_new");
     }
     const Storage_t& getStorageIntermediate() const
     {
-        DYABLO_ASSERT_HOST_RELEASE(false, "getStorageIntermediate() cannot be use without AMRmesh_hashmap_new");
+        DYABLO_ASSERT_HOST_RELEASE(false, "getStorageIntermediate() cannot be used without AMRmesh_hashmap_new");
     }
 
     std::array<bool, 6> getPeriodic() const

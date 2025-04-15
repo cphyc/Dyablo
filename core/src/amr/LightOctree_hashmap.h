@@ -23,6 +23,8 @@ public:
     using morton_t = uint64_t;
     using logical_coord_t = uint32_t;
     using level_t = logical_coord_t;
+    using oct_data_field_t = Storage_t::oct_data_field_t;
+
     struct key_t //! key type for hashmap (morton+level)
     {
         logical_coord_t level, i, j, k;
@@ -43,9 +45,9 @@ public:
     }
 
     LightOctree_hashmap( const Storage_t& storage, const Storage_t& storage_intermediate, 
-                         uint8_t level_min, uint8_t level_max,
-                         Kokkos::Array<bool,3> periodic,
-                         Kokkos::View<morton_t*> morton_intervals )
+                         const uint8_t level_min, const uint8_t level_max, const uint8_t first_mpi_multigrid_level,
+                         const Kokkos::Array<bool,3> periodic,
+                         const Kokkos::View<morton_t*> morton_intervals )
     : storage( storage ), storage_intermediate( storage_intermediate ),
       oct_map(storage.getNumOctants()+storage.getNumGhosts()),
       oct_map_intermediate(storage_intermediate.getNumOctants()+storage_intermediate.getNumGhosts()),
@@ -53,7 +55,7 @@ public:
       is_periodic(periodic),
       morton_intervals( morton_intervals )
     {
-        private_init_with_intermediates();
+        private_init_with_intermediates(first_mpi_multigrid_level);
     }
 
 
@@ -96,8 +98,8 @@ public:
     {
         const Storage_t& storage = this->storage;
         const oct_map_t& oct_map = this->oct_map;
-        uint32_t nbOcts = storage.getNumOctants();
-        uint32_t numOctants_tot = nbOcts + storage.getNumGhosts();
+        const uint32_t nbOcts = storage.getNumOctants();
+        const uint32_t numOctants_tot = nbOcts + storage.getNumGhosts();
 
         // Put octants into hashmap on device
         Kokkos::parallel_for( "LightOctree_hashmap::hash",
@@ -118,16 +120,16 @@ public:
         });
     }
 
-    void private_init_with_intermediates()
+    void private_init_with_intermediates(const uint8_t first_mpi_multigrid_level = 0)
     {
         const Storage_t& storage = this->storage;
         Storage_t& storage_intermediate = this->storage_intermediate;
         const oct_map_t& oct_map = this->oct_map;
         oct_map_t& oct_map_intermediate = this->oct_map_intermediate;
-        uint32_t nbOcts = storage.getNumOctants();
-        uint32_t numOctants_tot = nbOcts + storage.getNumGhosts();
+        const uint32_t nbOcts = storage.getNumOctants();
+        const uint32_t numOctants_tot = nbOcts + storage.getNumGhosts();
         uint32_t nbIntermediates = storage_intermediate.getNumOctants();
-        uint32_t numIntermediates_tot = nbIntermediates + storage_intermediate.getNumGhosts();
+        const uint32_t numIntermediates_tot = nbIntermediates + storage_intermediate.getNumGhosts();
         const level_t min_multigrid_level = 0;
         // Put octants into hashmap on device
         if (nbIntermediates){ // storage_intermediate is already provided
@@ -138,7 +140,7 @@ public:
             {   
                 const OctantIndex iOct = OctantIndex::iOctLocal_to_OctantIndex( ioct_local, nbOcts );
                 const auto logical_coords = storage.get_logical_coords( iOct );
-                level_t level = storage.getLevel( iOct );
+                const level_t level = storage.getLevel( iOct );
                 key_t key;
                 key.level = level;
                 key.i = logical_coords[IX];
@@ -167,6 +169,7 @@ public:
             });
         } else { // create storage_intermediate
             // Count how many intermediates I need
+            const uint32_t nbIntermediates_nonMPI = ((1U << (3*first_mpi_multigrid_level)) - 1) / 7; // (8^level - 1 )/ 7, without std::pow
             Kokkos::parallel_reduce( "Count number of octs per level", 
                                     Kokkos::RangePolicy<>(0, nbOcts),
                                     KOKKOS_LAMBDA( const uint32_t ioct_local , uint32_t& local_nbIntermediates)
@@ -174,7 +177,7 @@ public:
                 const OctantIndex iOct = {ioct_local, false};
                 uint32_t level = storage.getLevel(iOct);
                 auto logical_coords = storage.get_logical_coords(iOct);
-                while (logical_coords[IX] % 2 == 0 && logical_coords[IY] % 2 == 0 && logical_coords[IZ] % 2 == 0 && level > min_multigrid_level) {
+                while (logical_coords[IX] % 2 == 0 && logical_coords[IY] % 2 == 0 && logical_coords[IZ] % 2 == 0 && level > first_mpi_multigrid_level) {
                     level--;
                     logical_coords[IX] /= 2;
                     logical_coords[IY] /= 2;
@@ -182,14 +185,33 @@ public:
                     local_nbIntermediates++;
                 } 
             }, nbIntermediates);
+            nbIntermediates += nbIntermediates_nonMPI;
             oct_map_intermediate.rehash(nbIntermediates);
-            // Fill oct_map_intermediate
+
+            // Fill oct_map_intermediate non-MPI levels
+            for (uint8_t ilevel = 0; ilevel < first_mpi_multigrid_level; ilevel++){
+                const uint32_t nOcts_1d = 1U << ilevel; // Number of octants in 1D
+                const uint32_t totalOcts = nOcts_1d*nOcts_1d*nOcts_1d;  // Total 3D octants
+                Kokkos::parallel_for("InsertOctants", Kokkos::RangePolicy<>(0, totalOcts), KOKKOS_LAMBDA(int index) {
+                    const uint32_t k = index/(nOcts_1d*nOcts_1d);
+                    const uint32_t j = (index - k*nOcts_1d*nOcts_1d)/nOcts_1d;
+                    const uint32_t i = index - j*nOcts_1d - k*nOcts_1d*nOcts_1d;
+                    key_t key;
+                    key.level = ilevel;
+                    key.i = i;
+                    key.j = j;
+                    key.k = k;
+                    [[maybe_unused]] auto inserted = oct_map_intermediate.insert(key, OctantIndex{0, false, true});
+                    DYABLO_ASSERT_KOKKOS_DEBUG(inserted.success(), "oct_map::insert() failed");
+                });
+            }          
+            // Fill oct_map_intermediate MPI levels
             Kokkos::parallel_for( "LightOctree_hashmap::hash",
                                 Kokkos::RangePolicy<>(0, nbOcts),
                                 KOKKOS_LAMBDA(uint32_t ioct_local)
             {   
                 const OctantIndex iOct = {ioct_local, false};
-                auto logical_coords = storage.get_logical_coords( iOct );
+                const auto logical_coords = storage.get_logical_coords( iOct );
                 const level_t level = storage.getLevel( iOct );
                 key_t key;
                 key.level = level;
@@ -200,7 +222,7 @@ public:
                 [[maybe_unused]] oct_map_t::insert_result inserted = oct_map.insert( key, iOct );
                 DYABLO_ASSERT_KOKKOS_DEBUG(inserted.success(), "oct_map::insert() failed");
 
-                while (key.i % 2 == 0 && key.j % 2 == 0 && key.k % 2 == 0 && key.level > min_multigrid_level) {
+                while (key.i % 2 == 0 && key.j % 2 == 0 && key.k % 2 == 0 && key.level > first_mpi_multigrid_level) {
                     key.level--;
                     key.i /= 2;
                     key.j /= 2;
@@ -225,7 +247,6 @@ public:
         }
 
         auto& oct_data_intermediate = storage_intermediate.oct_data;
-        using oct_data_field_t = Storage_t::oct_data_field_t;
 
         Kokkos::parallel_for( "LightOctree_hashmap::intermediate_storage", oct_map_intermediate.capacity(), 
             KOKKOS_LAMBDA(uint32_t i)
@@ -512,30 +533,15 @@ public:
     KOKKOS_INLINE_FUNCTION
     OctantIndex findParent( const OctantIndex& iOct )  const
     {
-        auto lc = this->get_logical_coords(iOct);
+        const auto lc = this->get_logical_coords(iOct);
         key_t logical_coords;
-        logical_coords.level = this->getLevel(iOct)-1;
+        logical_coords.level = this->getLevel(iOct) - 1;
         logical_coords.i = (lc[IX] >> 1);
         logical_coords.j = (lc[IY] >> 1);
         logical_coords.k = (lc[IZ] >> 1);
-
-        if (!iOct.isIntermediate){
-            auto it_i = oct_map_intermediate.find(logical_coords);
-            DYABLO_ASSERT_KOKKOS_DEBUG( oct_map_intermediate.valid_at(it_i), "Could not find intermediate parent octant from leaf cell." );
-            return oct_map_intermediate.value_at(it_i);
-        }
-
-        auto it_l = oct_map.find(logical_coords);
-        if( oct_map.valid_at(it_l) )
-        {
-            return oct_map.value_at(it_l);
-        }
-        else
-        {
-            auto it_i = oct_map_intermediate.find(logical_coords);
-            DYABLO_ASSERT_KOKKOS_DEBUG( oct_map_intermediate.valid_at(it_i), "Could not find Parent octant." );
-            return oct_map_intermediate.value_at( it_i );
-        }
+        const auto it = oct_map_intermediate.find(logical_coords);
+        DYABLO_ASSERT_KOKKOS_DEBUG( oct_map_intermediate.valid_at(it), "Could not find Parent octant." );
+        return oct_map_intermediate.value_at( it );
     }
     
     /// @copydoc LightOctree_base::isBoundary()
@@ -581,6 +587,30 @@ public:
         DYABLO_ASSERT_KOKKOS_DEBUG( oct_map.valid_at(it), "Could not find iOct" );
 
         return oct_map.value_at(it);
+    }
+
+    /**
+     * Get intermdiate octant from logical position
+     **/
+    KOKKOS_INLINE_FUNCTION
+    OctantIndex getiOctIntermediateFromCoordinates(uint16_t ix, uint16_t iy, uint16_t iz, uint16_t level) const
+    {
+        int ndim = getNdim();
+
+        DYABLO_ASSERT_KOKKOS_DEBUG( ix < storage_intermediate.cell_count(IX, level ), "ix out of bound" );
+        DYABLO_ASSERT_KOKKOS_DEBUG( iy < storage_intermediate.cell_count(IY, level ), "iy out of bound"  );
+        if(ndim == 3)
+        {
+            DYABLO_ASSERT_KOKKOS_DEBUG( iz < storage_intermediate.cell_count(IZ, level ), "iz out of bound" );
+        }
+        else 
+            DYABLO_ASSERT_KOKKOS_DEBUG( iz == 0, "iz must be 0 in 2D"  );
+
+        auto it = oct_map_intermediate.find({level, ix, iy, iz});
+
+        DYABLO_ASSERT_KOKKOS_DEBUG( oct_map_intermediate.valid_at(it), "Could not find iOct" );
+
+        return oct_map_intermediate.value_at(it);
     }
     /**
      * Get octant containing position pos
