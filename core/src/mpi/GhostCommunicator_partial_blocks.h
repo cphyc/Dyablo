@@ -431,13 +431,13 @@ public:
       });
     }
 
-    template< typename CellArray_t >
-    void reduce_intermediate_ghosts_at_level( CellArray_t& U, const uint8_t level, const Kokkos::View<int*> iFields) const
+    template< typename CellArray_t, typename T, size_t N >
+    void reduce_intermediate_ghosts_at_level( CellArray_t& U, const uint8_t level, const Kokkos::Array<T, N> iFields) const
     {
       
       using CellIndex = ForeachCell::CellIndex;
 
-      uint32_t num_vars = iFields.size(); // number of vars for each cell
+      uint32_t num_vars = N; // number of vars for each cell
 
       const LightOctree& lmesh = U.getShape().lmesh;
 
@@ -474,7 +474,7 @@ public:
 
         CellIndex cell_index { {iOct, true, true}, i, j, k, bx, by, bz };
         
-        send_buffer( ipack ) = U.at( cell_index, iFields(ivar) );
+        send_buffer( ipack ) = U.at( cell_index, iFields[ivar] );
       });
       
       Kokkos::View< real_t* > recv_buffer("exchange_ghosts::recv_buffer", num_vars*total_recv_size ); 
@@ -508,7 +508,7 @@ public:
         CellIndex cell_index { {iOct, false, true}, i, j, k, bx, by, bz };
         const uint8_t iOct_level = lmesh.getLevel({iOct, false, true});
         if (iOct_level == level) {
-          Kokkos::atomic_add( &U.at( cell_index, iFields(ivar) ), recv_buffer( ipack ) );
+          Kokkos::atomic_add( &U.at( cell_index, iFields[ivar] ), recv_buffer( ipack ) );
         }
       });
     }

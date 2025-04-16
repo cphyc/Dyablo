@@ -413,7 +413,7 @@ AMRmesh_hashmap_new::GhostMap_t discover_ghosts(
         // i.e : last suboctant of same-size neighbor is owned by the same MPI
         // TODO : get morton of last neighbor to filter even more
         morton_t morton_next = shift_level(morton_n, level-level_max) + 1;
-                morton_next = shift_level(morton_next, level_max-level);
+                morton_next = shift_level(morton_next, level_max-level) - 1;
         if( level<level_max && morton_next < morton_intervals_device(neighbor_rank+1) )
         {// Neighbors are owned by only one MPI
           register_neighbor(neighbor_rank, neighbor_face);
@@ -421,8 +421,14 @@ AMRmesh_hashmap_new::GhostMap_t discover_ghosts(
         else
         {// Neighbors may be scattered between multiple MPIs  
           
+          uint32_t last_neighbor_rank = find_rank(morton_next);
+          uint32_t total_neighbours = (last_neighbor_rank + mpi_size - neighbor_rank) % mpi_size + 1;
+          for (uint32_t irank = 0; irank < total_neighbours; irank++){
+            const uint32_t new_neighbor_rank = (neighbor_rank + irank) % mpi_size;
+            register_neighbor(new_neighbor_rank, neighbor_face);
+          }
           // Apply offset to get smaller origin neighbor
-          Kokkos::Array<logical_coord_t, 3> pos_n_smaller_origin{
+          /* Kokkos::Array<logical_coord_t, 3> pos_n_smaller_origin{
             (pos_n[IX] << 1) + (dx == -1), // add one level + right half of suboctant if left of original cell
             (pos_n[IY] << 1) + (dy == -1),
             (pos_n[IZ] << 1) + (dz == -1),
@@ -444,7 +450,7 @@ AMRmesh_hashmap_new::GhostMap_t discover_ghosts(
             morton_t m_suboctant = compute_morton( pos_n_smaller, level+1 );
             int neighbor_rank = find_rank(m_suboctant);
             register_neighbor(neighbor_rank, neighbor_face);
-          }
+          } */
         }
       }
     }, Kokkos::Min<oct_index_t>(first_fail) ); 
@@ -513,7 +519,6 @@ AMRmesh_hashmap_new::GhostMap_t discover_ghosts_intermediate(
   const MpiComm& mpi_comm,
   const uint8_t first_mpi_multigrid_level)
 {
-  printf("first_mpi_multigrid_level = %d\n", first_mpi_multigrid_level);
   using CellMask = AMRmesh_hashmap_new::GhostMap_t::CellMask;
   using Face = AMRmesh_hashmap_new::GhostMap_t::Face;
 
@@ -574,7 +579,8 @@ AMRmesh_hashmap_new::GhostMap_t discover_ghosts_intermediate(
       {
         if(neighbor_rank != mpi_rank)
         {
-          CellMask faceMask = 1 << face;
+          CellMask faceMask = 1 << face; 
+          faceMask -= (face == Face::FACE_COUNT); // In default case where we must produce a ghost for a non-neighbor oct. Similar to all faces case
           auto insert_result = neighborMap.insert( NeighborPair{iOct, neighbor_rank }, faceMask );
           if( insert_result.existing() )
           {
@@ -601,10 +607,6 @@ AMRmesh_hashmap_new::GhostMap_t discover_ghosts_intermediate(
         for( int dz=-dz_max; dz<=dz_max; dz++ )
         for( int dy=-1; dy<=1; dy++ )
         for( int dx=-1; dx<=1; dx++ )
-        if(   (dx!=0 || dy!=0 || dz!=0)
-            && (periodic[IX] || ( /* 0<=pos[IX]+dx && */ pos[IX]+dx<max_ix ))
-            && (periodic[IY] || ( /* 0<=pos[IY]+dy && */ pos[IY]+dy<max_iy ))
-            && (periodic[IZ] || ( /* 0<=pos[IZ]+dz && */ pos[IZ]+dz<max_iz )) )
         {
           Kokkos::Array<logical_coord_t, 3> pos_n{
             (pos[IX]+dx+max_ix)%max_ix, 
@@ -623,23 +625,32 @@ AMRmesh_hashmap_new::GhostMap_t discover_ghosts_intermediate(
           else if ( dz== 1 ) neighbor_face = Face::ZR;
           else 
           {
-            DYABLO_ASSERT_KOKKOS_DEBUG( false, "discover_ghosts : cannot determine face");
+            neighbor_face = Face::FACE_COUNT; // Account for case where an intermediate level is entirely in a parent oct which is a ghost
+            //DYABLO_ASSERT_KOKKOS_DEBUG( false, "discover_ghosts : cannot determine face");
           }
 
           // Verify that the whole same-size virtual neighbor is owned by neighbor_rank
           // i.e : last suboctant of same-size neighbor is owned by the same MPI
           // TODO : get morton of last neighbor to filter even more
           morton_t morton_next = shift_level(morton_n, level-level_max) + 1;
-                  morton_next = shift_level(morton_next, level_max-level);
+                  morton_next = shift_level(morton_next, level_max-level) - 1; // Latest suboctant before next morton
+
           if( level<level_max && morton_next < morton_intervals_device(neighbor_rank+1) )
           {// Neighbors are owned by only one MPI
             register_neighbor(neighbor_rank, neighbor_face);
           }
           else
           {// Neighbors may be scattered between multiple MPIs  
+  
+            const uint32_t last_neighbor_rank = find_rank(morton_next);
+            const uint32_t total_neighbours = (last_neighbor_rank + mpi_size - neighbor_rank) % mpi_size + 1;
+            for (uint32_t irank = 0; irank < total_neighbours; irank++){
+              const uint32_t new_neighbor_rank = (neighbor_rank + irank) % mpi_size;
+              register_neighbor(new_neighbor_rank, neighbor_face);
+            }
             
             // Apply offset to get smaller origin neighbor
-            Kokkos::Array<logical_coord_t, 3> pos_n_smaller_origin{
+            /* Kokkos::Array<logical_coord_t, 3> pos_n_smaller_origin{
               (pos_n[IX] << 1) + (dx == -1), // add one level + right half of suboctant if left of original cell
               (pos_n[IY] << 1) + (dy == -1),
               (pos_n[IZ] << 1) + (dz == -1),
@@ -661,7 +672,10 @@ AMRmesh_hashmap_new::GhostMap_t discover_ghosts_intermediate(
               morton_t m_suboctant = compute_morton( pos_n_smaller, level+1 );
               int neighbor_rank = find_rank(m_suboctant);
               register_neighbor(neighbor_rank, neighbor_face);
-            }
+              if (level == 0)
+                printf("level %d Rank %d last neighbor %d total_neighbors %d Rank %d, local neighbor rank %lu morton %lu morton_next %lu\n", level, mpi_rank, last_neighbor_rank, total_neighbours, neighbor_rank, morton_n, morton_next); */
+
+            //}
           }
         }
       }

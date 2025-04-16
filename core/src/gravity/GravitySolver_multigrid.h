@@ -30,14 +30,17 @@ public:
   void update_gravity_field( UserData& U, ScalarSimulationData& scalar_data);
 
   // MPI
+  template <typename T, size_t N> KOKKOS_INLINE_FUNCTION Kokkos::Array<T, N> make_array(const Kokkos::Array<T, N>& vals);
   static real_t MPI_Allreduce_scalar( real_t local_v );
-  template< typename Array_t > void reduce_nonMPI_levels(const Array_t& Uintermediate, const level_t first_mpi_multigrid_level, const Kokkos::View<int*> iFields);
+  static uint32_t MPI_Allreduce_int_max( uint32_t local_v );
+  template< typename Array_t, typename T, size_t N > void reduce_nonMPI_levels(const Array_t& Uintermediate, const level_t first_mpi_multigrid_level, const Kokkos::Array<T, N> iFields);
   
   // RHS
   KOKKOS_INLINE_FUNCTION static real_t b(const UserData::FieldAccessor& Uin, const ForeachCell::CellIndex& iCell_Uin, real_t rho_mean, real_t four_Pi_G);
   KOKKOS_INLINE_FUNCTION static real_t b_cosmo(const UserData::FieldAccessor& Uin, const ForeachCell::CellIndex& iCell_Uin, real_t rho_mean, real_t aexp);
 
   // Mesh
+  template< typename Array_t >  void check_parents(const Array_t& U, const Array_t& Uintermediate);
   KOKKOS_INLINE_FUNCTION static bool isRed(const ForeachCell::CellIndex& iCell);
   KOKKOS_INLINE_FUNCTION static bool isBlack(const ForeachCell::CellIndex& iCell);
   template< typename Array_t > KOKKOS_INLINE_FUNCTION static real_t get_value(const Array_t& U, const ForeachCell::CellIndex& iCell_U, VarIndex var, const ForeachCell::CellIndex::offset_t& offset, const int ndim);
