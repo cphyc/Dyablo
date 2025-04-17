@@ -62,7 +62,10 @@ public:
   LightOctree_storage(const LightOctree_storage<MemorySpace_t>& storage)
    : LightOctree_storage( storage.getNdim(), storage.getNumOctants(), storage.getNumGhosts(), storage.level_min, storage.coarse_grid_size )
   {
-    Kokkos::deep_copy( this->oct_data, storage.oct_data );
+    // Cannot copy empty data to device
+    if (storage.oct_data.extent(0) > 0 && storage.oct_data.extent(1) > 0){
+      Kokkos::deep_copy( this->oct_data, storage.oct_data );
+    }
   }
 
 public:

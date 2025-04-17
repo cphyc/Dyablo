@@ -83,26 +83,22 @@ void AMRmesh_impl<Impl_t>::updateLightOctree()
 template<typename Impl_t>
 void AMRmesh_impl<Impl_t>::updateLightOctreeWithIntermediates(const uint8_t first_mpi_multigrid_level)
 { 
-  Impl_t::pmesh_epoch++;
-    // Update LightOctree
-  if( !lmesh_uptodate() )
-  {
-    using morton_t = uint64_t;
-    const Kokkos::View<morton_t*> morton_intervals = this->getLightOctree().getMortonIntervals();
-    lmesh = nullptr;
-    lmesh = std::make_unique<LightOctree_hashmap>(
-      this->getMesh().getStorage(), 
-      this->getMesh().getStorageIntermediate(), 
-      level_min, 
-      level_max,
-      first_mpi_multigrid_level,
-      Kokkos::Array<bool,3>{  this->getMesh().getPeriodic(2*IX), 
-                              this->getMesh().getPeriodic(2*IY), 
-                              this->getMesh().getPeriodic(2*IZ) },
-      morton_intervals
-    );
-    this->lmesh_epoch = Impl_t::pmesh_epoch;
-  }
+  // Update LightOctree in all cases
+  // TODO: Necessary to increment lmesh_epoch? Useful for some monitoring somewhere?
+  using morton_t = uint64_t;
+  const Kokkos::View<morton_t*> morton_intervals = lmesh->getMortonIntervals();
+  lmesh = nullptr;
+  lmesh = std::make_unique<LightOctree>(
+    this->getMesh().getStorage(), 
+    this->getMesh().getStorageIntermediate(), 
+    level_min, 
+    level_max,
+    first_mpi_multigrid_level,
+    Kokkos::Array<bool,3>{  this->getMesh().getPeriodic(2*IX), 
+                            this->getMesh().getPeriodic(2*IY), 
+                            this->getMesh().getPeriodic(2*IZ) },
+                            morton_intervals
+  );
 }
 
 template<typename Impl_t>

@@ -1590,30 +1590,29 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   const MpiComm& mpi_comm = foreach_cell.get_amr_mesh().getMpiComm();
   const int mpi_rank = mpi_comm.MPI_Comm_rank();
   auto& amr_mesh = foreach_cell.get_amr_mesh();
-  const LightOctree& lmesh = amr_mesh.getLightOctree();
   const level_t first_mpi_multigrid_level = pdata->first_mpi_multigrid_level;
+  constexpr level_t min_level_multigrid = 0;
 
   DYABLO_ASSERT_KOKKOS_DEBUG( first_mpi_multigrid_level <= pdata->level_coarse, "Full coarse level cannot be common to all processes" );
 
   // Create intermediate storage in LightOctree
   amr_mesh.updateLightOctreeWithIntermediates(first_mpi_multigrid_level);
-  
-  // Min/max AMR level, and intermediate per level
-  const size_t numOctants = lmesh.getNumOctants();
   Kokkos::MinMax<uint32_t>::value_type minmax_result;
-  Kokkos::parallel_reduce ( " Get min/max level in AMR " , Kokkos::RangePolicy<>(0, numOctants) ,
-    KOKKOS_LAMBDA ( const uint32_t iOct , Kokkos::MinMax<uint32_t>::value_type& minmax_result_tmp ) {
-    const level_t level_tmp = lmesh.getLevel({iOct, false});
-    if ( level_tmp > minmax_result_tmp.max_val ) minmax_result_tmp.max_val = level_tmp;
-    if ( level_tmp < minmax_result_tmp.min_val ) minmax_result_tmp.min_val = level_tmp;
+  {
+    const LightOctree& lmesh = amr_mesh.getLightOctree();
+    // Min/max AMR level, and intermediate per level
+    const size_t numOctants = lmesh.getNumOctants();
+    Kokkos::parallel_reduce ( " Get min/max level in AMR " , Kokkos::RangePolicy<>(0, numOctants) ,
+      KOKKOS_LAMBDA ( const uint32_t iOct , Kokkos::MinMax<uint32_t>::value_type& minmax_result_tmp ) {
+      const level_t level_tmp = lmesh.getLevel({iOct, false});
+      if ( level_tmp > minmax_result_tmp.max_val ) minmax_result_tmp.max_val = level_tmp;
+      if ( level_tmp < minmax_result_tmp.min_val ) minmax_result_tmp.min_val = level_tmp;
     } , Kokkos::MinMax<uint32_t>(minmax_result));
-  const level_t local_level_max_found = minmax_result.max_val;
-  constexpr level_t min_level_multigrid = 0;
-  const level_t level_coarse = lmesh.get_level_min();
-  DYABLO_ASSERT_KOKKOS_DEBUG( minmax_result.max_val <= lmesh.get_level_max(), "Max level found in AMR should not be higher than that stored when building the tree" );
-  DYABLO_ASSERT_KOKKOS_DEBUG( minmax_result.min_val == level_coarse, "Min level found in AMR different from coarse level" );
+    DYABLO_ASSERT_KOKKOS_DEBUG( minmax_result.max_val <= lmesh.get_level_max(),  "Max level found in AMR should not be higher than that stored when building the tree" );
+    DYABLO_ASSERT_KOKKOS_DEBUG( minmax_result.min_val == lmesh.get_level_min(), "Min level found in AMR different from coarse level" );
+  }
 
-  pdata->level_coarse = level_coarse;
+  const level_t local_level_max_found = minmax_result.max_val;
   const uint32_t global_max_level_found = MPI_Allreduce_int_max(local_level_max_found);
 
   // Create intermediate storage and ghostmap in amr_mesh
@@ -1621,6 +1620,8 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
 
   // Add intermediate ghosts to the LightOctree
   amr_mesh.updateLightOctreeWithIntermediates(first_mpi_multigrid_level);
+  const LightOctree lmesh = amr_mesh.getLightOctree();
+  const level_t level_coarse = pdata->level_coarse = lmesh.get_level_min();
 
   U_.new_fields({"solution", "rhs",  "res", "mask" });
   U_.new_intermediate_fields( {"rho","gphi", "solution", "rhs", "res", "mask"} ); 
