@@ -39,6 +39,15 @@ struct GravitySolver_multigrid::Data{
   uint32_t first_mpi_multigrid_level;
   uint32_t level_coarse, Npre, Npost, Ncycles;
 
+  Kokkos::View<uint32_t*> octs_per_level;
+  Kokkos::View<uint32_t*> octs_intermediate_per_level;
+  Kokkos::View<uint32_t*> ghosts_per_level;
+  Kokkos::View<uint32_t*> ghosts_intermediate_per_level;
+  Kokkos::View<uint32_t*> octs_per_level_count;
+  Kokkos::View<uint32_t*> octs_intermediate_per_level_count;
+  Kokkos::View<uint32_t*> ghosts_per_level_count;
+  Kokkos::View<uint32_t*> ghosts_intermediate_per_level_count;
+
 };
 
 GravitySolver_multigrid::GravitySolver_multigrid(
@@ -64,7 +73,7 @@ GravitySolver_multigrid::GravitySolver_multigrid(
       configMap.getValue<bool>("cosmology", "active", false),
       -1.0, // gravity_constant 4*Pi*G, defined later
       configMap.getValue<real_t>("gravity", "MG_eps", 1E-3),
-      configMap.getValue<uint32_t>("gravity", "first_mpi_multigrid_level", 2),
+      configMap.getValue<uint32_t>("gravity", "first_mpi_multigrid_level", 3),
       4, // level coarse
       configMap.getValue<uint32_t>("gravity", "Npre", 2),
       configMap.getValue<uint32_t>("gravity", "Npost", 1),
@@ -210,23 +219,19 @@ real_t GravitySolver_multigrid::residual_norm(const Array_t& U, const Array_t& U
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   real_t residual_sqr_leaves = 0;
   real_t residual_sqr_intermediate = 0;
-  foreach_cell.reduce_cell("Compute residual norm", U.getShape(),
+  const auto octs = get_subview_octs(level);
+  foreach_cell.reduce_cell_in_octants("Compute residual norm", U.getShape(), octs,
     KOKKOS_LAMBDA(const CellIndex & iCell, real_t & update_residual_sqr)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (current_level == level) {
-      const real_t residual_tmp = U.at(iCell, Iresidual);
-      update_residual_sqr += residual_tmp * residual_tmp;
-    }
+    const real_t residual_tmp = U.at(iCell, Iresidual);
+    update_residual_sqr += residual_tmp * residual_tmp;
   }, Kokkos::Sum<real_t>(residual_sqr_leaves));
-  foreach_cell.reduce_intermediate_cell("Compute residual norm", U.getShape(),
+  const auto octs_intermediate = get_subview_octs_intermediate(level);
+  foreach_cell.reduce_intermediate_cell_in_octants("Compute residual norm", U.getShape(), octs_intermediate,
     KOKKOS_LAMBDA(const CellIndex & iCell, real_t & update_residual_sqr)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (current_level == level) {
-      const real_t residual_tmp = Uintermediate.at(iCell, Iresidual);
-      update_residual_sqr += residual_tmp * residual_tmp;
-    }
+    const real_t residual_tmp = Uintermediate.at(iCell, Iresidual);
+    update_residual_sqr += residual_tmp * residual_tmp;
   }, Kokkos::Sum<real_t>(residual_sqr_intermediate));
 
   real_t residual_sqr = residual_sqr_leaves + residual_sqr_intermediate;
@@ -246,27 +251,22 @@ real_t GravitySolver_multigrid::residual_norm(const Array_t& U, const Array_t& U
  * @param level[in]: The grid level
 */
 template< typename Array_t >
-void GravitySolver_multigrid::initialise_lhs(const Array_t& U, const Array_t& Uintermediate, const level_t level)
+void GravitySolver_multigrid::initialise_intermediate_lhs(const Array_t& Uintermediate, const level_t level)
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
-  const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
-  foreach_cell.foreach_cell("Initialise potential", U.getShape(),
+  const auto& iter_space = Uintermediate.getShape();
+  const uint32_t nocts1d = 1U << level;
+  const Kokkos::Array<real_t, 3> size = {
+        1./(nocts1d * iter_space.bx), 
+        1./(nocts1d * iter_space.by), 
+        1./(nocts1d * iter_space.bz)
+  };
+
+  const auto octs_intermediate = get_subview_octs_intermediate(level);
+  foreach_cell.foreach_intermediate_cell_in_octants("Initialise potential", Uintermediate.getShape(), octs_intermediate,
   KOKKOS_LAMBDA(const CellIndex & iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (level == current_level){
-      const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-      U.at(iCell, Isolution) = -U.at(iCell, Irhs) / (2. / (size[IX]*size[IX]) + 2. / (size[IY]*size[IY]) + 2. / (size[IZ]*size[IZ]));
-    }
-  });
-  foreach_cell.foreach_intermediate_cell("Initialise potential", Uintermediate.getShape(),
-  KOKKOS_LAMBDA(const CellIndex & iCell)
-  {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (level == current_level){
-      const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-      Uintermediate.at(iCell, Isolution) = -Uintermediate.at(iCell, Irhs) / (2. / (size[IX]*size[IX]) + 2. / (size[IY]*size[IY]) + 2. / (size[IZ]*size[IZ])) ;
-    }
+    Uintermediate.at(iCell, Isolution) = -Uintermediate.at(iCell, Irhs) / (2. / (size[IX]*size[IX]) + 2. / (size[IY]*size[IY]) + 2. / (size[IZ]*size[IZ])) ;
   });
 };
 
@@ -285,71 +285,72 @@ void GravitySolver_multigrid::residual_uniform(const Array_t& U, const Array_t& 
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
+  const auto& iter_space = U.getShape();
+  const uint32_t nocts1d = 1U << level;
+  const Kokkos::Array<real_t, 3> size = {
+    1./(nocts1d * iter_space.bx), 
+    1./(nocts1d * iter_space.by), 
+    1./(nocts1d * iter_space.bz)
+  };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
 
-  foreach_cell.foreach_cell("Residual", U.getShape(),
+  const auto octs = get_subview_octs(level);
+  foreach_cell.foreach_cell_in_octants("Residual", U.getShape(), octs,
     KOKKOS_LAMBDA(const CellIndex & iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (current_level == level) {
-      const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-      real_t neighbors(0);
-      for ( ComponentIndex3D dir : {IX,IY,IZ} )
-      {
-        CellIndex::offset_t off_L = {}; off_L[dir] = -1;
-        CellIndex::offset_t off_R = {}; off_R[dir] = +1;
-        CellIndex iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
-        DYABLO_ASSERT_KOKKOS_DEBUG( iCell_L.level_diff() <= 0, "Leaf cell at coarse level cannot have coarser leaf neighbor" );
-        CellIndex iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
-        DYABLO_ASSERT_KOKKOS_DEBUG( iCell_R.level_diff() <= 0, "Leaf cell at coarse level cannot have coarser leaf neighbor" );
-        real_t contrib_L(0), contrib_R(0);
-        if ( CellIndex::SMALLER == iCell_L.status ) {
-          iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
-          contrib_L = Uintermediate.at(iCell_L, Isolution);
-        } else contrib_L = U.at(iCell_L, Isolution);
-        if ( BC_ABSORBING == boundarycondition[dir] && iCell_L.is_boundary() ) contrib_L = 0;
-        if ( CellIndex::SMALLER == iCell_R.status  ) {
-          iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
-          contrib_R = Uintermediate.at(iCell_R, Isolution);
-        } else contrib_R = U.at(iCell_R, Isolution);
-        if ( BC_ABSORBING == boundarycondition[dir] && iCell_R.is_boundary() ) contrib_R = 0;
-        neighbors += (contrib_L + contrib_R) / (size[dir] * size[dir]);
-      }
-      const real_t laplacian_solution = neighbors - U.at(iCell, Isolution) * ( 2./(size[IX]*size[IX]) + 2./(size[IY]*size[IY]) + 2./(size[IZ]*size[IZ]) );
-      U.at(iCell, Iresidual) = U.at(iCell, Irhs) - laplacian_solution;
+    real_t neighbors(0);
+    for ( ComponentIndex3D dir : {IX,IY,IZ} )
+    {
+      CellIndex::offset_t off_L = {}; off_L[dir] = -1;
+      CellIndex::offset_t off_R = {}; off_R[dir] = +1;
+      CellIndex iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
+      DYABLO_ASSERT_KOKKOS_DEBUG( iCell_L.level_diff() <= 0, "Leaf cell at coarse level cannot have coarser leaf neighbor" );
+      CellIndex iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
+      DYABLO_ASSERT_KOKKOS_DEBUG( iCell_R.level_diff() <= 0, "Leaf cell at coarse level cannot have coarser leaf neighbor" );
+      real_t contrib_L(0), contrib_R(0);
+      if ( CellIndex::SMALLER == iCell_L.status ) {
+        iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
+        contrib_L = Uintermediate.at(iCell_L, Isolution);
+      } else contrib_L = U.at(iCell_L, Isolution);
+      if ( BC_ABSORBING == boundarycondition[dir] && iCell_L.is_boundary() ) contrib_L = 0;
+      if ( CellIndex::SMALLER == iCell_R.status  ) {
+        iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
+        contrib_R = Uintermediate.at(iCell_R, Isolution);
+      } else contrib_R = U.at(iCell_R, Isolution);
+      if ( BC_ABSORBING == boundarycondition[dir] && iCell_R.is_boundary() ) contrib_R = 0;
+      neighbors += (contrib_L + contrib_R) / (size[dir] * size[dir]);
     }
+    const real_t laplacian_solution = neighbors - U.at(iCell, Isolution) * ( 2./(size[IX]*size[IX]) + 2./(size[IY]*size[IY]) + 2./(size[IZ]*size[IZ]) );
+    U.at(iCell, Iresidual) = U.at(iCell, Irhs) - laplacian_solution;
   });
-  foreach_cell.foreach_intermediate_cell("Residual", Uintermediate.getShape(),
+  const auto octs_intermediate = get_subview_octs_intermediate(level);
+  foreach_cell.foreach_intermediate_cell_in_octants("Residual", Uintermediate.getShape(), octs_intermediate,
     KOKKOS_LAMBDA(const CellIndex & iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (current_level == level) {
-      const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-      real_t neighbors(0);
-      for ( ComponentIndex3D dir : {IX,IY,IZ} )
-      {
-        CellIndex::offset_t off_L = {}; off_L[dir] = -1;
-        CellIndex::offset_t off_R = {}; off_R[dir] = +1;
-        CellIndex iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
-        DYABLO_ASSERT_KOKKOS_DEBUG( iCell_L.level_diff() >= 0, "Intermediate cell cannot have smaller intermediate neighbor" );
-        CellIndex iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
-        DYABLO_ASSERT_KOKKOS_DEBUG( iCell_R.level_diff() >= 0, "Intermediate cell cannot have smaller intermediate neighbor" );
-        real_t contrib_L(0), contrib_R(0);
-        if ( CellIndex::BIGGER == iCell_L.status ) {
-          iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
-          contrib_L = U.at(iCell_L, Isolution);
-        } else contrib_L = Uintermediate.at(iCell_L, Isolution);
-        if ( BC_ABSORBING == boundarycondition[dir] && iCell_L.is_boundary() ) contrib_L = 0;
-        if ( CellIndex::BIGGER == iCell_R.status ) {
-          iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
-          contrib_R = U.at(iCell_R, Isolution);
-        } else contrib_R = Uintermediate.at(iCell_R, Isolution);
-        if ( BC_ABSORBING == boundarycondition[dir] && iCell_R.is_boundary() ) contrib_R = 0;
-        neighbors += (contrib_L + contrib_R) / (size[dir] * size[dir]);
-      }
-      const real_t laplacian_solution = neighbors - Uintermediate.at(iCell, Isolution) * ( 2./(size[IX]*size[IX]) + 2./(size[IY]*size[IY]) + 2./(size[IZ]*size[IZ]) );
-      Uintermediate.at(iCell, Iresidual) = Uintermediate.at(iCell, Irhs) - laplacian_solution;
+    real_t neighbors(0);
+    for ( ComponentIndex3D dir : {IX,IY,IZ} )
+    {
+      CellIndex::offset_t off_L = {}; off_L[dir] = -1;
+      CellIndex::offset_t off_R = {}; off_R[dir] = +1;
+      CellIndex iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
+      DYABLO_ASSERT_KOKKOS_DEBUG( iCell_L.level_diff() >= 0, "Intermediate cell cannot have smaller intermediate neighbor" );
+      CellIndex iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
+      DYABLO_ASSERT_KOKKOS_DEBUG( iCell_R.level_diff() >= 0, "Intermediate cell cannot have smaller intermediate neighbor" );
+      real_t contrib_L(0), contrib_R(0);
+      if ( CellIndex::BIGGER == iCell_L.status ) {
+        iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
+        contrib_L = U.at(iCell_L, Isolution);
+      } else contrib_L = Uintermediate.at(iCell_L, Isolution);
+      if ( BC_ABSORBING == boundarycondition[dir] && iCell_L.is_boundary() ) contrib_L = 0;
+      if ( CellIndex::BIGGER == iCell_R.status ) {
+        iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
+        contrib_R = U.at(iCell_R, Isolution);
+      } else contrib_R = Uintermediate.at(iCell_R, Isolution);
+      if ( BC_ABSORBING == boundarycondition[dir] && iCell_R.is_boundary() ) contrib_R = 0;
+      neighbors += (contrib_L + contrib_R) / (size[dir] * size[dir]);
     }
+    const real_t laplacian_solution = neighbors - Uintermediate.at(iCell, Isolution) * ( 2./(size[IX]*size[IX]) + 2./(size[IY]*size[IY]) + 2./(size[IZ]*size[IZ]) );
+    Uintermediate.at(iCell, Iresidual) = Uintermediate.at(iCell, Irhs) - laplacian_solution;
   });
 }
 
@@ -366,15 +367,20 @@ void GravitySolver_multigrid::residual_intermediate_amr_correction(const Array_t
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
+  const auto& iter_space = Uintermediate.getShape();
+  const uint32_t nocts1d = 1U << level;
+  const Kokkos::Array<real_t, 3> size = {
+    1./(nocts1d * iter_space.bx), 
+    1./(nocts1d * iter_space.by), 
+    1./(nocts1d * iter_space.bz)
+  };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
 
-  foreach_cell.foreach_intermediate_cell("Residual", Uintermediate.getShape(),
+  const auto octs_intermediate = get_subview_octs_intermediate(level);
+  foreach_cell.foreach_intermediate_cell_in_octants("Residual", Uintermediate.getShape(), octs_intermediate,
     KOKKOS_LAMBDA(const CellIndex & iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (current_level == level)
     if (Uintermediate.at(iCell, Imask) > 0) {
-      const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
       real_t laplacian_solution(0);
       const real_t central_solution = Uintermediate.at(iCell, Isolution);
       for ( ComponentIndex3D dir : {IX,IY,IZ} )
@@ -388,7 +394,7 @@ void GravitySolver_multigrid::residual_intermediate_amr_correction(const Array_t
         real_t a(1), b(1), contrib_L(0), contrib_R(0);
 
         if ( CellIndex::BIGGER == iCell_L.status ) a = 0.5;
-        else if (Uintermediate.at(iCell_L, Imask) < 0) { // Second-order reconstruction 
+        else if (Uintermediate.at(iCell_L, Imask) <= 0) { // Second-order reconstruction 
           const real_t cell_mask = Uintermediate.at(iCell, Imask);
           const real_t neighbor_mask = Uintermediate.at(iCell_L, Imask);
           a = cell_mask / (cell_mask - neighbor_mask);
@@ -397,7 +403,7 @@ void GravitySolver_multigrid::residual_intermediate_amr_correction(const Array_t
         if ( BC_ABSORBING == boundarycondition[dir] && iCell_L.is_boundary() ) contrib_L = 0;
 
         if ( CellIndex::BIGGER == iCell_R.status ) b = 0.5;
-        else if (Uintermediate.at(iCell_R, Imask) < 0) { // Second-order reconstruction. Test something else?  
+        else if (Uintermediate.at(iCell_R, Imask) <= 0) { // Second-order reconstruction. Test something else?  
           const real_t cell_mask = Uintermediate.at(iCell, Imask);
           const real_t neighbor_mask = Uintermediate.at(iCell_R, Imask);
           b = cell_mask / (cell_mask - neighbor_mask);
@@ -429,78 +435,79 @@ void GravitySolver_multigrid::residual_amr_finest(const Array_t& U, const Array_
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
+  const auto& iter_space = U.getShape();
+  const uint32_t nocts1d = 1U << level;
+  const Kokkos::Array<real_t, 3> size = {
+    1./(nocts1d * iter_space.bx), 
+    1./(nocts1d * iter_space.by), 
+    1./(nocts1d * iter_space.bz)
+  };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
 
-  foreach_cell.foreach_cell("Residual", U.getShape(),
+  const auto octs = get_subview_octs(level);
+  foreach_cell.foreach_cell_in_octants("Residual", U.getShape(), octs,
     KOKKOS_LAMBDA(const CellIndex & iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (current_level == level) {
-      const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-      real_t laplacian_solution(0);
-      const real_t central_solution = U.at(iCell, Isolution);
-      for ( ComponentIndex3D dir : {IX,IY,IZ} )
-      {
-        CellIndex::offset_t off_L = {}; off_L[dir] = -1;
-        CellIndex::offset_t off_R = {}; off_R[dir] = +1;
-        CellIndex iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
-        CellIndex iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
-        real_t a(1), b(1), contrib_L(0), contrib_R(0);
-        if ( CellIndex::SMALLER == iCell_L.status ) { 
-          iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
-          contrib_L = Uintermediate.at(iCell_L, Isolution);
-        } else if (CellIndex::BIGGER == iCell_L.status) {
-            contrib_L = average_8bigger_neighbors(U, Uintermediate, iCell, off_L);
-            a = 0.5;
-        } else contrib_L = U.at(iCell_L, Isolution);
-        if ( BC_ABSORBING == boundarycondition[dir] && iCell_L.is_boundary() ) contrib_L = 0;
-        if ( CellIndex::SMALLER == iCell_R.status ) { 
-          iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
-          contrib_R = Uintermediate.at(iCell_R, Isolution);
-        } else if (CellIndex::BIGGER == iCell_R.status) {
-            contrib_R = average_8bigger_neighbors(U, Uintermediate, iCell, off_R);
-            b = 0.5;
-        } else contrib_R = U.at(iCell_R, Isolution);
-        if ( BC_ABSORBING == boundarycondition[dir] && iCell_R.is_boundary() ) contrib_R = 0;
-        const real_t f_L = 2. / (a * (a + b));
-        const real_t f_R = 2. / (b * (a + b));
-        const real_t f_C = 2. / (a * b);
-        laplacian_solution += (f_L*contrib_L + f_R*contrib_R - f_C*central_solution) / (size[dir] * size[dir]);
-      }
-      U.at(iCell, Iresidual) = U.at(iCell, Irhs) - laplacian_solution;
+    real_t laplacian_solution(0);
+    const real_t central_solution = U.at(iCell, Isolution);
+    for ( ComponentIndex3D dir : {IX,IY,IZ} )
+    {
+      CellIndex::offset_t off_L = {}; off_L[dir] = -1;
+      CellIndex::offset_t off_R = {}; off_R[dir] = +1;
+      CellIndex iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
+      CellIndex iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
+      real_t a(1), b(1), contrib_L(0), contrib_R(0);
+      if ( CellIndex::SMALLER == iCell_L.status ) { 
+        iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
+        contrib_L = Uintermediate.at(iCell_L, Isolution);
+      } else if (CellIndex::BIGGER == iCell_L.status) {
+          contrib_L = average_8bigger_neighbors(U, Uintermediate, iCell, off_L);
+          a = 0.5;
+      } else contrib_L = U.at(iCell_L, Isolution);
+      if ( BC_ABSORBING == boundarycondition[dir] && iCell_L.is_boundary() ) contrib_L = 0;
+      if ( CellIndex::SMALLER == iCell_R.status ) { 
+        iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
+        contrib_R = Uintermediate.at(iCell_R, Isolution);
+      } else if (CellIndex::BIGGER == iCell_R.status) {
+          contrib_R = average_8bigger_neighbors(U, Uintermediate, iCell, off_R);
+          b = 0.5;
+      } else contrib_R = U.at(iCell_R, Isolution);
+      if ( BC_ABSORBING == boundarycondition[dir] && iCell_R.is_boundary() ) contrib_R = 0;
+      const real_t f_L = 2. / (a * (a + b));
+      const real_t f_R = 2. / (b * (a + b));
+      const real_t f_C = 2. / (a * b);
+      laplacian_solution += (f_L*contrib_L + f_R*contrib_R - f_C*central_solution) / (size[dir] * size[dir]);
     }
+    U.at(iCell, Iresidual) = U.at(iCell, Irhs) - laplacian_solution;
   });
-  foreach_cell.foreach_intermediate_cell("Residual", Uintermediate.getShape(),
+  const auto octs_intermediate = get_subview_octs_intermediate(level);
+  foreach_cell.foreach_intermediate_cell_in_octants("Residual", Uintermediate.getShape(), octs_intermediate,
     KOKKOS_LAMBDA(const CellIndex & iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (current_level == level) {
-      const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
-      real_t neighbors(0);
-      for ( ComponentIndex3D dir : {IX,IY,IZ} )
-      {
-        real_t contrib_L(0), contrib_R(0);
-        CellIndex::offset_t off_L = {}; off_L[dir] = -1;
-        CellIndex::offset_t off_R = {}; off_R[dir] = +1;
-        CellIndex iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
-        DYABLO_ASSERT_KOKKOS_DEBUG( iCell_L.level_diff() >= 0, "Intermediate cell cannot have smaller intermediate neighbor" );
-        CellIndex iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
-        DYABLO_ASSERT_KOKKOS_DEBUG( iCell_R.level_diff() >= 0, "Intermediate cell cannot have smaller intermediate neighbor" );
-        if ( CellIndex::BIGGER == iCell_L.status ) {
-          iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
-          contrib_L = U.at(iCell_L, Isolution);
-        } else contrib_L = Uintermediate.at(iCell_L, Isolution);
-        if ( BC_ABSORBING == boundarycondition[dir] && iCell_L.is_boundary() ) contrib_L = 0;
-        if ( CellIndex::BIGGER == iCell_R.status ) {
-          iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
-          contrib_R = U.at(iCell_R, Isolution);
-        } else contrib_R = Uintermediate.at(iCell_R, Isolution);
-        if ( BC_ABSORBING == boundarycondition[dir] && iCell_R.is_boundary() ) contrib_R = 0;
-        neighbors += (contrib_L + contrib_R) / (size[dir] * size[dir]);
-      }
-      const real_t laplacian_solution = neighbors - Uintermediate.at(iCell, Isolution) * ( 2./(size[IX]*size[IX]) + 2./(size[IY]*size[IY]) + 2./(size[IZ]*size[IZ]) );
-      Uintermediate.at(iCell, Iresidual) = Uintermediate.at(iCell, Irhs) - laplacian_solution;
+    real_t neighbors(0);
+    for ( ComponentIndex3D dir : {IX,IY,IZ} )
+    {
+      real_t contrib_L(0), contrib_R(0);
+      CellIndex::offset_t off_L = {}; off_L[dir] = -1;
+      CellIndex::offset_t off_R = {}; off_R[dir] = +1;
+      CellIndex iCell_L = iCell.getNeighbor_ghost_intermediate(off_L, Uintermediate.getShape());
+      DYABLO_ASSERT_KOKKOS_DEBUG( iCell_L.level_diff() >= 0, "Intermediate cell cannot have smaller intermediate neighbor" );
+      CellIndex iCell_R = iCell.getNeighbor_ghost_intermediate(off_R, Uintermediate.getShape());
+      DYABLO_ASSERT_KOKKOS_DEBUG( iCell_R.level_diff() >= 0, "Intermediate cell cannot have smaller intermediate neighbor" );
+      if ( CellIndex::BIGGER == iCell_L.status ) {
+        iCell_L = iCell.getNeighbor_ghost(off_L, U.getShape());
+        contrib_L = U.at(iCell_L, Isolution);
+      } else contrib_L = Uintermediate.at(iCell_L, Isolution);
+      if ( BC_ABSORBING == boundarycondition[dir] && iCell_L.is_boundary() ) contrib_L = 0;
+      if ( CellIndex::BIGGER == iCell_R.status ) {
+        iCell_R = iCell.getNeighbor_ghost(off_R, U.getShape());
+        contrib_R = U.at(iCell_R, Isolution);
+      } else contrib_R = Uintermediate.at(iCell_R, Isolution);
+      if ( BC_ABSORBING == boundarycondition[dir] && iCell_R.is_boundary() ) contrib_R = 0;
+      neighbors += (contrib_L + contrib_R) / (size[dir] * size[dir]);
     }
+    const real_t laplacian_solution = neighbors - Uintermediate.at(iCell, Isolution) * ( 2./(size[IX]*size[IX]) + 2./(size[IY]*size[IY]) + 2./(size[IZ]*size[IZ]) );
+    Uintermediate.at(iCell, Iresidual) = Uintermediate.at(iCell, Irhs) - laplacian_solution;
   });
 }
 
@@ -514,36 +521,33 @@ void GravitySolver_multigrid::residual_amr_finest(const Array_t& U, const Array_
  * @param level[in]: The grid level
 */
 template< typename Array_t >
-void GravitySolver_multigrid::restriction(const Array_t& U, const Array_t& Uintermediate, const level_t level) 
+void GravitySolver_multigrid::restriction_from_parents(const Array_t& U, const Array_t& Uintermediate, const level_t level) 
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   const int ndim = pdata->ndim;
 
-  foreach_cell.foreach_intermediate_cell( "Restrict", Uintermediate.getShape(),
+  const auto octs_intermediate = get_subview_octs_intermediate(level);
+  foreach_cell.foreach_intermediate_cell_in_octants( "Restrict", Uintermediate.getShape(), octs_intermediate,
   KOKKOS_LAMBDA( CellIndex& iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if( current_level == level )
+    const CellIndex iCell_c0 = iCell.getChildren(Uintermediate.getShape());
+    real_t residual(0), mask(0);
+    const int ns = foreach_sibling( ndim, iCell_c0, Uintermediate.getShape(),
+      [&]( const CellIndex& iCell_c )
     {
-      const CellIndex iCell_c0 = iCell.getChildren(Uintermediate.getShape());
-      real_t residual(0), mask(0);
-      const int ns = foreach_sibling( ndim, iCell_c0, Uintermediate.getShape(),
-        [&]( const CellIndex& iCell_c )
-      {
-        if ( iCell_c.iOct.isIntermediate ) {
-          residual += Uintermediate.at(iCell_c, Iresidual);
-          mask += Uintermediate.at(iCell_c, Imask);
-        } 
-        else {
-          residual += U.at(iCell_c, Iresidual);
-          mask += U.at(iCell_c, Imask);
-        }
-        
-      });
-      Uintermediate.at( iCell, Irhs ) = residual/ns;
-      Uintermediate.at( iCell, Imask ) = mask/ns;
-    }
+      if ( iCell_c.iOct.isIntermediate ) {
+        residual += Uintermediate.at(iCell_c, Iresidual);
+        mask += Uintermediate.at(iCell_c, Imask);
+      } 
+      else {
+        residual += U.at(iCell_c, Iresidual);
+        mask += U.at(iCell_c, Imask);
+      }
+      
+    });
+    Uintermediate.at( iCell, Irhs ) = residual/ns;
+    Uintermediate.at( iCell, Imask ) = mask/ns;
   }); 
 }
 
@@ -564,27 +568,21 @@ void GravitySolver_multigrid::restriction_from_children(const Array_t& U, const 
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   constexpr real_t inv_ns = 1./8;
 
-  foreach_cell.foreach_cell( "Restrict", U.getShape(),
+  const auto octs = get_subview_octs(level + 1);
+  foreach_cell.foreach_cell_in_octants( "Restrict", U.getShape(), octs,
   KOKKOS_LAMBDA( CellIndex& iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if( current_level == level + 1 )
-    {
-      const CellIndex iCell_p = iCell.getParent(U.getShape());      
-      Kokkos::atomic_add( &Uintermediate.at( iCell_p, Irhs ), U.at( iCell, Iresidual ) * inv_ns );
-      Kokkos::atomic_add( &Uintermediate.at( iCell_p, Imask ), U.at( iCell, Imask ) * inv_ns );
-    }
+    const CellIndex iCell_p = iCell.getParent(U.getShape());      
+    Kokkos::atomic_add( &Uintermediate.at( iCell_p, Irhs ), U.at( iCell, Iresidual ) * inv_ns );
+    Kokkos::atomic_add( &Uintermediate.at( iCell_p, Imask ), U.at( iCell, Imask ) * inv_ns );
   }); 
-  foreach_cell.foreach_intermediate_cell( "Restrict", Uintermediate.getShape(),
+  const auto octs_intermediate = get_subview_octs_intermediate(level + 1);
+  foreach_cell.foreach_intermediate_cell_in_octants( "Restrict", Uintermediate.getShape(), octs_intermediate,
   KOKKOS_LAMBDA( CellIndex& iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if( current_level == level + 1 )
-    {
-      const CellIndex iCell_p = iCell.getParent(Uintermediate.getShape());     
-      Kokkos::atomic_add( &Uintermediate.at( iCell_p, Irhs ), Uintermediate.at( iCell, Iresidual ) * inv_ns );
-      Kokkos::atomic_add( &Uintermediate.at( iCell_p, Imask ), Uintermediate.at( iCell, Imask ) * inv_ns );
-    }
+    const CellIndex iCell_p = iCell.getParent(Uintermediate.getShape());     
+    Kokkos::atomic_add( &Uintermediate.at( iCell_p, Irhs ), Uintermediate.at( iCell, Iresidual ) * inv_ns );
+    Kokkos::atomic_add( &Uintermediate.at( iCell_p, Imask ), Uintermediate.at( iCell, Imask ) * inv_ns );
   }); 
 }
 
@@ -626,7 +624,7 @@ real_t GravitySolver_multigrid::get_neighbor_value(const Array_t& U, const Array
  * @return the solution at a given level 
 */
 template< typename Array_t >
-void GravitySolver_multigrid::prolongation(const Array_t& U, const Array_t& Uintermediate, const level_t level) 
+void GravitySolver_multigrid::prolongation_from_children(const Array_t& U, const Array_t& Uintermediate, const level_t level) 
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
@@ -634,59 +632,53 @@ void GravitySolver_multigrid::prolongation(const Array_t& U, const Array_t& Uint
   constexpr real_t f1 = 9.0 / 64;
   constexpr real_t f2 = 3.0 / 64;
   constexpr real_t f3 = 1.0 / 64;
-  foreach_cell.foreach_cell( "Prolongation", U.getShape(),
+  const auto octs = get_subview_octs(level);
+  foreach_cell.foreach_cell_in_octants( "Prolongation", U.getShape(), octs,
   KOKKOS_LAMBDA( CellIndex& iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if( current_level == level )
-    {
-      const int8_t shift_x = 2 * (iCell.i % 2) - 1;
-      const int8_t shift_y = 2 * (iCell.j % 2) - 1;
-      const int8_t shift_z = 2 * (iCell.k % 2) - 1;
-      // Get coarse cell values to interpolate from
-      CellIndex iCell_p = iCell.getParent(Uintermediate.getShape());
-      iCell_p.status = CellIndex::LOCAL_TO_BLOCK;
-      const real_t tmp000 = Uintermediate.at( iCell_p, Isolution );
-      const real_t tmp001 = get_neighbor_value(U, Uintermediate, iCell_p, {0, 0, shift_z});
-      const real_t tmp010 = get_neighbor_value(U, Uintermediate, iCell_p, {0, shift_y, 0});
-      const real_t tmp100 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, 0, 0});
-      const real_t tmp011 = get_neighbor_value(U, Uintermediate, iCell_p, {0, shift_y, shift_z});
-      const real_t tmp101 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, 0, shift_z});
-      const real_t tmp110 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, shift_y, 0});
-      const real_t tmp111 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, shift_y, shift_z});
-      // Interpolate
-      U.at(iCell, Isolution) += f0*tmp000
-          + f1 * (tmp001 + tmp010 + tmp100)
-          + f2 * (tmp011 + tmp101 + tmp110)
-          + f3 * tmp111;
-    }
+    const int8_t shift_x = 2 * (iCell.i % 2) - 1;
+    const int8_t shift_y = 2 * (iCell.j % 2) - 1;
+    const int8_t shift_z = 2 * (iCell.k % 2) - 1;
+    // Get coarse cell values to interpolate from
+    CellIndex iCell_p = iCell.getParent(Uintermediate.getShape());
+    iCell_p.status = CellIndex::LOCAL_TO_BLOCK;
+    const real_t tmp000 = Uintermediate.at( iCell_p, Isolution );
+    const real_t tmp001 = get_neighbor_value(U, Uintermediate, iCell_p, {0, 0, shift_z});
+    const real_t tmp010 = get_neighbor_value(U, Uintermediate, iCell_p, {0, shift_y, 0});
+    const real_t tmp100 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, 0, 0});
+    const real_t tmp011 = get_neighbor_value(U, Uintermediate, iCell_p, {0, shift_y, shift_z});
+    const real_t tmp101 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, 0, shift_z});
+    const real_t tmp110 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, shift_y, 0});
+    const real_t tmp111 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, shift_y, shift_z});
+    // Interpolate
+    U.at(iCell, Isolution) += f0*tmp000
+        + f1 * (tmp001 + tmp010 + tmp100)
+        + f2 * (tmp011 + tmp101 + tmp110)
+        + f3 * tmp111;
   }); 
-  foreach_cell.foreach_intermediate_cell( "Prolongation", Uintermediate.getShape(),
+  const auto octs_intermediate = get_subview_octs_intermediate(level);
+  foreach_cell.foreach_intermediate_cell_in_octants( "Prolongation", Uintermediate.getShape(), octs_intermediate,
   KOKKOS_LAMBDA( CellIndex& iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if( current_level == level )
-    {
-      const int8_t shift_x = 2 * (iCell.i % 2) - 1;
-      const int8_t shift_y = 2 * (iCell.j % 2) - 1;
-      const int8_t shift_z = 2 * (iCell.k % 2) - 1;
-      // Get coarse cell values to interpolate from
-      CellIndex iCell_p = iCell.getParent(Uintermediate.getShape());
-      iCell_p.status = CellIndex::LOCAL_TO_BLOCK;
-      const real_t tmp000 = Uintermediate.at( iCell_p, Isolution );
-      const real_t tmp001 = get_neighbor_value(U, Uintermediate, iCell_p, {0, 0, shift_z});
-      const real_t tmp010 = get_neighbor_value(U, Uintermediate, iCell_p, {0, shift_y, 0});
-      const real_t tmp100 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, 0, 0});
-      const real_t tmp011 = get_neighbor_value(U, Uintermediate, iCell_p, {0, shift_y, shift_z});
-      const real_t tmp101 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, 0, shift_z});
-      const real_t tmp110 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, shift_y, 0});
-      const real_t tmp111 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, shift_y, shift_z});
-      // Interpolate
-      Uintermediate.at(iCell, Isolution) += f0*tmp000
-          + f1 * (tmp001 + tmp010 + tmp100)
-          + f2 * (tmp011 + tmp101 + tmp110)
-          + f3 * tmp111;
-    }
+    const int8_t shift_x = 2 * (iCell.i % 2) - 1;
+    const int8_t shift_y = 2 * (iCell.j % 2) - 1;
+    const int8_t shift_z = 2 * (iCell.k % 2) - 1;
+    // Get coarse cell values to interpolate from
+    CellIndex iCell_p = iCell.getParent(Uintermediate.getShape());
+    iCell_p.status = CellIndex::LOCAL_TO_BLOCK;
+    const real_t tmp000 = Uintermediate.at( iCell_p, Isolution );
+    const real_t tmp001 = get_neighbor_value(U, Uintermediate, iCell_p, {0, 0, shift_z});
+    const real_t tmp010 = get_neighbor_value(U, Uintermediate, iCell_p, {0, shift_y, 0});
+    const real_t tmp100 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, 0, 0});
+    const real_t tmp011 = get_neighbor_value(U, Uintermediate, iCell_p, {0, shift_y, shift_z});
+    const real_t tmp101 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, 0, shift_z});
+    const real_t tmp110 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, shift_y, 0});
+    const real_t tmp111 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, shift_y, shift_z});
+    // Interpolate
+    Uintermediate.at(iCell, Isolution) += f0*tmp000
+        + f1 * (tmp001 + tmp010 + tmp100)
+        + f2 * (tmp011 + tmp101 + tmp110)
+        + f3 * tmp111;
   }); 
 }
 
@@ -702,7 +694,7 @@ void GravitySolver_multigrid::prolongation(const Array_t& U, const Array_t& Uint
  * @return the solution at a given level 
 */
 template< typename Array_t >
-void GravitySolver_multigrid::prolongation_on_intermediate(const Array_t& U, const Array_t& Uintermediate, const level_t level) 
+void GravitySolver_multigrid::prolongation_from_children_on_intermediate(const Array_t& U, const Array_t& Uintermediate, const level_t level) 
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
@@ -710,32 +702,29 @@ void GravitySolver_multigrid::prolongation_on_intermediate(const Array_t& U, con
   constexpr real_t f1 = 9.0 / 64;
   constexpr real_t f2 = 3.0 / 64;
   constexpr real_t f3 = 1.0 / 64;
-  foreach_cell.foreach_intermediate_cell( "Prolongation", Uintermediate.getShape(),
+  const auto octs_intermediate = get_subview_octs_intermediate(level);
+  foreach_cell.foreach_intermediate_cell_in_octants( "Prolongation", Uintermediate.getShape(), octs_intermediate,
   KOKKOS_LAMBDA( CellIndex& iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if( current_level == level )
-    {
-      const int8_t shift_x = 2 * (iCell.i % 2) - 1;
-      const int8_t shift_y = 2 * (iCell.j % 2) - 1;
-      const int8_t shift_z = 2 * (iCell.k % 2) - 1;
-      // Get coarse cell values to interpolate from
-      CellIndex iCell_p = iCell.getParent(Uintermediate.getShape());
-      iCell_p.status = CellIndex::LOCAL_TO_BLOCK;
-      const real_t tmp000 = Uintermediate.at( iCell_p, Isolution );
-      const real_t tmp001 = get_neighbor_value(U, Uintermediate, iCell_p, {0, 0, shift_z});
-      const real_t tmp010 = get_neighbor_value(U, Uintermediate, iCell_p, {0, shift_y, 0});
-      const real_t tmp100 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, 0, 0});
-      const real_t tmp011 = get_neighbor_value(U, Uintermediate, iCell_p, {0, shift_y, shift_z});
-      const real_t tmp101 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, 0, shift_z});
-      const real_t tmp110 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, shift_y, 0});
-      const real_t tmp111 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, shift_y, shift_z});
-      // Interpolate to children
-      Uintermediate.at(iCell, Isolution) += f0*tmp000
-          + f1 * (tmp001 + tmp010 + tmp100)
-          + f2 * (tmp011 + tmp101 + tmp110)
-          + f3 * tmp111;
-    }
+    const int8_t shift_x = 2 * (iCell.i % 2) - 1;
+    const int8_t shift_y = 2 * (iCell.j % 2) - 1;
+    const int8_t shift_z = 2 * (iCell.k % 2) - 1;
+    // Get coarse cell values to interpolate from
+    CellIndex iCell_p = iCell.getParent(Uintermediate.getShape());
+    iCell_p.status = CellIndex::LOCAL_TO_BLOCK;
+    const real_t tmp000 = Uintermediate.at( iCell_p, Isolution );
+    const real_t tmp001 = get_neighbor_value(U, Uintermediate, iCell_p, {0, 0, shift_z});
+    const real_t tmp010 = get_neighbor_value(U, Uintermediate, iCell_p, {0, shift_y, 0});
+    const real_t tmp100 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, 0, 0});
+    const real_t tmp011 = get_neighbor_value(U, Uintermediate, iCell_p, {0, shift_y, shift_z});
+    const real_t tmp101 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, 0, shift_z});
+    const real_t tmp110 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, shift_y, 0});
+    const real_t tmp111 = get_neighbor_value(U, Uintermediate, iCell_p, {shift_x, shift_y, shift_z});
+    // Interpolate to children
+    Uintermediate.at(iCell, Isolution) += f0*tmp000
+        + f1 * (tmp001 + tmp010 + tmp100)
+        + f2 * (tmp011 + tmp101 + tmp110)
+        + f3 * tmp111;
   }); 
 }
 
@@ -785,17 +774,17 @@ void GravitySolver_multigrid::zero_solution(const Array_t& U, const Array_t& Uin
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
-  foreach_cell.foreach_cell("Set solution to zero", U.getShape(),
+  const auto octs = get_subview_octs(level);
+  foreach_cell.foreach_cell_in_octants("Set solution to zero", U.getShape(), octs,
   KOKKOS_LAMBDA(const CellIndex & iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (level == current_level) U.at(iCell, Isolution) = 0;
+    U.at(iCell, Isolution) = 0;
   });
-  foreach_cell.foreach_intermediate_cell("Set solution to zero", Uintermediate.getShape(),
+  const auto octs_intermediate = get_subview_octs_intermediate(level);
+  foreach_cell.foreach_intermediate_cell_in_octants("Set solution to zero", Uintermediate.getShape(), octs_intermediate,
   KOKKOS_LAMBDA(const CellIndex & iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (level == current_level) Uintermediate.at(iCell, Isolution) = 0;
+    Uintermediate.at(iCell, Isolution) = 0;
   });
 }
 
@@ -814,7 +803,8 @@ void GravitySolver_multigrid::initialise_mask(const Array_t& U, const Array_t& U
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
-  foreach_cell.foreach_cell("Initialise mask", U.getShape(),
+  const auto octs = get_subview_octs(0, finest_level);
+  foreach_cell.foreach_cell_in_octants("Initialise mask", U.getShape(), octs,
   KOKKOS_LAMBDA(const CellIndex & iCell)
   {
     const uint8_t current_level = cells.getLevel(iCell);
@@ -822,7 +812,8 @@ void GravitySolver_multigrid::initialise_mask(const Array_t& U, const Array_t& U
     else if ( current_level == finest_level )  U.at(iCell, Imask) = 1;
     
   });
-  foreach_cell.foreach_intermediate_cell("Initialise mask", Uintermediate.getShape(),
+  const auto octs_intermediate = get_subview_octs_intermediate(0, finest_level);
+  foreach_cell.foreach_intermediate_cell_in_octants("Initialise mask", Uintermediate.getShape(), octs_intermediate,
   KOKKOS_LAMBDA(const CellIndex & iCell)
   {
     const uint8_t current_level = cells.getLevel(iCell);
@@ -847,25 +838,21 @@ void GravitySolver_multigrid::zero_solution_residual_rhs(const Array_t& U, const
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
-  foreach_cell.foreach_cell("Set MG fields to zero", U.getShape(),
+  const auto octs = get_subview_octs(0, level);
+  foreach_cell.foreach_cell_in_octants("Set MG fields to zero", U.getShape(), octs,
   KOKKOS_LAMBDA(const CellIndex & iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (current_level <= level){
-      U.at(iCell, Isolution) = 0;
-      U.at(iCell, Irhs) = 0;
-      U.at(iCell, Iresidual) = 0;
-    }
+    U.at(iCell, Isolution) = 0;
+    U.at(iCell, Irhs) = 0;
+    U.at(iCell, Iresidual) = 0;
   });
-  foreach_cell.foreach_intermediate_cell("Set MG fields to zero", Uintermediate.getShape(),
+  const auto octs_intermediate = get_subview_octs_intermediate(0, level);
+  foreach_cell.foreach_intermediate_cell_in_octants("Set MG fields to zero", Uintermediate.getShape(), octs_intermediate,
   KOKKOS_LAMBDA(const CellIndex & iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (current_level <= level){
-      Uintermediate.at(iCell, Isolution) = 0;
-      Uintermediate.at(iCell, Irhs) = 0;
-      Uintermediate.at(iCell, Iresidual) = 0;
-    }
+    Uintermediate.at(iCell, Isolution) = 0;
+    Uintermediate.at(iCell, Irhs) = 0;
+    Uintermediate.at(iCell, Iresidual) = 0;
   });
 }
 
@@ -884,23 +871,19 @@ void GravitySolver_multigrid::zero_rhs_mask_intermediate(const Array_t& Uinterme
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
-  foreach_cell.foreach_intermediate_cell("Set intermediate rhs and mask to zero", Uintermediate.getShape(),
+  const auto octs_intermediate = get_subview_octs_intermediate(level);
+  foreach_cell.foreach_intermediate_cell_in_octants("Set intermediate rhs and mask to zero", Uintermediate.getShape(), octs_intermediate,
   KOKKOS_LAMBDA(const CellIndex & iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (level == current_level){
-      Uintermediate.at(iCell, Irhs) = 0;
-      Uintermediate.at(iCell, Imask) = 0;
-    }
+    Uintermediate.at(iCell, Irhs) = 0;
+    Uintermediate.at(iCell, Imask) = 0;
   });
-  foreach_cell.foreach_intermediate_ghost_cell("Set intermediate rhs and mask to zero", Uintermediate.getShape(),
+  const auto ghosts_intermediate = get_subview_ghosts_intermediate(level);
+  foreach_cell.foreach_intermediate_ghost_cell_in_octants("Set intermediate rhs and mask to zero", Uintermediate.getShape(), ghosts_intermediate,
   KOKKOS_LAMBDA(const CellIndex & iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (level == current_level){
-      Uintermediate.at(iCell, Irhs) = 0;
-      Uintermediate.at(iCell, Imask) = 0;
-    }
+    Uintermediate.at(iCell, Irhs) = 0;
+    Uintermediate.at(iCell, Imask) = 0;
   });
 }
 
@@ -919,21 +902,17 @@ void GravitySolver_multigrid::solution_to_potential(const Array_t& U, const Arra
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
-  foreach_cell.foreach_cell("Copy solution to potential", U.getShape(),
+  const auto octs = get_subview_octs(level);
+  foreach_cell.foreach_cell_in_octants("Copy solution to potential", U.getShape(), octs,
   KOKKOS_LAMBDA(const CellIndex & iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (level == current_level){
-      U.at(iCell, Iphi) = U.at(iCell, Isolution);
-    }
+    U.at(iCell, Iphi) = U.at(iCell, Isolution);
   });
-  foreach_cell.foreach_intermediate_cell("Copy solution to potential", Uintermediate.getShape(),
+  const auto octs_intermediate = get_subview_octs_intermediate(level);
+  foreach_cell.foreach_intermediate_cell_in_octants("Copy solution to potential", Uintermediate.getShape(), octs_intermediate,
   KOKKOS_LAMBDA(const CellIndex & iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (level == current_level){
-      Uintermediate.at(iCell, Iphi) = Uintermediate.at(iCell, Isolution);
-    }
+    Uintermediate.at(iCell, Iphi) = Uintermediate.at(iCell, Isolution);
   });
 }
 
@@ -984,16 +963,21 @@ void GravitySolver_multigrid::gauss_seidel_intermediate_amr_correction(const Arr
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
+  const auto& iter_space = Uintermediate.getShape();
+  const uint32_t nocts1d = 1U << level;
+  const Kokkos::Array<real_t, 3> size = {
+    1./(nocts1d * iter_space.bx), 
+    1./(nocts1d * iter_space.by), 
+    1./(nocts1d * iter_space.bz)
+  };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
 
-  foreach_cell.foreach_intermediate_cell("Gauss-Seidel", Uintermediate.getShape(),
+  const auto octs_intermediate = get_subview_octs_intermediate(level);
+  foreach_cell.foreach_intermediate_cell_in_octants("Gauss-Seidel", Uintermediate.getShape(), octs_intermediate,
     KOKKOS_LAMBDA(const CellIndex & iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (current_level == level) 
     if (is_coloured(iCell))
     if (Uintermediate.at(iCell, Imask) > 0) {
-      const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
       Kokkos::Array<real_t, 3> f_C;
       real_t neighbors(0);
       constexpr real_t w_relax(1.);
@@ -1008,7 +992,7 @@ void GravitySolver_multigrid::gauss_seidel_intermediate_amr_correction(const Arr
         real_t a(1), b(1), contrib_L(0), contrib_R(0);
         
         if (CellIndex::BIGGER == iCell_L.status) a = 0.5;
-        else if (Uintermediate.at(iCell_L, Imask) < 0) { // Second-order reconstruction. 
+        else if (Uintermediate.at(iCell_L, Imask) <= 0) { // Second-order reconstruction. 
           const real_t cell_mask = Uintermediate.at(iCell, Imask);
           const real_t left_neighbor_mask = Uintermediate.at(iCell_L, Imask);
           a = cell_mask / (cell_mask - left_neighbor_mask);
@@ -1017,7 +1001,7 @@ void GravitySolver_multigrid::gauss_seidel_intermediate_amr_correction(const Arr
         if ( BC_ABSORBING == boundarycondition[dir] && iCell_L.is_boundary() ) contrib_L = 0;
 
         if (CellIndex::BIGGER == iCell_R.status) b = 0.5;
-        else if (Uintermediate.at(iCell_R, Imask) < 0) { // Second-order reconstruction.
+        else if (Uintermediate.at(iCell_R, Imask) <= 0) { // Second-order reconstruction.
           const real_t cell_mask = Uintermediate.at(iCell, Imask);
           const real_t right_neighbor_mask = Uintermediate.at(iCell_R, Imask);
           b = cell_mask / (cell_mask - right_neighbor_mask);
@@ -1055,15 +1039,20 @@ void GravitySolver_multigrid::gauss_seidel_leaves_amr_finest(const Array_t& U, c
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
+  const auto& iter_space = U.getShape();
+  const uint32_t nocts1d = 1U << level;
+  const Kokkos::Array<real_t, 3> size = {
+    1./(nocts1d * iter_space.bx), 
+    1./(nocts1d * iter_space.by), 
+    1./(nocts1d * iter_space.bz)
+  };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
 
-  foreach_cell.foreach_cell("Gauss-Seidel", U.getShape(),
+  const auto octs = get_subview_octs(level);
+  foreach_cell.foreach_cell_in_octants("Gauss-Seidel", U.getShape(), octs,
     KOKKOS_LAMBDA(const CellIndex & iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (current_level == level) 
     if (is_coloured(iCell)) {
-      const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
       Kokkos::Array<real_t, 3> f_C;
       real_t neighbors(0);
       constexpr real_t w_relax(1.);
@@ -1120,15 +1109,20 @@ void GravitySolver_multigrid::gauss_seidel_leaves_uniform(const Array_t& U, cons
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
+  const auto& iter_space = U.getShape();
+  const uint32_t nocts1d = 1U << level;
+  const Kokkos::Array<real_t, 3> size = {
+    1./(nocts1d * iter_space.bx), 
+    1./(nocts1d * iter_space.by), 
+    1./(nocts1d * iter_space.bz)
+  };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
 
-  foreach_cell.foreach_cell("Gauss-Seidel", U.getShape(),
+  const auto octs = get_subview_octs(level);
+  foreach_cell.foreach_cell_in_octants("Gauss-Seidel", U.getShape(), octs,
     KOKKOS_LAMBDA(const CellIndex & iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (current_level == level)
     if (is_coloured(iCell)) {
-      const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
       real_t neighbors(0);
       constexpr real_t w_relax(1.);
       for ( const ComponentIndex3D dir : {IX,IY,IZ} )
@@ -1175,15 +1169,20 @@ void GravitySolver_multigrid::gauss_seidel_intermediate(const Array_t& U, const 
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
+  const auto& iter_space = U.getShape();
+  const uint32_t nocts1d = 1U << level;
+  const Kokkos::Array<real_t, 3> size = {
+    1./(nocts1d * iter_space.bx), 
+    1./(nocts1d * iter_space.by), 
+    1./(nocts1d * iter_space.bz)
+  };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
 
-  foreach_cell.foreach_intermediate_cell("Gauss-Seidel", Uintermediate.getShape(),
+  const auto octs_intermediate = get_subview_octs_intermediate(level);
+  foreach_cell.foreach_intermediate_cell_in_octants("Gauss-Seidel", Uintermediate.getShape(), octs_intermediate,
     KOKKOS_LAMBDA(const CellIndex & iCell)
   {
-    const uint8_t current_level = cells.getLevel(iCell);
-    if (current_level == level)
     if (is_coloured(iCell)) {
-      const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
       real_t neighbors(0);
       constexpr real_t w_relax(1.);
       for ( ComponentIndex3D dir : {IX,IY,IZ} )
@@ -1229,7 +1228,10 @@ void GravitySolver_multigrid::gauss_seidel_intermediate(const Array_t& U, const 
 template< typename Array_t >
 void GravitySolver_multigrid::smoothing_intermediate_amr_correction(const Array_t& Uintermediate, const uint32_t nIterations, const level_t level, const GhostCommunicator& ghost_comm) 
 {
-  const bool isMPILevel = (level >= pdata->first_mpi_multigrid_level);
+  const ForeachCell& foreach_cell = pdata->foreach_cell;
+  const MpiComm& mpicomm = foreach_cell.get_amr_mesh().getMpiComm();
+  const bool isDistributed = mpicomm.MPI_Comm_size() > 1;
+  const bool isMPILevel = isDistributed && (level >= pdata->first_mpi_multigrid_level);
   for (uint32_t i = 0; i < nIterations; i++) {
     gauss_seidel_intermediate_amr_correction(Uintermediate, level, KOKKOS_LAMBDA(const CellIndex& iCell){return isRed(iCell);});
     if (isMPILevel) 
@@ -1255,7 +1257,10 @@ void GravitySolver_multigrid::smoothing_intermediate_amr_correction(const Array_
 template< typename Array_t >
 void GravitySolver_multigrid::smoothing_uniform(const Array_t& U, const Array_t& Uintermediate, const uint32_t nIterations, const level_t level, const GhostCommunicator& ghost_comm) 
 {
-  const bool isMPILevel = (level >= pdata->first_mpi_multigrid_level);
+  const ForeachCell& foreach_cell = pdata->foreach_cell;
+  const MpiComm& mpicomm = foreach_cell.get_amr_mesh().getMpiComm();
+  const bool isDistributed = mpicomm.MPI_Comm_size() > 1;
+  const bool isMPILevel = isDistributed && (level >= pdata->first_mpi_multigrid_level);
   for (uint32_t i = 0; i < nIterations; i++) {
     gauss_seidel_leaves_uniform(U, Uintermediate, level, KOKKOS_LAMBDA(const CellIndex& iCell){return isRed(iCell);});
     if (isMPILevel)
@@ -1289,7 +1294,10 @@ void GravitySolver_multigrid::smoothing_uniform(const Array_t& U, const Array_t&
 template< typename Array_t >
 void GravitySolver_multigrid::smoothing_amr_finest(const Array_t& U, const Array_t& Uintermediate, const uint32_t nIterations, const level_t level, const GhostCommunicator& ghost_comm) 
 {
-  const bool isMPILevel = (level >= pdata->first_mpi_multigrid_level);
+  const ForeachCell& foreach_cell = pdata->foreach_cell;
+  const MpiComm& mpicomm = foreach_cell.get_amr_mesh().getMpiComm();
+  const bool isDistributed = mpicomm.MPI_Comm_size() > 1;
+  const bool isMPILevel = isDistributed && (level >= pdata->first_mpi_multigrid_level);
   for (uint32_t i = 0; i < nIterations; i++) {
     gauss_seidel_leaves_amr_finest(U, Uintermediate, level, KOKKOS_LAMBDA(const CellIndex& iCell){return isRed(iCell);});
     if (isMPILevel)
@@ -1320,17 +1328,20 @@ void GravitySolver_multigrid::smoothing_amr_finest(const Array_t& U, const Array
  * @return the residual at a given level 
 */
 template< typename Array_t >
-void GravitySolver_multigrid::V_cycle_uniform(Array_t& U, Array_t& Uintermediate, const level_t level, const GhostCommunicator& ghost_comm) 
+void GravitySolver_multigrid::V_cycle_uniform(Array_t& U, Array_t& Uintermediate, const level_t level, const GhostCommunicator& ghost_comm_minimal, const GhostCommunicator& ghost_comm_blockwide) 
 {  
-  const bool isFirstMPILevel = (level == pdata->first_mpi_multigrid_level);
-  const bool isMPILevel = (level >= pdata->first_mpi_multigrid_level);
+  const ForeachCell& foreach_cell = pdata->foreach_cell;
+  const MpiComm& mpicomm = foreach_cell.get_amr_mesh().getMpiComm();
+  const bool isDistributed = mpicomm.MPI_Comm_size() > 1;
+  const bool isFirstMPILevel = isDistributed && (level == pdata->first_mpi_multigrid_level);
+  const bool isMPILevel = isDistributed && (level >= pdata->first_mpi_multigrid_level);
   
-  smoothing_uniform(U, Uintermediate, pdata->Npre, level, ghost_comm);
+  smoothing_uniform(U, Uintermediate, pdata->Npre, level, ghost_comm_minimal);
   residual_uniform(U, Uintermediate, level);
 
   if (isMPILevel){
-    ghost_comm.exchange_ghosts(U);
-    ghost_comm.exchange_intermediate_ghosts(Uintermediate);
+    ghost_comm_minimal.exchange_ghosts(U);
+    ghost_comm_minimal.exchange_intermediate_ghosts(Uintermediate);
   }
 
   zero_rhs_mask_intermediate(Uintermediate, level - 1);
@@ -1339,25 +1350,25 @@ void GravitySolver_multigrid::V_cycle_uniform(Array_t& U, Array_t& Uintermediate
   if (isFirstMPILevel) 
     reduce_nonMPI_levels(Uintermediate, pdata->first_mpi_multigrid_level, make_array<int, 2>({Irhs, Imask}));
   else if (isMPILevel){
-    ghost_comm.reduce_intermediate_ghosts_at_level(Uintermediate, level - 1, make_array<int, 2>({Irhs, Imask}));
-    ghost_comm.exchange_intermediate_ghosts(Uintermediate); // Useful?
+    ghost_comm_blockwide.reduce_intermediate_ghosts_at_level(Uintermediate, level - 1, make_array<int, 2>({Irhs, Imask}));
+    ghost_comm_blockwide.exchange_intermediate_ghosts(Uintermediate); // Useful?
   }
 
-  initialise_lhs(U, Uintermediate, level - 1);
+  initialise_intermediate_lhs(Uintermediate, level - 1);
   if (isMPILevel)
-    ghost_comm.exchange_intermediate_ghosts(Uintermediate);
+  ghost_comm_minimal.exchange_intermediate_ghosts(Uintermediate);
 
   if (level == 1) {
-      smoothing_uniform(U, Uintermediate, pdata->Npre, level - 1, ghost_comm);
+      smoothing_uniform(U, Uintermediate, pdata->Npre, level - 1, ghost_comm_blockwide);
   }
-  else V_cycle_uniform(U, Uintermediate, level - 1, ghost_comm);
+  else V_cycle_uniform(U, Uintermediate, level - 1, ghost_comm_minimal, ghost_comm_blockwide);
     
-  prolongation(U, Uintermediate, level); // Also add case for prolongation_on_intermediates
+  prolongation_from_children(U, Uintermediate, level); // Also add case for prolongation_on_intermediates
   if (isMPILevel){
-    ghost_comm.exchange_ghosts(U);
-    ghost_comm.exchange_intermediate_ghosts(Uintermediate);
+    ghost_comm_blockwide.exchange_ghosts(U);
+    ghost_comm_blockwide.exchange_intermediate_ghosts(Uintermediate);
   } 
-  smoothing_uniform(U, Uintermediate, pdata->Npost, level, ghost_comm);
+  smoothing_uniform(U, Uintermediate, pdata->Npost, level, ghost_comm_blockwide);
 }
 
 
@@ -1372,24 +1383,27 @@ void GravitySolver_multigrid::V_cycle_uniform(Array_t& U, Array_t& Uintermediate
  * @return the residual at a given level 
 */
 template< typename Array_t >
-void GravitySolver_multigrid::V_cycle_amr(Array_t& U, Array_t& Uintermediate, const uint8_t current_level, const uint32_t finest_level, const GhostCommunicator& ghost_comm) 
+void GravitySolver_multigrid::V_cycle_amr(Array_t& U, Array_t& Uintermediate, const uint8_t current_level, const uint32_t finest_level, const GhostCommunicator& ghost_comm_minimal, const GhostCommunicator& ghost_comm_blockwide) 
 {  
-  const bool isFirstMPILevel = (current_level == pdata->first_mpi_multigrid_level);
-  const bool isMPILevel = (current_level >= pdata->first_mpi_multigrid_level);
+  const ForeachCell& foreach_cell = pdata->foreach_cell;
+  const MpiComm& mpicomm = foreach_cell.get_amr_mesh().getMpiComm();
+  const bool isDistributed = mpicomm.MPI_Comm_size() > 1;
+  const bool isFirstMPILevel = isDistributed && (current_level == pdata->first_mpi_multigrid_level);
+  const bool isMPILevel = isDistributed && (current_level >= pdata->first_mpi_multigrid_level);
 
   // Full Multigrid
 
   if ( current_level == finest_level ) {
-    smoothing_amr_finest(U, Uintermediate, pdata->Npre, current_level, ghost_comm);
+    smoothing_amr_finest(U, Uintermediate, pdata->Npre, current_level, ghost_comm_minimal);
     residual_amr_finest(U, Uintermediate, current_level);
   } else {
-    smoothing_intermediate_amr_correction(Uintermediate, pdata->Npre, current_level, ghost_comm);
+    smoothing_intermediate_amr_correction(Uintermediate, pdata->Npre, current_level, ghost_comm_minimal);
     residual_intermediate_amr_correction(Uintermediate, current_level);
   }
 
   if (isMPILevel){
-    ghost_comm.exchange_ghosts(U);
-    ghost_comm.exchange_intermediate_ghosts(Uintermediate);
+    ghost_comm_minimal.exchange_ghosts(U);
+    ghost_comm_minimal.exchange_intermediate_ghosts(Uintermediate);
   }
 
   zero_rhs_mask_intermediate(Uintermediate, current_level - 1);
@@ -1398,33 +1412,33 @@ void GravitySolver_multigrid::V_cycle_amr(Array_t& U, Array_t& Uintermediate, co
   if (isFirstMPILevel) {
     reduce_nonMPI_levels(Uintermediate, pdata->first_mpi_multigrid_level, make_array<int, 2>({Irhs, Imask}));
   } else if (isMPILevel){
-    ghost_comm.reduce_intermediate_ghosts_at_level(Uintermediate, current_level - 1, make_array<int, 2>({Irhs, Imask}));
-    ghost_comm.exchange_intermediate_ghosts(Uintermediate); // Useful?
+    ghost_comm_blockwide.reduce_intermediate_ghosts_at_level(Uintermediate, current_level - 1, make_array<int, 2>({Irhs, Imask}));
+    ghost_comm_blockwide.exchange_intermediate_ghosts(Uintermediate); // Useful?
   }
 
-  initialise_lhs(U, Uintermediate, current_level - 1);
+  initialise_intermediate_lhs(Uintermediate, current_level - 1);
   if (isMPILevel && !isFirstMPILevel){
-    ghost_comm.exchange_intermediate_ghosts(Uintermediate);
+    ghost_comm_minimal.exchange_intermediate_ghosts(Uintermediate);
   }
 
   if ( finest_level - 3 == current_level ) { // TODO: finest - 2 seems to works aswell for spherical symmetry. Check for more realistic cases
-      smoothing_intermediate_amr_correction(Uintermediate, pdata->Npre, pdata->level_coarse, ghost_comm);
-  } else V_cycle_amr(U, Uintermediate, current_level - 1, finest_level, ghost_comm); 
+      smoothing_intermediate_amr_correction(Uintermediate, pdata->Npre, pdata->level_coarse, ghost_comm_minimal);
+  } else V_cycle_amr(U, Uintermediate, current_level - 1, finest_level, ghost_comm_minimal, ghost_comm_blockwide); 
   
   if ( current_level == finest_level ) {
-    prolongation(U, Uintermediate, current_level);
+    prolongation_from_children(U, Uintermediate, current_level);
     if (isMPILevel){
-      ghost_comm.exchange_ghosts(U);
-      ghost_comm.exchange_intermediate_ghosts(Uintermediate);
+      ghost_comm_minimal.exchange_ghosts(U);
+      ghost_comm_minimal.exchange_intermediate_ghosts(Uintermediate);
     }
-    smoothing_amr_finest(U, Uintermediate, pdata->Npost, current_level, ghost_comm);
+    smoothing_amr_finest(U, Uintermediate, pdata->Npost, current_level, ghost_comm_minimal);
   } else {
-    prolongation_on_intermediate(U, Uintermediate, current_level); 
+    prolongation_from_children_on_intermediate(U, Uintermediate, current_level); 
     if (isMPILevel){
-      ghost_comm.exchange_intermediate_ghosts(Uintermediate); 
+      ghost_comm_minimal.exchange_intermediate_ghosts(Uintermediate); 
     }
 
-    smoothing_intermediate_amr_correction(Uintermediate, pdata->Npost, current_level, ghost_comm);
+    smoothing_intermediate_amr_correction(Uintermediate, pdata->Npost, current_level, ghost_comm_minimal);
   }   
     
 }
@@ -1495,7 +1509,7 @@ uint32_t GravitySolver_multigrid::MPI_Allreduce_int_max( uint32_t local_v )
   return res;
 }
 
-template< typename Array_t, typename T, std::size_t N >
+template< typename Array_t, typename T, size_t N >
 void GravitySolver_multigrid::reduce_nonMPI_levels(const Array_t& Uintermediate, const level_t first_mpi_multigrid_level, const Kokkos::Array<T, N> iFields) 
 {
   uint32_t num_vars = N; // number of vars for each cell
@@ -1508,7 +1522,7 @@ void GravitySolver_multigrid::reduce_nonMPI_levels(const Array_t& Uintermediate,
   const uint32_t nbCellsPerBlock = bx * by * bz;
   const uint32_t ncells_1d = 1U << (first_mpi_multigrid_level - 1); // Total number of octants at level (first_mpi_multigrid_level - 1)
   const uint32_t nbOcts = ncells_1d*ncells_1d*ncells_1d;
-  Kokkos::View<double*> deviceArray("deviceArray", nbOcts * nbCellsPerBlock * num_vars);
+  Kokkos::View<real_t*> deviceArray("deviceArray", nbOcts * nbCellsPerBlock * num_vars);
 
   Kokkos::parallel_for( "Reduce non-MPI levels", Kokkos::RangePolicy<>(0, nbOcts * nbCellsPerBlock * num_vars),
   KOKKOS_LAMBDA( const uint32_t index )
@@ -1568,6 +1582,237 @@ void GravitySolver_multigrid::reduce_nonMPI_levels(const Array_t& Uintermediate,
 
 }
 
+void GravitySolver_multigrid::list_octants_per_level(const LightOctree& lmesh) 
+// Count number of Leaf and Intermediate (+ ghosts) octs in AMR
+{
+  const level_t level_max = lmesh.get_level_max();
+  const level_t nlevel = level_max + 1;
+  // Count number of octs and ghosts in AMR per level
+  const uint32_t numOcts = lmesh.getNumOctants();
+  const uint32_t numIntermediateOcts = lmesh.getNumIntermediateOctants();
+  const uint32_t numGhosts = lmesh.getNumGhosts();
+  const uint32_t numIntermediateGhosts = lmesh.getNumIntermediateGhosts();
+
+
+  Kokkos::View<uint32_t*> octs_per_level("octs_per_level", numOcts);
+  Kokkos::View<uint32_t*> octs_intermediate_per_level("octs_intermediate_per_level", numIntermediateOcts);
+  Kokkos::View<uint32_t*> ghosts_per_level("ghosts_per_level", numGhosts);
+  Kokkos::View<uint32_t*> ghosts_intermediate_per_level("ghosts_intermediate_per_level", numIntermediateGhosts);
+
+  uint32_t numOcts_tmp(0), numIntermediateOcts_tmp(0), numGhosts_tmp(0), numIntermediateGhosts_tmp(0);
+  for (level_t ilevel = 0; ilevel < nlevel; ilevel++) 
+  {
+    uint32_t numOcts_local(0), numIntermediateOcts_local(0), numGhosts_local(0), numIntermediateGhosts_local(0);
+    Kokkos::parallel_scan( "Count number of octs per level", Kokkos::RangePolicy<>(0, numOcts),
+      KOKKOS_LAMBDA( const uint32_t iOct, uint32_t& ilist, bool final )
+    {
+      const level_t level = lmesh.getLevel({iOct, false, false});
+      if (level == ilevel){
+        if (final){
+          octs_per_level(ilist + numOcts_tmp) = iOct;
+        }
+        ilist++;
+      }
+    }, numOcts_local);
+    Kokkos::parallel_scan( "Count number of intermediate octs per level", Kokkos::RangePolicy<>(0, numIntermediateOcts),
+      KOKKOS_LAMBDA( const uint32_t iOct, uint32_t& ilist, bool final )
+    {
+      const level_t level = lmesh.getLevel({iOct, false, true});
+      if (level == ilevel){
+        if (final){
+          octs_intermediate_per_level(ilist + numIntermediateOcts_tmp) = iOct;
+        }
+        ilist++;
+      }
+    }, numIntermediateOcts_local);
+    Kokkos::parallel_scan( "Count number of ghosts per level", Kokkos::RangePolicy<>(0, numGhosts),
+      KOKKOS_LAMBDA( const uint32_t iOct, uint32_t& ilist, bool final )
+    {
+      const level_t level = lmesh.getLevel({iOct, true, false});
+      if (level == ilevel){
+        if (final){
+          ghosts_per_level(ilist + numGhosts_tmp) = iOct;
+        }
+        ilist++;
+      }
+    }, numGhosts_local);
+    Kokkos::parallel_scan( "Count number of intermediate ghosts per level", Kokkos::RangePolicy<>(0, numIntermediateGhosts),
+      KOKKOS_LAMBDA( const uint32_t iOct, uint32_t& ilist, bool final )
+    {
+      const level_t level = lmesh.getLevel({iOct, true, true});
+      if (level == ilevel){
+        if (final){
+          ghosts_intermediate_per_level(ilist + numIntermediateGhosts_tmp) = iOct;
+        }
+        ilist++;
+      }
+    }, numIntermediateGhosts_local);
+    numOcts_tmp += numOcts_local;
+    numIntermediateOcts_tmp += numIntermediateOcts_local;
+    numGhosts_tmp += numGhosts_local;
+    numIntermediateGhosts_tmp += numIntermediateGhosts_local;
+  }
+  DYABLO_ASSERT_KOKKOS_DEBUG( numOcts_tmp == numOcts, "Number of octants per level is not correct");
+  DYABLO_ASSERT_KOKKOS_DEBUG( numIntermediateOcts_tmp == numIntermediateOcts, "Number of intermediate octants per level is not correct");
+  DYABLO_ASSERT_KOKKOS_DEBUG( numGhosts_tmp == numGhosts, "Number of ghosts per level is not correct");
+  DYABLO_ASSERT_KOKKOS_DEBUG( numIntermediateGhosts_tmp == numIntermediateGhosts, "Number of intermediate ghosts per level is not correct");
+  pdata->octs_per_level = octs_per_level;
+  pdata->octs_intermediate_per_level = octs_intermediate_per_level;
+  pdata->ghosts_per_level = ghosts_per_level;
+  pdata->ghosts_intermediate_per_level = ghosts_intermediate_per_level;
+}
+
+void GravitySolver_multigrid::count_octants_per_level(const LightOctree& lmesh) 
+// Count number of Leaf and Intermediate (+ ghosts) octs in AMR
+{
+  const ForeachCell& foreach_cell = pdata->foreach_cell;
+  const MpiComm& mpi_comm = foreach_cell.get_amr_mesh().getMpiComm();
+  const int mpi_rank = mpi_comm.MPI_Comm_rank(); 
+  const level_t level_max = lmesh.get_level_max();
+  const level_t nlevels = level_max + 1;
+  Kokkos::View<uint32_t*> octs_per_level_count("octs_per_level", nlevels+1);
+  Kokkos::View<uint32_t*> octs_intermediate_per_level_count("octs_intermediate_per_level", nlevels+1);
+  Kokkos::View<uint32_t*> ghosts_per_level_count("ghosts_per_level", nlevels+1);
+  Kokkos::View<uint32_t*> ghosts_intermediate_per_level_count("ghosts_intermediate_per_level", nlevels+1);
+  Kokkos::deep_copy(octs_per_level_count, 0);
+  Kokkos::deep_copy(octs_intermediate_per_level_count, 0);
+  Kokkos::deep_copy(ghosts_per_level_count, 0);
+  Kokkos::deep_copy(ghosts_intermediate_per_level_count, 0);
+
+
+  // Count number of octs and ghosts in AMR per level
+  const int numOcts = lmesh.getNumOctants();
+  const int numIntermediateOcts = lmesh.getNumIntermediateOctants();
+  const int numGhosts = lmesh.getNumGhosts();
+  const int numIntermediateGhosts = lmesh.getNumIntermediateGhosts();
+  Kokkos::parallel_for( "Count number of octs per level", Kokkos::RangePolicy<>(0, numOcts),
+    KOKKOS_LAMBDA( const uint32_t iOct )
+    {
+      const level_t level = lmesh.getLevel({iOct, false, false});
+      Kokkos::atomic_fetch_add( &octs_per_level_count(level), 1 );
+    }
+  );
+  Kokkos::parallel_for( "Count number of intermediate octs per level", Kokkos::RangePolicy<>(0, numIntermediateOcts),
+    KOKKOS_LAMBDA( const uint32_t iOct )
+    {
+      const level_t level = lmesh.getLevel({iOct, false, true});
+      Kokkos::atomic_fetch_add( &octs_intermediate_per_level_count(level), 1 );
+    }
+  );
+  Kokkos::parallel_for( "Count number of ghosts per level", Kokkos::RangePolicy<>(0, numGhosts),
+    KOKKOS_LAMBDA( const uint32_t iOct )
+    {
+      const level_t level = lmesh.getLevel({iOct, true, false});
+      Kokkos::atomic_fetch_add( &ghosts_per_level_count(level), 1 );
+    }
+  );
+  Kokkos::parallel_for( "Count number of intermediate ghosts per level", Kokkos::RangePolicy<>(0, numIntermediateGhosts),
+    KOKKOS_LAMBDA( const uint32_t iOct )
+    {
+      const level_t level = lmesh.getLevel({iOct, true, true});
+      Kokkos::atomic_fetch_add( &ghosts_intermediate_per_level_count(level), 1 );
+    }
+  );
+
+  const auto octs_per_level_count_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), octs_per_level_count);
+  const auto octs_intermediate_per_level_count_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), octs_intermediate_per_level_count);
+  const auto ghosts_per_level_count_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), ghosts_per_level_count);
+  const auto ghosts_intermediate_per_level_count_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), ghosts_intermediate_per_level_count);
+
+
+  for(level_t ilevel = 0; ilevel <= level_max; ilevel++){ 
+    const uint32_t octs = octs_per_level_count_host(ilevel);
+    const uint32_t ghosts = ghosts_per_level_count_host(ilevel);
+    const uint32_t octs_intermediate = octs_intermediate_per_level_count_host(ilevel);
+    const uint32_t ghosts_intermediate = ghosts_intermediate_per_level_count_host(ilevel);
+    const real_t mean_total_nbOctants_per_dimension = Kokkos::floor(Kokkos::cbrt(octs+ghosts+octs_intermediate+ghosts_intermediate));
+    const real_t total_nbOctants_per_dimension = (1U << ilevel);
+    DYABLO_ASSERT_KOKKOS_DEBUG( mean_total_nbOctants_per_dimension <= total_nbOctants_per_dimension, "Cannot count more octants per level than there are in the simulation" );
+    printf("Rank %d Octree Level %d, octs %u (+ %u) intermediate %u (+ %u)\n", mpi_rank, ilevel, octs, ghosts, octs_intermediate, ghosts_intermediate);
+  }
+
+  // Now accumulate
+  uint32_t total = 0;
+  Kokkos::parallel_scan("Accumulate", Kokkos::RangePolicy<>(0, nlevels + 1) ,
+    KOKKOS_LAMBDA (const uint32_t i ,uint32_t& update , bool final ) 
+  {
+    const uint32_t val = octs_per_level_count(i);
+    if (final)
+      octs_per_level_count(i) = update ;
+    update += val;
+  }, total);
+  Kokkos::parallel_scan("Accumulate", Kokkos::RangePolicy<>(0, nlevels + 1) ,
+    KOKKOS_LAMBDA (const uint32_t i ,uint32_t& update , bool final ) 
+  {
+    const uint32_t val = octs_intermediate_per_level_count(i);
+    if (final)
+      octs_intermediate_per_level_count(i) = update ;
+    update += val;
+  }, total);
+  Kokkos::parallel_scan("Accumulate", Kokkos::RangePolicy<>(0, nlevels + 1) ,
+    KOKKOS_LAMBDA (const uint32_t i ,uint32_t& update , bool final ) 
+  {
+    const uint32_t val = ghosts_per_level_count(i);
+    if (final)
+      ghosts_per_level_count(i) = update ;
+    update += val;
+  }, total);
+  Kokkos::parallel_scan("Accumulate", Kokkos::RangePolicy<>(0, nlevels + 1) ,
+    KOKKOS_LAMBDA (const uint32_t i ,uint32_t& update , bool final ) 
+  {
+    const uint32_t val = ghosts_intermediate_per_level_count(i);
+    if (final)
+      ghosts_intermediate_per_level_count(i) = update ;
+    update += val;
+  }, total);
+
+  pdata->octs_per_level_count = octs_per_level_count;
+  pdata->octs_intermediate_per_level_count = octs_intermediate_per_level_count;
+  pdata->ghosts_per_level_count = ghosts_per_level_count;
+  pdata->ghosts_intermediate_per_level_count = ghosts_intermediate_per_level_count;
+
+  /* for(level_t ilevel = 0; ilevel <= level_max; ilevel++){ 
+    const uint32_t octs = octs_per_level_count_host(ilevel);
+    const uint32_t ghosts = ghosts_per_level_count_host(ilevel);
+    const uint32_t octs_intermediate = octs_intermediate_per_level_count_host(ilevel);
+    const uint32_t ghosts_intermediate = ghosts_intermediate_per_level_count_host(ilevel);
+    printf("Accumulated, Rank %d Octree Level %d, octs %u (+ %u) intermediate %u (+ %u)\n", mpi_rank, ilevel, octs, ghosts, octs_intermediate, ghosts_intermediate);
+  } */
+}
+
+const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_octs(const level_t level) const
+{return get_subview_octs(level, level);}
+const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_octs_intermediate(const level_t level) const
+{return get_subview_octs_intermediate(level, level);}
+const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_ghosts(const level_t level) const
+{return get_subview_ghosts(level, level);}
+const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_ghosts_intermediate(const level_t level) const
+{return get_subview_ghosts_intermediate(level, level);}
+const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_octs(const level_t level_min, const level_t level_max) const
+{
+  DYABLO_ASSERT_KOKKOS_DEBUG( level_min < pdata->octs_per_level_count.size(), "Level out of bounds in octs_per_level_count" );
+  const auto octs_per_level_count_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), pdata->octs_per_level_count);
+  return Kokkos::subview(pdata->octs_per_level, std::make_pair(octs_per_level_count_host(level_min), octs_per_level_count_host(level_max + 1)));
+}
+const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_octs_intermediate(const level_t level_min, const level_t level_max) const
+{
+  DYABLO_ASSERT_KOKKOS_DEBUG( level_max < pdata->octs_intermediate_per_level_count.size(), "Level out of bounds in octs_intermediate_per_level_count" );
+  const auto octs_intermediate_per_level_count_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), pdata->octs_intermediate_per_level_count);
+  return Kokkos::subview(pdata->octs_intermediate_per_level, std::make_pair(octs_intermediate_per_level_count_host(level_min), octs_intermediate_per_level_count_host(level_max + 1)));
+}
+const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_ghosts(const level_t level_min, const level_t level_max) const
+{
+  DYABLO_ASSERT_KOKKOS_DEBUG( level_max < pdata->ghosts_per_level_count.size(), "Level out of bounds in ghosts_per_level_count" );
+  const auto ghosts_per_level_count_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), pdata->ghosts_per_level_count);
+  return Kokkos::subview(pdata->ghosts_per_level, std::make_pair(ghosts_per_level_count_host(level_min), ghosts_per_level_count_host(level_max + 1)));
+}
+const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_ghosts_intermediate(const level_t level_min, const level_t level_max) const
+{
+  DYABLO_ASSERT_KOKKOS_DEBUG( level_max < pdata->ghosts_intermediate_per_level_count.size(), "Level out of bounds in ghosts_intermediate_per_level_count" );
+  const auto ghosts_intermediate_per_level_count_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), pdata->ghosts_intermediate_per_level_count);
+  return Kokkos::subview(pdata->ghosts_intermediate_per_level, std::make_pair(ghosts_intermediate_per_level_count_host(level_min), ghosts_intermediate_per_level_count_host(level_max + 1)));
+}
+
 template <typename T, size_t N>
 KOKKOS_INLINE_FUNCTION
 Kokkos::Array<T, N> GravitySolver_multigrid::make_array(const Kokkos::Array<T, N>& vals) {
@@ -1591,7 +1836,6 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   const int mpi_rank = mpi_comm.MPI_Comm_rank();
   auto& amr_mesh = foreach_cell.get_amr_mesh();
   const level_t first_mpi_multigrid_level = pdata->first_mpi_multigrid_level;
-  constexpr level_t min_level_multigrid = 0;
 
   DYABLO_ASSERT_KOKKOS_DEBUG( first_mpi_multigrid_level <= pdata->level_coarse, "Full coarse level cannot be common to all processes" );
 
@@ -1644,82 +1888,23 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   
  
   // Compute ghost communicators
-  const auto iter_space = U.getShape();
-  GhostCommunicator ghost_comm(foreach_cell.get_amr_mesh(), iter_space, 1, mpi_comm);
+  const auto& iter_space = U.getShape();
+  GhostCommunicator ghost_comm_minimal(foreach_cell.get_amr_mesh(), iter_space, 1, mpi_comm);
+  GhostCommunicator ghost_comm_blockwide(ghost_comm_minimal); // Deep copy constructor
   DYABLO_ASSERT_KOKKOS_DEBUG(
     iter_space.bx == iter_space.by &&
     iter_space.bx == iter_space.bz &&
     iter_space.bx % 2 == 0,
     "Wrong block shape"
   );
-  ghost_comm.init_intermediates(foreach_cell.get_amr_mesh(), iter_space, iter_space.bx, mpi_comm);
+  ghost_comm_minimal.init_intermediates(foreach_cell.get_amr_mesh(), iter_space, 1, mpi_comm);
+  ghost_comm_blockwide.init_intermediates(foreach_cell.get_amr_mesh(), iter_space, iter_space.bx, mpi_comm);
 
-  // Count number of Leaf and Intermediate (+ ghosts) octs in AMR
-  {
-    const level_t nlevel = global_max_level_found - min_level_multigrid + 1;
-    Kokkos::View<int*> octs_per_level("octs_per_level", nlevel);
-    Kokkos::View<int*> octs_intermediate_per_level("octs_intermediate_per_level", nlevel);
-    Kokkos::View<int*> ghosts_per_level("ghosts_per_level", nlevel);
-    Kokkos::View<int*> ghosts_intermediate_per_level("ghosts_intermediate_per_level", nlevel);
-    Kokkos::deep_copy(octs_per_level, 0);
-    Kokkos::deep_copy(octs_intermediate_per_level, 0);
-    Kokkos::deep_copy(ghosts_per_level, 0);
-    Kokkos::deep_copy(ghosts_intermediate_per_level, 0);
+  // Count and list octants per level
+  count_octants_per_level(lmesh);
+  list_octants_per_level(lmesh);
 
-  
-    // Count number of octs and ghosts in AMR per level
-    const int numOcts = lmesh.getNumOctants();
-    const int numIntermediateOcts = lmesh.getNumIntermediateOctants();
-    const int numGhosts = lmesh.getNumGhosts();
-    const int numIntermediateGhosts = lmesh.getNumIntermediateGhosts();
-    Kokkos::parallel_for( "Count number of octs per level", Kokkos::RangePolicy<>(0, numOcts),
-      KOKKOS_LAMBDA( const uint32_t iOct )
-      {
-        const level_t level = lmesh.getLevel({iOct, false, false});
-        Kokkos::atomic_fetch_add( &octs_per_level(level-min_level_multigrid), 1 );
-      }
-    );
-    Kokkos::parallel_for( "Count number of intermediate octs per level", Kokkos::RangePolicy<>(0, numIntermediateOcts),
-      KOKKOS_LAMBDA( const uint32_t iOct )
-      {
-        const level_t level = lmesh.getLevel({iOct, false, true});
-        Kokkos::atomic_fetch_add( &octs_intermediate_per_level(level-min_level_multigrid), 1 );
-      }
-    );
-    Kokkos::parallel_for( "Count number of ghosts per level", Kokkos::RangePolicy<>(0, numGhosts),
-      KOKKOS_LAMBDA( const uint32_t iOct )
-      {
-        const level_t level = lmesh.getLevel({iOct, true, false});
-        Kokkos::atomic_fetch_add( &ghosts_per_level(level-min_level_multigrid), 1 );
-      }
-    );
-    Kokkos::parallel_for( "Count number of intermediate ghosts per level", Kokkos::RangePolicy<>(0, numIntermediateGhosts),
-      KOKKOS_LAMBDA( const uint32_t iOct )
-      {
-        const level_t level = lmesh.getLevel({iOct, true, true});
-        Kokkos::atomic_fetch_add( &ghosts_intermediate_per_level(level-min_level_multigrid), 1 );
-      }
-    );
-
-    const auto octs_per_level_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), octs_per_level);
-    const auto octs_intermediate_per_level_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), octs_intermediate_per_level);
-    const auto ghosts_per_level_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), ghosts_per_level);
-    const auto ghosts_intermediate_per_level_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), ghosts_intermediate_per_level);
-
-
-    for(level_t ilevel = min_level_multigrid; ilevel <= global_max_level_found; ilevel++){ 
-      const level_t level_diff = ilevel-min_level_multigrid;
-      const uint32_t octs = octs_per_level_host(level_diff);
-      const uint32_t ghosts = ghosts_per_level_host(level_diff);
-      const uint32_t octs_intermediate = octs_intermediate_per_level_host(level_diff);
-      const uint32_t ghosts_intermediate = ghosts_intermediate_per_level_host(level_diff);
-      const real_t mean_total_nbOctants_per_dimension = Kokkos::floor(Kokkos::cbrt(octs+ghosts+octs_intermediate+ghosts_intermediate));
-      const real_t total_nbOctants_per_dimension = (1U << ilevel);
-      DYABLO_ASSERT_KOKKOS_DEBUG( mean_total_nbOctants_per_dimension <= total_nbOctants_per_dimension, "Cannot count more octants per level than there are in the simulation" );
-      printf("Rank %d Octree Level %d, octs %u (+ %u) intermediate %u (+ %u)\n", mpi_rank, ilevel, octs, ghosts, octs_intermediate, ghosts_intermediate);
-    }
-  }
-  
+  // Additional check
   check_parents(U, Uintermediate);
   // Compute rho mean
   real_t rho_mean = 0;
@@ -1753,41 +1938,35 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
     U.at(iCell, Irhs) = rhs;
     U.at(iCell, Isolution) = -rhs / (2. / (size[IX]*size[IX]) + 2. / (size[IY]*size[IY]) + 2. / (size[IZ]*size[IZ]));
   });
-  ghost_comm.exchange_ghosts(U);
+  ghost_comm_blockwide.exchange_ghosts(U);
   // Initialize RHS on intermediate levels. Solution will be interpolated from coarser levels so no need to initialize
-  constexpr int ns = 8;
+  constexpr int ns = 8; 
 
   for( uint32_t level = global_max_level_found - 1; level >= level_coarse; level-- )
   {
-    foreach_cell.foreach_cell( "Restrict", U.getShape(),
+    const auto octs = get_subview_octs(level+1);
+    foreach_cell.foreach_cell_in_octants( "Restrict", U.getShape(), octs, 
     KOKKOS_LAMBDA( CellIndex& iCell)
     {
-      const uint8_t current_level = cells.getLevel(iCell);
-      if( current_level == level + 1 )
-      {
-        const CellIndex iCell_p = iCell.getParent(U.getShape());      
-        Kokkos::atomic_add( &Uintermediate.at( iCell_p, Irho ), U.at( iCell, Irho ) / ns );
-      }
-    }); 
-    foreach_cell.foreach_intermediate_cell( "Restrict", Uintermediate.getShape(),
-    KOKKOS_LAMBDA( CellIndex& iCell)
-    {
-      const uint8_t current_level = cells.getLevel(iCell);
-      if( current_level == level + 1 )
-      {
-        const CellIndex iCell_p = iCell.getParent(Uintermediate.getShape());     
-        Kokkos::atomic_add( &Uintermediate.at( iCell_p, Irho ), Uintermediate.at( iCell, Irho ) / ns );
-      }
+      const CellIndex iCell_p = iCell.getParent(U.getShape());      
+      Kokkos::atomic_add( &Uintermediate.at( iCell_p, Irho ), U.at( iCell, Irho ) / ns );
     });
-    ghost_comm.reduce_intermediate_ghosts_at_level(Uintermediate, level, make_array<int, 1>({Irho}));
-    ghost_comm.exchange_intermediate_ghosts(Uintermediate);
+    const auto octs_intermediate = get_subview_octs_intermediate(level+1);
+    foreach_cell.foreach_intermediate_cell_in_octants( "Restrict", Uintermediate.getShape(), octs_intermediate,
+    KOKKOS_LAMBDA( CellIndex& iCell)
+    {
+      const CellIndex iCell_p = iCell.getParent(Uintermediate.getShape());     
+      Kokkos::atomic_add( &Uintermediate.at( iCell_p, Irho ), Uintermediate.at( iCell, Irho ) / ns );
+    });
+    ghost_comm_blockwide.reduce_intermediate_ghosts_at_level(Uintermediate, level, make_array<int, 1>({Irho}));
+    ghost_comm_blockwide.exchange_intermediate_ghosts(Uintermediate); // Useful?
   }
   foreach_cell.foreach_intermediate_cell( "Set RHS of Laplacian, based on rho", Uintermediate.getShape(),
   KOKKOS_LAMBDA( CellIndex& iCell)
   {
     Uintermediate.at( iCell, Irhs ) = (cosmo_run) ? b_cosmo(Uintermediate, iCell, rho_mean, aexp) : b(Uintermediate, iCell, rho_mean, four_Pi_G); //rho - rho_mean;
   }); 
-  ghost_comm.exchange_intermediate_ghosts(Uintermediate);
+  ghost_comm_blockwide.exchange_intermediate_ghosts(Uintermediate);
 
   residual_uniform(U, Uintermediate, level_coarse);
   solution_to_potential(U, Uintermediate, level_coarse);
@@ -1798,7 +1977,7 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   if (mpi_rank == 0) printf("Coarse Multigrid\n");
   for(uint32_t i = 0; i < pdata->Ncycles; i++)
   { 
-    V_cycle_uniform(U, Uintermediate, level_coarse, ghost_comm);
+    V_cycle_uniform(U, Uintermediate, level_coarse, ghost_comm_minimal, ghost_comm_blockwide);
     residual_uniform(U, Uintermediate, level_coarse);
     solution_to_potential(U, Uintermediate, level_coarse);
     const real_t residual = residual_norm(U, Uintermediate, level_coarse);
@@ -1808,16 +1987,16 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   if (mpi_rank == 0) printf("AMR Multigrid\n");
   for (level_t ilevel = level_coarse+1; ilevel <= global_max_level_found; ilevel++) {
     zero_solution(U, Uintermediate, ilevel);
-    prolongation(U, Uintermediate, ilevel);
+    prolongation_from_children(U, Uintermediate, ilevel);
     zero_solution_residual_rhs(U, Uintermediate, ilevel-1);
     solution_to_potential(U, Uintermediate, ilevel);
     initialise_mask(U, Uintermediate, ilevel);
-    ghost_comm.exchange_ghosts(U);
-    ghost_comm.exchange_intermediate_ghosts(Uintermediate);
+    ghost_comm_minimal.exchange_ghosts(U);
+    ghost_comm_minimal.exchange_intermediate_ghosts(Uintermediate);
 
     for(uint32_t i = 0; i < pdata->Ncycles; i++)
     { 
-      V_cycle_amr(U, Uintermediate, ilevel, ilevel, ghost_comm);
+      V_cycle_amr(U, Uintermediate, ilevel, ilevel, ghost_comm_minimal, ghost_comm_blockwide);
       residual_amr_finest(U, Uintermediate, ilevel);
       solution_to_potential(U, Uintermediate, ilevel);
       const real_t residual = residual_norm(U, Uintermediate, ilevel);

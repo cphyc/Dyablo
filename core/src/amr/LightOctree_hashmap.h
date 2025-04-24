@@ -127,10 +127,11 @@ public:
         const oct_map_t& oct_map = this->oct_map;
         oct_map_t& oct_map_intermediate = this->oct_map_intermediate;
         const uint32_t nbOcts = storage.getNumOctants();
-        const uint32_t numOctants_tot = nbOcts + storage.getNumGhosts();
+        const uint32_t nbGhosts = storage.getNumGhosts();
+        const uint32_t numOctants_tot = nbOcts + nbGhosts;
         uint32_t nbIntermediates = storage_intermediate.getNumOctants();
-        const uint32_t numIntermediates_tot = nbIntermediates + storage_intermediate.getNumGhosts();
-        const level_t min_multigrid_level = 0;
+        const uint32_t nbIntermediateGhosts = storage_intermediate.getNumGhosts();
+        const uint32_t numIntermediates_tot = nbIntermediates + nbIntermediateGhosts;
         // Put octants into hashmap on device
         if (nbIntermediates){ // storage_intermediate is already provided
             oct_map_intermediate.rehash(numIntermediates_tot);
@@ -243,7 +244,7 @@ public:
                     iOct++;
                 }
             }, nbIntermediates);
-            storage_intermediate = LightOctree_storage( storage.ndim, nbIntermediates, 0, min_multigrid_level, storage.coarse_grid_size);
+            storage_intermediate = LightOctree_storage( storage.ndim, nbIntermediates, 0, 0, storage.coarse_grid_size);
         }
 
         auto& oct_data_intermediate = storage_intermediate.oct_data;

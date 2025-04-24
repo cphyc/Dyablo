@@ -317,20 +317,20 @@ public:
       });
       
       Kokkos::View< real_t* > recv_buffer("exchange_ghosts::recv_buffer", num_vars*total_recv_size ); 
-    #ifdef MPI_IS_CUDA_AWARE 
-      Kokkos::fence();
-      mpi_comm.MPI_Alltoallv( send_buffer.data(), send_sizes.data(), recv_buffer.data(), recv_sizes.data() );
-      Kokkos::fence();
-    #else
-      {
-        auto send_buffer_host = Kokkos::create_mirror_view(send_buffer);
-        auto recv_buffer_host = Kokkos::create_mirror_view(recv_buffer);
+      #ifdef MPI_IS_CUDA_AWARE 
+        Kokkos::fence();
+        mpi_comm.MPI_Alltoallv( send_buffer.data(), send_sizes.data(), recv_buffer.data(), recv_sizes.data() );
+        Kokkos::fence();
+      #else
+        {
+          auto send_buffer_host = Kokkos::create_mirror_view(send_buffer);
+          auto recv_buffer_host = Kokkos::create_mirror_view(recv_buffer);
 
-        Kokkos::deep_copy(send_buffer_host, send_buffer);
-        mpi_comm.MPI_Alltoallv( send_buffer_host.data(), send_sizes.data(), recv_buffer_host.data(), recv_sizes.data() );
-        Kokkos::deep_copy(recv_buffer, recv_buffer_host);
-      }  
-    #endif
+          Kokkos::deep_copy(send_buffer_host, send_buffer);
+          mpi_comm.MPI_Alltoallv( send_buffer_host.data(), send_sizes.data(), recv_buffer_host.data(), recv_sizes.data() );
+          Kokkos::deep_copy(recv_buffer, recv_buffer_host);
+        }  
+      #endif
 
       Kokkos::parallel_for("reduce_ghosts::unpack", total_recv_size*num_vars,
         KOKKOS_LAMBDA( uint32_t ipack )
@@ -396,20 +396,20 @@ public:
       });
       
       Kokkos::View< real_t* > recv_buffer("exchange_ghosts::recv_buffer", num_vars*total_recv_size ); 
-    #ifdef MPI_IS_CUDA_AWARE 
-      Kokkos::fence();
-      mpi_comm.MPI_Alltoallv( send_buffer.data(), send_sizes.data(), recv_buffer.data(), recv_sizes.data() );
-      Kokkos::fence();
-    #else
-      {
-        auto send_buffer_host = Kokkos::create_mirror_view(send_buffer);
-        auto recv_buffer_host = Kokkos::create_mirror_view(recv_buffer);
+      #ifdef MPI_IS_CUDA_AWARE 
+        Kokkos::fence();
+        mpi_comm.MPI_Alltoallv( send_buffer.data(), send_sizes.data(), recv_buffer.data(), recv_sizes.data() );
+        Kokkos::fence();
+      #else
+        {
+          auto send_buffer_host = Kokkos::create_mirror_view(send_buffer);
+          auto recv_buffer_host = Kokkos::create_mirror_view(recv_buffer);
 
-        Kokkos::deep_copy(send_buffer_host, send_buffer);
-        mpi_comm.MPI_Alltoallv( send_buffer_host.data(), send_sizes.data(), recv_buffer_host.data(), recv_sizes.data() );
-        Kokkos::deep_copy(recv_buffer, recv_buffer_host);
-      }  
-    #endif
+          Kokkos::deep_copy(send_buffer_host, send_buffer);
+          mpi_comm.MPI_Alltoallv( send_buffer_host.data(), send_sizes.data(), recv_buffer_host.data(), recv_sizes.data() );
+          Kokkos::deep_copy(recv_buffer, recv_buffer_host);
+        }  
+      #endif
 
       Kokkos::parallel_for("reduce_ghosts::unpack", total_recv_size*num_vars,
         KOKKOS_LAMBDA( uint32_t ipack )
@@ -478,20 +478,20 @@ public:
       });
       
       Kokkos::View< real_t* > recv_buffer("exchange_ghosts::recv_buffer", num_vars*total_recv_size ); 
-    #ifdef MPI_IS_CUDA_AWARE 
-      Kokkos::fence();
-      mpi_comm.MPI_Alltoallv( send_buffer.data(), send_sizes.data(), recv_buffer.data(), recv_sizes.data() );
-      Kokkos::fence();
-    #else
-      {
-        auto send_buffer_host = Kokkos::create_mirror_view(send_buffer);
-        auto recv_buffer_host = Kokkos::create_mirror_view(recv_buffer);
+      #ifdef MPI_IS_CUDA_AWARE 
+        Kokkos::fence();
+        mpi_comm.MPI_Alltoallv( send_buffer.data(), send_sizes.data(), recv_buffer.data(), recv_sizes.data() );
+        Kokkos::fence();
+      #else
+        {
+          auto send_buffer_host = Kokkos::create_mirror_view(send_buffer);
+          auto recv_buffer_host = Kokkos::create_mirror_view(recv_buffer);
 
-        Kokkos::deep_copy(send_buffer_host, send_buffer);
-        mpi_comm.MPI_Alltoallv( send_buffer_host.data(), send_sizes.data(), recv_buffer_host.data(), recv_sizes.data() );
-        Kokkos::deep_copy(recv_buffer, recv_buffer_host);
-      }  
-    #endif
+          Kokkos::deep_copy(send_buffer_host, send_buffer);
+          mpi_comm.MPI_Alltoallv( send_buffer_host.data(), send_sizes.data(), recv_buffer_host.data(), recv_sizes.data() );
+          Kokkos::deep_copy(recv_buffer, recv_buffer_host);
+        }  
+      #endif
 
       Kokkos::parallel_for("reduce_ghosts::unpack", total_recv_size*num_vars,
         KOKKOS_LAMBDA( uint32_t ipack )
