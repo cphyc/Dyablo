@@ -14,6 +14,8 @@ template< typename Impl >
 class GhostCommunicator_impl : protected Impl
 {
 public:
+  using CellArray_shape = AMRBlockForeachCell_CellArray_impl::CellArray_shape;
+
   /**
    * @param mesh AMR mesh to determline neighborhood
    * @param shape shape of the blocks in the arrays
@@ -52,9 +54,17 @@ public:
   {
     Impl::exchange_ghosts(U);
   }
+  void exchange_ghosts_at_level( const UserData::FieldAccessor& U, const uint8_t level ) const
+  {
+    Impl::exchange_ghosts_at_level(U, level);
+  }
   void exchange_intermediate_ghosts( const UserData::FieldAccessor& U ) const
   {
     Impl::exchange_intermediate_ghosts(U);
+  }
+  void exchange_intermediate_ghosts_at_level( const UserData::FieldAccessor& U, const uint8_t level ) const
+  {
+    Impl::exchange_intermediate_ghosts_at_level(U, level);
   }
 
   /***
@@ -66,9 +76,17 @@ public:
   {
     Impl::exchange_ghosts(U);
   }
+  void exchange_ghosts_at_level( const ForeachCell::CellArray_global_ghosted& U, const uint8_t level ) const
+  {
+    Impl::exchange_ghosts_at_level(U, level);
+  }
   void exchange_intermediate_ghosts( const ForeachCell::CellArray_global_ghosted& U ) const
   {
     Impl::exchange_intermediate_ghosts(U);
+  }
+  void exchange_intermediate_ghosts_at_level( const ForeachCell::CellArray_global_ghosted& U, const uint8_t level ) const
+  {
+    Impl::exchange_intermediate_ghosts_at_level(U, level);
   }
 
 
@@ -84,6 +102,10 @@ public:
   {
     Impl::reduce_ghosts(U);
   }
+  void reduce_ghosts_at_level( UserData::FieldAccessor& U, const uint8_t level ) const
+  {
+    Impl::reduce_ghosts_at_level(U, level);
+  }
   void reduce_intermediate_ghosts( UserData::FieldAccessor& U ) const
   {
     Impl::reduce_intermediate_ghosts(U);
@@ -92,29 +114,22 @@ public:
   {
     Impl::reduce_intermediate_ghosts_at_level(U, level);
   }
-  template< typename T, size_t N >
-  void reduce_intermediate_ghosts_at_level( UserData::FieldAccessor& U, const uint8_t level, const Kokkos::Array<T, N> iFields) const
-  {
-    Impl::reduce_intermediate_ghosts_at_level(U, level, iFields);
-  }
 
   void reduce_ghosts( ForeachCell::CellArray_global_ghosted& U ) const
   {
     Impl::reduce_ghosts(U);
   }
+  void reduce_ghosts_at_level( ForeachCell::CellArray_global_ghosted& U, const uint8_t level ) const
+  {
+    Impl::reduce_ghosts_at_level(U, level);
+  }
   void reduce_intermediate_ghosts( ForeachCell::CellArray_global_ghosted& U ) const
   {
     Impl::reduce_intermediate_ghosts(U);
   }
-
   void reduce_intermediate_ghosts_at_level( ForeachCell::CellArray_global_ghosted& U, const uint8_t level) const
   {
     Impl::reduce_intermediate_ghosts_at_level(U, level);
-  }
-  template< typename T, size_t N >
-  void reduce_intermediate_ghosts_at_level( ForeachCell::CellArray_global_ghosted& U, const uint8_t level, const Kokkos::Array<T, N> iFields) const
-  {
-    Impl::reduce_intermediate_ghosts_at_level(U, level, iFields);
   }
 
   void init_intermediates( 
@@ -124,6 +139,15 @@ public:
     const MpiComm& mpi_comm )
   {
     Impl::init_intermediates(mesh.getMesh(), shape, ghost_count, mpi_comm);
+  }
+
+  void sort_ghosts_by_levels(const LightOctree& lmesh, const CellArray_shape& iter_space, const uint8_t level_max)
+  {
+    Impl::sort_ghosts_by_levels(lmesh, iter_space, level_max);
+  }
+  void sort_intermediate_ghosts_by_levels(const LightOctree& lmesh, const CellArray_shape& iter_space, const uint8_t level_max)
+  {
+    Impl::sort_intermediate_ghosts_by_levels(lmesh, iter_space, level_max);
   }
 
 };

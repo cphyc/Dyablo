@@ -48,6 +48,9 @@ struct GravitySolver_multigrid::Data{
   Kokkos::View<uint32_t*> ghosts_per_level_count;
   Kokkos::View<uint32_t*> ghosts_intermediate_per_level_count;
 
+  UserData_fields::FieldAccessor U;
+  UserData_fields::FieldAccessor Uintermediate;
+
 };
 
 GravitySolver_multigrid::GravitySolver_multigrid(
@@ -73,7 +76,7 @@ GravitySolver_multigrid::GravitySolver_multigrid(
       configMap.getValue<bool>("cosmology", "active", false),
       -1.0, // gravity_constant 4*Pi*G, defined later
       configMap.getValue<real_t>("gravity", "MG_eps", 1E-3),
-      configMap.getValue<uint32_t>("gravity", "first_mpi_multigrid_level", 3),
+      configMap.getValue<uint32_t>("gravity", "first_mpi_multigrid_level", 2),
       4, // level coarse
       configMap.getValue<uint32_t>("gravity", "Npre", 2),
       configMap.getValue<uint32_t>("gravity", "Npost", 1),
@@ -104,7 +107,7 @@ GravitySolver_multigrid::~GravitySolver_multigrid()
  * @param dir[in]: Direction along wich we compute the gradient
 */
 template< typename Array_t >
-void GravitySolver_multigrid::gradient(const Array_t& U, const Array_t& Uintermediate)
+void GravitySolver_multigrid::gradient(Array_t& U, Array_t& Uintermediate)
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
@@ -212,9 +215,10 @@ real_t GravitySolver_multigrid::average_8bigger_neighbors(const Array_t& U, cons
  * @param level[in]: The grid level
  * @return the residual at a given level 
 */
-template< typename Array_t >
-real_t GravitySolver_multigrid::residual_norm(const Array_t& U, const Array_t& Uintermediate, const level_t level)
+real_t GravitySolver_multigrid::residual_norm(const level_t level)
 {
+  const auto& U = pdata->U;
+  const auto& Uintermediate = pdata->Uintermediate;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   real_t residual_sqr_leaves = 0;
@@ -250,9 +254,9 @@ real_t GravitySolver_multigrid::residual_norm(const Array_t& U, const Array_t& U
  * @param Uintermediate[in]: The intermediate data to read from
  * @param level[in]: The grid level
 */
-template< typename Array_t >
-void GravitySolver_multigrid::initialise_intermediate_lhs(const Array_t& Uintermediate, const level_t level)
+void GravitySolver_multigrid::initialise_intermediate_lhs(const level_t level)
 {
+  auto& Uintermediate = pdata->Uintermediate;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const auto& iter_space = Uintermediate.getShape();
   const uint32_t nocts1d = 1U << level;
@@ -280,17 +284,18 @@ void GravitySolver_multigrid::initialise_intermediate_lhs(const Array_t& Uinterm
  * @param Uintermediate[in]: The intermediate data to read from
  * @param level[in]: The grid level
 */
-template< typename Array_t >
-void GravitySolver_multigrid::residual_uniform(const Array_t& U, const Array_t& Uintermediate, const level_t level) 
+void GravitySolver_multigrid::residual_uniform(const level_t level) 
 {
+  auto& U = pdata->U;
+  auto& Uintermediate = pdata->Uintermediate;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   const auto& iter_space = U.getShape();
   const uint32_t nocts1d = 1U << level;
   const Kokkos::Array<real_t, 3> size = {
-    1./(nocts1d * iter_space.bx), 
-    1./(nocts1d * iter_space.by), 
-    1./(nocts1d * iter_space.bz)
+        1./(nocts1d * iter_space.bx), 
+        1./(nocts1d * iter_space.by), 
+        1./(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
 
@@ -362,17 +367,17 @@ void GravitySolver_multigrid::residual_uniform(const Array_t& U, const Array_t& 
  * @param Uintermediate[in]: The intermediate data to read from
  * @param level[in]: The grid level
 */
-template< typename Array_t >
-void GravitySolver_multigrid::residual_intermediate_amr_correction(const Array_t& Uintermediate, const level_t level) 
+void GravitySolver_multigrid::residual_intermediate_amr_correction(const level_t level) 
 {
+  auto& Uintermediate = pdata->Uintermediate;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   const auto& iter_space = Uintermediate.getShape();
   const uint32_t nocts1d = 1U << level;
   const Kokkos::Array<real_t, 3> size = {
-    1./(nocts1d * iter_space.bx), 
-    1./(nocts1d * iter_space.by), 
-    1./(nocts1d * iter_space.bz)
+        1./(nocts1d * iter_space.bx), 
+        1./(nocts1d * iter_space.by), 
+        1./(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
 
@@ -430,17 +435,18 @@ void GravitySolver_multigrid::residual_intermediate_amr_correction(const Array_t
  * @param Uintermediate[in]: The intermediate data to read from
  * @param level[in]: The grid level
 */
-template< typename Array_t >
-void GravitySolver_multigrid::residual_amr_finest(const Array_t& U, const Array_t& Uintermediate, const level_t level) 
+void GravitySolver_multigrid::residual_amr_finest(const level_t level) 
 {
+  auto& U = pdata->U;
+  auto& Uintermediate = pdata->Uintermediate;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   const auto& iter_space = U.getShape();
   const uint32_t nocts1d = 1U << level;
   const Kokkos::Array<real_t, 3> size = {
-    1./(nocts1d * iter_space.bx), 
-    1./(nocts1d * iter_space.by), 
-    1./(nocts1d * iter_space.bz)
+        1./(nocts1d * iter_space.bx), 
+        1./(nocts1d * iter_space.by), 
+        1./(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
 
@@ -520,9 +526,10 @@ void GravitySolver_multigrid::residual_amr_finest(const Array_t& U, const Array_
  * @param Uintermediate[in]: The intermediate data to read from
  * @param level[in]: The grid level
 */
-template< typename Array_t >
-void GravitySolver_multigrid::restriction_from_parents(const Array_t& U, const Array_t& Uintermediate, const level_t level) 
+void GravitySolver_multigrid::restriction_from_parents(const level_t level) 
 {
+  auto& U = pdata->U;
+  auto& Uintermediate = pdata->Uintermediate;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   const int ndim = pdata->ndim;
@@ -561,9 +568,10 @@ void GravitySolver_multigrid::restriction_from_parents(const Array_t& U, const A
  * @param Uintermediate[in]: The intermediate data to read from
  * @param level[in]: The grid level
 */
-template< typename Array_t >
-void GravitySolver_multigrid::restriction_from_children(const Array_t& U, const Array_t& Uintermediate, const level_t level) 
+void GravitySolver_multigrid::restriction_from_children(const level_t level) 
 {
+  auto& U = pdata->U;
+  auto& Uintermediate = pdata->Uintermediate;
   ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   constexpr real_t inv_ns = 1./8;
@@ -585,8 +593,6 @@ void GravitySolver_multigrid::restriction_from_children(const Array_t& U, const 
     Kokkos::atomic_add( &Uintermediate.at( iCell_p, Imask ), Uintermediate.at( iCell, Imask ) * inv_ns );
   }); 
 }
-
-
 
 
 /**
@@ -623,9 +629,10 @@ real_t GravitySolver_multigrid::get_neighbor_value(const Array_t& U, const Array
  * @param level[in]: The grid level
  * @return the solution at a given level 
 */
-template< typename Array_t >
-void GravitySolver_multigrid::prolongation_from_children(const Array_t& U, const Array_t& Uintermediate, const level_t level) 
+void GravitySolver_multigrid::prolongation_from_children(const level_t level) 
 {
+  auto& U = pdata->U;
+  auto& Uintermediate = pdata->Uintermediate;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   constexpr real_t f0 = 27.0 / 64;
@@ -693,9 +700,10 @@ void GravitySolver_multigrid::prolongation_from_children(const Array_t& U, const
  * @param level[in]: The grid level
  * @return the solution at a given level 
 */
-template< typename Array_t >
-void GravitySolver_multigrid::prolongation_from_children_on_intermediate(const Array_t& U, const Array_t& Uintermediate, const level_t level) 
+void GravitySolver_multigrid::prolongation_from_children_on_intermediate(const level_t level) 
 {
+  auto& U = pdata->U;
+  auto& Uintermediate = pdata->Uintermediate;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   constexpr real_t f0 = 27.0 / 64;
@@ -738,9 +746,10 @@ void GravitySolver_multigrid::prolongation_from_children_on_intermediate(const A
  * @param level[in]: The grid level
  * @return the residual at a given level 
 */
-template< typename Array_t >
-void GravitySolver_multigrid::check_parents(const Array_t& U, const Array_t& Uintermediate)
+void GravitySolver_multigrid::check_parents()
 {
+  const auto& U = pdata->U;
+  const auto& Uintermediate = pdata->Uintermediate;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   foreach_cell.foreach_cell("Set solution to zero", U.getShape(),
@@ -769,9 +778,10 @@ void GravitySolver_multigrid::check_parents(const Array_t& U, const Array_t& Uin
  * @param level[in]: The grid level
  * @return the residual at a given level 
 */
-template< typename Array_t >
-void GravitySolver_multigrid::zero_solution(const Array_t& U, const Array_t& Uintermediate, const level_t level)
+void GravitySolver_multigrid::zero_solution(const level_t level)
 {
+  auto& U = pdata->U;
+  auto& Uintermediate = pdata->Uintermediate;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   const auto octs = get_subview_octs(level);
@@ -798,9 +808,10 @@ void GravitySolver_multigrid::zero_solution(const Array_t& U, const Array_t& Uin
  * @param Uintermediate[in]: The intermediate data to read from
  * @param finest_level[in]: The grid level
 */
-template< typename Array_t >
-void GravitySolver_multigrid::initialise_mask(const Array_t& U, const Array_t& Uintermediate, const uint32_t finest_level)
+void GravitySolver_multigrid::initialise_mask(const uint32_t finest_level)
 {
+  auto& U = pdata->U;
+  auto& Uintermediate = pdata->Uintermediate;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   const auto octs = get_subview_octs(0, finest_level);
@@ -833,9 +844,10 @@ void GravitySolver_multigrid::initialise_mask(const Array_t& U, const Array_t& U
  * @param Uintermediate[in]: The intermediate data to read from
  * @param level[in]: The grid level
 */
-template< typename Array_t >
-void GravitySolver_multigrid::zero_solution_residual_rhs(const Array_t& U, const Array_t& Uintermediate, const level_t level)
+void GravitySolver_multigrid::zero_solution_residual_rhs(const level_t level)
 {
+  auto& U = pdata->U;
+  auto& Uintermediate = pdata->Uintermediate;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   const auto octs = get_subview_octs(0, level);
@@ -866,9 +878,9 @@ void GravitySolver_multigrid::zero_solution_residual_rhs(const Array_t& U, const
  * @param Uintermediate[in]: The intermediate data to read from
  * @param level[in]: The grid level
 */
-template< typename Array_t >
-void GravitySolver_multigrid::zero_rhs_mask_intermediate(const Array_t& Uintermediate, const level_t level)
+void GravitySolver_multigrid::zero_rhs_mask_intermediate(const level_t level)
 {
+  auto& Uintermediate = pdata->Uintermediate;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   const auto octs_intermediate = get_subview_octs_intermediate(level);
@@ -897,9 +909,10 @@ void GravitySolver_multigrid::zero_rhs_mask_intermediate(const Array_t& Uinterme
  * @param Uintermediate[in]: The intermediate data to read from
  * @param level[in]: The grid level
 */
-template< typename Array_t >
-void GravitySolver_multigrid::solution_to_potential(const Array_t& U, const Array_t& Uintermediate, const level_t level)
+void GravitySolver_multigrid::solution_to_potential(const level_t level)
 {
+  auto& U = pdata->U;
+  auto& Uintermediate = pdata->Uintermediate;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   const auto octs = get_subview_octs(level);
@@ -958,17 +971,18 @@ bool GravitySolver_multigrid::isBlack(const CellIndex& iCell)
  * @param is_coloured[in]: function that check if cell is coloured
  * @param level[in]: The grid level
 */
-template< typename Array_t, typename Function >
-void GravitySolver_multigrid::gauss_seidel_intermediate_amr_correction(const Array_t& Uintermediate, const level_t level, const Function& is_coloured) 
+template< typename Function >
+void GravitySolver_multigrid::gauss_seidel_intermediate_amr_correction(const level_t level, const Function& is_coloured) 
 {
+  auto& Uintermediate = pdata->Uintermediate;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   const auto& iter_space = Uintermediate.getShape();
   const uint32_t nocts1d = 1U << level;
   const Kokkos::Array<real_t, 3> size = {
-    1./(nocts1d * iter_space.bx), 
-    1./(nocts1d * iter_space.by), 
-    1./(nocts1d * iter_space.bz)
+        1./(nocts1d * iter_space.bx), 
+        1./(nocts1d * iter_space.by), 
+        1./(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
 
@@ -1034,17 +1048,19 @@ void GravitySolver_multigrid::gauss_seidel_intermediate_amr_correction(const Arr
  * @param is_coloured[in]: function that check if cell is coloured
  * @param level[in]: The grid level
 */
-template< typename Array_t, typename Function >
-void GravitySolver_multigrid::gauss_seidel_leaves_amr_finest(const Array_t& U, const Array_t& Uintermediate, const level_t level, const Function& is_coloured) 
+template< typename Function >
+void GravitySolver_multigrid::gauss_seidel_leaves_amr_finest(const level_t level, const Function& is_coloured) 
 {
+  auto& U = pdata->U;
+  const auto& Uintermediate = pdata->Uintermediate;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   const auto& iter_space = U.getShape();
   const uint32_t nocts1d = 1U << level;
   const Kokkos::Array<real_t, 3> size = {
-    1./(nocts1d * iter_space.bx), 
-    1./(nocts1d * iter_space.by), 
-    1./(nocts1d * iter_space.bz)
+        1./(nocts1d * iter_space.bx), 
+        1./(nocts1d * iter_space.by), 
+        1./(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
 
@@ -1104,17 +1120,19 @@ void GravitySolver_multigrid::gauss_seidel_leaves_amr_finest(const Array_t& U, c
  * @param is_coloured[in]: function that check if cell is coloured
  * @param level[in]: The grid level
 */
-template< typename Array_t, typename Function >
-void GravitySolver_multigrid::gauss_seidel_leaves_uniform(const Array_t& U, const Array_t& Uintermediate, const level_t level, const Function& is_coloured) 
+template< typename Function >
+void GravitySolver_multigrid::gauss_seidel_leaves_uniform(const level_t level, const Function& is_coloured) 
 {
+  auto& U = pdata->U;
+  const auto& Uintermediate = pdata->Uintermediate;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   const auto& iter_space = U.getShape();
   const uint32_t nocts1d = 1U << level;
   const Kokkos::Array<real_t, 3> size = {
-    1./(nocts1d * iter_space.bx), 
-    1./(nocts1d * iter_space.by), 
-    1./(nocts1d * iter_space.bz)
+        1./(nocts1d * iter_space.bx), 
+        1./(nocts1d * iter_space.by), 
+        1./(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
 
@@ -1164,17 +1182,19 @@ void GravitySolver_multigrid::gauss_seidel_leaves_uniform(const Array_t& U, cons
  * @param is_coloured[in]: function that check if cell is coloured
  * @param level[in]: The grid level
 */
-template< typename Array_t, typename Function >
-void GravitySolver_multigrid::gauss_seidel_intermediate(const Array_t& U, const Array_t& Uintermediate, const level_t level, const Function& is_coloured) 
+template< typename Function >
+void GravitySolver_multigrid::gauss_seidel_intermediate(const level_t level, const Function& is_coloured) 
 {
+  const auto& U = pdata->U;
+  auto& Uintermediate = pdata->Uintermediate;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   const auto& iter_space = U.getShape();
   const uint32_t nocts1d = 1U << level;
   const Kokkos::Array<real_t, 3> size = {
-    1./(nocts1d * iter_space.bx), 
-    1./(nocts1d * iter_space.by), 
-    1./(nocts1d * iter_space.bz)
+        1./(nocts1d * iter_space.bx), 
+        1./(nocts1d * iter_space.by), 
+        1./(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
 
@@ -1225,21 +1245,20 @@ void GravitySolver_multigrid::gauss_seidel_intermediate(const Array_t& U, const 
  * @param nIterations[in]: Number of Gauss-Seidel sweeps
  * @param level[in]: The grid level
 */
-template< typename Array_t >
-void GravitySolver_multigrid::smoothing_intermediate_amr_correction(const Array_t& Uintermediate, const uint32_t nIterations, const level_t level, const GhostCommunicator& ghost_comm) 
+void GravitySolver_multigrid::smoothing_intermediate_amr_correction(UserData& U_, const uint32_t nIterations, const level_t level, const GhostCommunicator& ghost_comm) 
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const MpiComm& mpicomm = foreach_cell.get_amr_mesh().getMpiComm();
   const bool isDistributed = mpicomm.MPI_Comm_size() > 1;
   const bool isMPILevel = isDistributed && (level >= pdata->first_mpi_multigrid_level);
   for (uint32_t i = 0; i < nIterations; i++) {
-    gauss_seidel_intermediate_amr_correction(Uintermediate, level, KOKKOS_LAMBDA(const CellIndex& iCell){return isRed(iCell);});
+    gauss_seidel_intermediate_amr_correction(level, KOKKOS_LAMBDA(const CellIndex& iCell){return isRed(iCell);});
     if (isMPILevel) 
-      ghost_comm.exchange_intermediate_ghosts(Uintermediate);
+      exchange_specific_intermediate_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
 
-    gauss_seidel_intermediate_amr_correction(Uintermediate, level, KOKKOS_LAMBDA(const CellIndex& iCell){return isBlack(iCell);});
+    gauss_seidel_intermediate_amr_correction(level, KOKKOS_LAMBDA(const CellIndex& iCell){return isBlack(iCell);});
     if (isMPILevel)
-      ghost_comm.exchange_intermediate_ghosts(Uintermediate);
+      exchange_specific_intermediate_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
   }
 }
 
@@ -1254,29 +1273,28 @@ void GravitySolver_multigrid::smoothing_intermediate_amr_correction(const Array_
  * @param nIterations[in]: Number of Gauss-Seidel sweeps
  * @param level[in]: The grid level
 */
-template< typename Array_t >
-void GravitySolver_multigrid::smoothing_uniform(const Array_t& U, const Array_t& Uintermediate, const uint32_t nIterations, const level_t level, const GhostCommunicator& ghost_comm) 
+void GravitySolver_multigrid::smoothing_uniform(UserData& U_, const uint32_t nIterations, const level_t level, const GhostCommunicator& ghost_comm) 
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const MpiComm& mpicomm = foreach_cell.get_amr_mesh().getMpiComm();
   const bool isDistributed = mpicomm.MPI_Comm_size() > 1;
   const bool isMPILevel = isDistributed && (level >= pdata->first_mpi_multigrid_level);
   for (uint32_t i = 0; i < nIterations; i++) {
-    gauss_seidel_leaves_uniform(U, Uintermediate, level, KOKKOS_LAMBDA(const CellIndex& iCell){return isRed(iCell);});
+    gauss_seidel_leaves_uniform(level, KOKKOS_LAMBDA(const CellIndex& iCell){return isRed(iCell);});
     if (isMPILevel)
-      ghost_comm.exchange_ghosts(U);
+      exchange_specific_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
 
-    gauss_seidel_intermediate(U, Uintermediate, level, KOKKOS_LAMBDA(const CellIndex& iCell){return isRed(iCell);});
+    gauss_seidel_intermediate(level, KOKKOS_LAMBDA(const CellIndex& iCell){return isRed(iCell);});
     if (isMPILevel)
-      ghost_comm.exchange_intermediate_ghosts(Uintermediate);
+      exchange_specific_intermediate_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
 
-    gauss_seidel_leaves_uniform(U, Uintermediate, level, KOKKOS_LAMBDA(const CellIndex& iCell){return isBlack(iCell);});
+    gauss_seidel_leaves_uniform(level, KOKKOS_LAMBDA(const CellIndex& iCell){return isBlack(iCell);});
     if (isMPILevel)
-      ghost_comm.exchange_ghosts(U);
+      exchange_specific_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
 
-    gauss_seidel_intermediate(U, Uintermediate, level, KOKKOS_LAMBDA(const CellIndex& iCell){return isBlack(iCell);});
+    gauss_seidel_intermediate(level, KOKKOS_LAMBDA(const CellIndex& iCell){return isBlack(iCell);});
     if (isMPILevel)
-      ghost_comm.exchange_intermediate_ghosts(Uintermediate);
+      exchange_specific_intermediate_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
   }
 }
 
@@ -1291,29 +1309,28 @@ void GravitySolver_multigrid::smoothing_uniform(const Array_t& U, const Array_t&
  * @param level[in]: The grid level
  * @return the residual at a given level 
 */
-template< typename Array_t >
-void GravitySolver_multigrid::smoothing_amr_finest(const Array_t& U, const Array_t& Uintermediate, const uint32_t nIterations, const level_t level, const GhostCommunicator& ghost_comm) 
+void GravitySolver_multigrid::smoothing_amr_finest(UserData& U_, const uint32_t nIterations, const level_t level, const GhostCommunicator& ghost_comm) 
 {
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const MpiComm& mpicomm = foreach_cell.get_amr_mesh().getMpiComm();
   const bool isDistributed = mpicomm.MPI_Comm_size() > 1;
   const bool isMPILevel = isDistributed && (level >= pdata->first_mpi_multigrid_level);
   for (uint32_t i = 0; i < nIterations; i++) {
-    gauss_seidel_leaves_amr_finest(U, Uintermediate, level, KOKKOS_LAMBDA(const CellIndex& iCell){return isRed(iCell);});
+    gauss_seidel_leaves_amr_finest(level, KOKKOS_LAMBDA(const CellIndex& iCell){return isRed(iCell);});
     if (isMPILevel)
-      ghost_comm.exchange_ghosts(U);
+      exchange_specific_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
 
-    gauss_seidel_intermediate(U, Uintermediate, level, KOKKOS_LAMBDA(const CellIndex& iCell){return isRed(iCell);});
+    gauss_seidel_intermediate(level, KOKKOS_LAMBDA(const CellIndex& iCell){return isRed(iCell);});
     if (isMPILevel)
-      ghost_comm.exchange_intermediate_ghosts(Uintermediate);
+      exchange_specific_intermediate_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
 
-    gauss_seidel_leaves_amr_finest(U, Uintermediate, level, KOKKOS_LAMBDA(const CellIndex& iCell){return isBlack(iCell);});
+    gauss_seidel_leaves_amr_finest(level, KOKKOS_LAMBDA(const CellIndex& iCell){return isBlack(iCell);});
     if (isMPILevel)
-      ghost_comm.exchange_ghosts(U);
+      exchange_specific_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
 
-    gauss_seidel_intermediate(U, Uintermediate, level, KOKKOS_LAMBDA(const CellIndex& iCell){return isBlack(iCell);});
+    gauss_seidel_intermediate(level, KOKKOS_LAMBDA(const CellIndex& iCell){return isBlack(iCell);});
     if (isMPILevel)
-      ghost_comm.exchange_intermediate_ghosts(Uintermediate);
+      exchange_specific_intermediate_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
   }
 }
 
@@ -1327,8 +1344,7 @@ void GravitySolver_multigrid::smoothing_amr_finest(const Array_t& U, const Array
  * @param level[in]: The grid level
  * @return the residual at a given level 
 */
-template< typename Array_t >
-void GravitySolver_multigrid::V_cycle_uniform(Array_t& U, Array_t& Uintermediate, const level_t level, const GhostCommunicator& ghost_comm_minimal, const GhostCommunicator& ghost_comm_blockwide) 
+void GravitySolver_multigrid::V_cycle_uniform(UserData& U_, const level_t level, const GhostCommunicator& ghost_comm_minimal, const GhostCommunicator& ghost_comm_blockwide) 
 {  
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const MpiComm& mpicomm = foreach_cell.get_amr_mesh().getMpiComm();
@@ -1336,39 +1352,42 @@ void GravitySolver_multigrid::V_cycle_uniform(Array_t& U, Array_t& Uintermediate
   const bool isFirstMPILevel = isDistributed && (level == pdata->first_mpi_multigrid_level);
   const bool isMPILevel = isDistributed && (level >= pdata->first_mpi_multigrid_level);
   
-  smoothing_uniform(U, Uintermediate, pdata->Npre, level, ghost_comm_minimal);
-  residual_uniform(U, Uintermediate, level);
+  smoothing_uniform(U_, pdata->Npre, level, ghost_comm_minimal);
+  residual_uniform(level);
 
   if (isMPILevel){
-    ghost_comm_minimal.exchange_ghosts(U);
-    ghost_comm_minimal.exchange_intermediate_ghosts(Uintermediate);
+    exchange_specific_ghosts_at_level(U_, level, {"res"}, ghost_comm_minimal);
+    exchange_specific_intermediate_ghosts_at_level(U_, level, {"res"}, ghost_comm_minimal);
   }
 
-  zero_rhs_mask_intermediate(Uintermediate, level - 1);
-  restriction_from_children(U, Uintermediate, level - 1);
+  zero_rhs_mask_intermediate(level - 1);
+  restriction_from_children(level - 1);
 
   if (isFirstMPILevel) 
-    reduce_nonMPI_levels(Uintermediate, pdata->first_mpi_multigrid_level, make_array<int, 2>({Irhs, Imask}));
+    reduce_nonMPI_levels(pdata->first_mpi_multigrid_level, make_array<int, 2>({Irhs, Imask}));
   else if (isMPILevel){
-    ghost_comm_blockwide.reduce_intermediate_ghosts_at_level(Uintermediate, level - 1, make_array<int, 2>({Irhs, Imask}));
-    ghost_comm_blockwide.exchange_intermediate_ghosts(Uintermediate); // Useful?
+    reduce_specific_intermediate_ghosts_at_level(U_, level - 1, {"rhs", "mask"}, ghost_comm_blockwide);
   }
 
-  initialise_intermediate_lhs(Uintermediate, level - 1);
+  initialise_intermediate_lhs(level - 1);
   if (isMPILevel)
-  ghost_comm_minimal.exchange_intermediate_ghosts(Uintermediate);
+    exchange_specific_intermediate_ghosts_at_level(U_, level - 1, {"solution", "rhs", "mask"}, ghost_comm_blockwide);
 
   if (level == 1) {
-      smoothing_uniform(U, Uintermediate, pdata->Npre, level - 1, ghost_comm_blockwide);
+      smoothing_uniform(U_, pdata->Npre, level - 1, ghost_comm_blockwide);
   }
-  else V_cycle_uniform(U, Uintermediate, level - 1, ghost_comm_minimal, ghost_comm_blockwide);
+  else V_cycle_uniform(U_, level - 1, ghost_comm_minimal, ghost_comm_blockwide);
     
-  prolongation_from_children(U, Uintermediate, level); // Also add case for prolongation_on_intermediates
+  if (level < pdata->level_coarse)
+    prolongation_from_children_on_intermediate(level);
+  else 
+    prolongation_from_children(level);
+
   if (isMPILevel){
-    ghost_comm_blockwide.exchange_ghosts(U);
-    ghost_comm_blockwide.exchange_intermediate_ghosts(Uintermediate);
+    exchange_specific_ghosts_at_level(U_, level, {"solution"}, ghost_comm_blockwide);
+    exchange_specific_intermediate_ghosts_at_level(U_, level, {"solution"}, ghost_comm_blockwide);
   } 
-  smoothing_uniform(U, Uintermediate, pdata->Npost, level, ghost_comm_blockwide);
+  smoothing_uniform(U_, pdata->Npost, level, ghost_comm_blockwide);
 }
 
 
@@ -1382,8 +1401,7 @@ void GravitySolver_multigrid::V_cycle_uniform(Array_t& U, Array_t& Uintermediate
  * @param level[in]: The grid level
  * @return the residual at a given level 
 */
-template< typename Array_t >
-void GravitySolver_multigrid::V_cycle_amr(Array_t& U, Array_t& Uintermediate, const uint8_t current_level, const uint32_t finest_level, const GhostCommunicator& ghost_comm_minimal, const GhostCommunicator& ghost_comm_blockwide) 
+void GravitySolver_multigrid::V_cycle_amr(UserData& U_, const uint8_t current_level, const uint32_t finest_level, const GhostCommunicator& ghost_comm_minimal, const GhostCommunicator& ghost_comm_blockwide) 
 {  
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const MpiComm& mpicomm = foreach_cell.get_amr_mesh().getMpiComm();
@@ -1394,51 +1412,50 @@ void GravitySolver_multigrid::V_cycle_amr(Array_t& U, Array_t& Uintermediate, co
   // Full Multigrid
 
   if ( current_level == finest_level ) {
-    smoothing_amr_finest(U, Uintermediate, pdata->Npre, current_level, ghost_comm_minimal);
-    residual_amr_finest(U, Uintermediate, current_level);
+    smoothing_amr_finest(U_, pdata->Npre, current_level, ghost_comm_minimal);
+    residual_amr_finest(current_level);
   } else {
-    smoothing_intermediate_amr_correction(Uintermediate, pdata->Npre, current_level, ghost_comm_minimal);
-    residual_intermediate_amr_correction(Uintermediate, current_level);
+    smoothing_intermediate_amr_correction(U_, pdata->Npre, current_level, ghost_comm_minimal);
+    residual_intermediate_amr_correction(current_level);
   }
 
   if (isMPILevel){
-    ghost_comm_minimal.exchange_ghosts(U);
-    ghost_comm_minimal.exchange_intermediate_ghosts(Uintermediate);
+    exchange_specific_ghosts_at_level(U_, current_level, {"res"}, ghost_comm_minimal);
+    exchange_specific_intermediate_ghosts_at_level(U_, current_level, {"res"}, ghost_comm_minimal);
   }
 
-  zero_rhs_mask_intermediate(Uintermediate, current_level - 1);
-  restriction_from_children(U, Uintermediate, current_level - 1);
+  zero_rhs_mask_intermediate(current_level - 1);
+  restriction_from_children(current_level - 1);
 
   if (isFirstMPILevel) {
-    reduce_nonMPI_levels(Uintermediate, pdata->first_mpi_multigrid_level, make_array<int, 2>({Irhs, Imask}));
+    reduce_nonMPI_levels(pdata->first_mpi_multigrid_level, make_array<int, 2>({Irhs, Imask}));
   } else if (isMPILevel){
-    ghost_comm_blockwide.reduce_intermediate_ghosts_at_level(Uintermediate, current_level - 1, make_array<int, 2>({Irhs, Imask}));
-    ghost_comm_blockwide.exchange_intermediate_ghosts(Uintermediate); // Useful?
+    reduce_specific_intermediate_ghosts_at_level(U_, current_level - 1, {"rhs", "mask"}, ghost_comm_blockwide);
   }
 
-  initialise_intermediate_lhs(Uintermediate, current_level - 1);
+  initialise_intermediate_lhs(current_level - 1);
   if (isMPILevel && !isFirstMPILevel){
-    ghost_comm_minimal.exchange_intermediate_ghosts(Uintermediate);
+    exchange_specific_intermediate_ghosts_at_level(U_, current_level - 1, {"solution", "rhs", "mask"}, ghost_comm_blockwide);
   }
 
   if ( finest_level - 3 == current_level ) { // TODO: finest - 2 seems to works aswell for spherical symmetry. Check for more realistic cases
-      smoothing_intermediate_amr_correction(Uintermediate, pdata->Npre, pdata->level_coarse, ghost_comm_minimal);
-  } else V_cycle_amr(U, Uintermediate, current_level - 1, finest_level, ghost_comm_minimal, ghost_comm_blockwide); 
+      smoothing_intermediate_amr_correction(U_, pdata->Npre, pdata->level_coarse, ghost_comm_minimal);
+  } else V_cycle_amr(U_, current_level - 1, finest_level, ghost_comm_minimal, ghost_comm_blockwide); 
   
   if ( current_level == finest_level ) {
-    prolongation_from_children(U, Uintermediate, current_level);
+    prolongation_from_children(current_level);
     if (isMPILevel){
-      ghost_comm_minimal.exchange_ghosts(U);
-      ghost_comm_minimal.exchange_intermediate_ghosts(Uintermediate);
+      exchange_specific_ghosts_at_level(U_, current_level, {"solution"}, ghost_comm_minimal);
+      exchange_specific_intermediate_ghosts_at_level(U_, current_level, {"solution"}, ghost_comm_minimal);
     }
-    smoothing_amr_finest(U, Uintermediate, pdata->Npost, current_level, ghost_comm_minimal);
+    smoothing_amr_finest(U_, pdata->Npost, current_level, ghost_comm_minimal);
   } else {
-    prolongation_from_children_on_intermediate(U, Uintermediate, current_level); 
+    prolongation_from_children_on_intermediate(current_level); 
     if (isMPILevel){
-      ghost_comm_minimal.exchange_intermediate_ghosts(Uintermediate); 
+      exchange_specific_intermediate_ghosts_at_level(U_, current_level, {"solution"}, ghost_comm_minimal);
     }
 
-    smoothing_intermediate_amr_correction(Uintermediate, pdata->Npost, current_level, ghost_comm_minimal);
+    smoothing_intermediate_amr_correction(U_, pdata->Npost, current_level, ghost_comm_minimal);
   }   
     
 }
@@ -1509,11 +1526,12 @@ uint32_t GravitySolver_multigrid::MPI_Allreduce_int_max( uint32_t local_v )
   return res;
 }
 
-template< typename Array_t, typename T, size_t N >
-void GravitySolver_multigrid::reduce_nonMPI_levels(const Array_t& Uintermediate, const level_t first_mpi_multigrid_level, const Kokkos::Array<T, N> iFields) 
+template< typename T, size_t N >
+void GravitySolver_multigrid::reduce_nonMPI_levels(const level_t first_mpi_multigrid_level, const Kokkos::Array<T, N> iFields) 
 {
   uint32_t num_vars = N; // number of vars for each cell
 
+  auto& Uintermediate = pdata->Uintermediate;
   ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   const MpiComm& mpi_comm = foreach_cell.get_amr_mesh().getMpiComm();
@@ -1720,13 +1738,14 @@ void GravitySolver_multigrid::count_octants_per_level(const LightOctree& lmesh)
   const auto ghosts_intermediate_per_level_count_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), ghosts_intermediate_per_level_count);
 
 
-  for(level_t ilevel = 0; ilevel <= level_max; ilevel++){ 
+  for(level_t ilevel = 0; ilevel <= level_max; ilevel++)
+  { 
     const uint32_t octs = octs_per_level_count_host(ilevel);
     const uint32_t ghosts = ghosts_per_level_count_host(ilevel);
     const uint32_t octs_intermediate = octs_intermediate_per_level_count_host(ilevel);
     const uint32_t ghosts_intermediate = ghosts_intermediate_per_level_count_host(ilevel);
-    const real_t mean_total_nbOctants_per_dimension = Kokkos::floor(Kokkos::cbrt(octs+ghosts+octs_intermediate+ghosts_intermediate));
-    const real_t total_nbOctants_per_dimension = (1U << ilevel);
+    [[maybe_unused]] const real_t mean_total_nbOctants_per_dimension = Kokkos::floor(Kokkos::cbrt(octs+ghosts+octs_intermediate+ghosts_intermediate));
+    [[maybe_unused]] const real_t total_nbOctants_per_dimension = (1U << ilevel);
     DYABLO_ASSERT_KOKKOS_DEBUG( mean_total_nbOctants_per_dimension <= total_nbOctants_per_dimension, "Cannot count more octants per level than there are in the simulation" );
     printf("Rank %d Octree Level %d, octs %u (+ %u) intermediate %u (+ %u)\n", mpi_rank, ilevel, octs, ghosts, octs_intermediate, ghosts_intermediate);
   }
@@ -1788,6 +1807,7 @@ const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_ghosts(const 
 {return get_subview_ghosts(level, level);}
 const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_ghosts_intermediate(const level_t level) const
 {return get_subview_ghosts_intermediate(level, level);}
+
 const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_octs(const level_t level_min, const level_t level_max) const
 {
   DYABLO_ASSERT_KOKKOS_DEBUG( level_min < pdata->octs_per_level_count.size(), "Level out of bounds in octs_per_level_count" );
@@ -1819,6 +1839,66 @@ Kokkos::Array<T, N> GravitySolver_multigrid::make_array(const Kokkos::Array<T, N
     return vals;
 }
 //} // namespace
+
+template <class GhostComm >
+void GravitySolver_multigrid::exchange_specific_ghosts(UserData& U_, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm)
+{
+  std::vector<UserData::FieldAccessor::FieldInfo> field_info;
+  for(uint8_t i=0; i<exchange_vars.size(); i++)
+    field_info.push_back( {exchange_vars[i],i} );
+  auto Uexchange = U_.getAccessor(field_info);
+  ghost_comm.exchange_ghosts( Uexchange );
+};
+
+template <class GhostComm >
+void GravitySolver_multigrid::exchange_specific_intermediate_ghosts(UserData& U_, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm)
+{
+  std::vector<UserData::FieldAccessor::FieldInfo> field_info;
+  for(uint8_t i=0; i<exchange_vars.size(); i++)
+    field_info.push_back( {exchange_vars[i],i} );
+  auto Uexchange = U_.getAccessor_intermediate(field_info);
+  ghost_comm.exchange_intermediate_ghosts( Uexchange );
+};
+
+template <class GhostComm >
+void GravitySolver_multigrid::exchange_specific_ghosts_at_level(UserData& U_, const uint8_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm)
+{
+  std::vector<UserData::FieldAccessor::FieldInfo> field_info;
+  for(uint8_t i=0; i<exchange_vars.size(); i++)
+    field_info.push_back( {exchange_vars[i],i} );
+  auto Uexchange = U_.getAccessor(field_info);
+  ghost_comm.exchange_ghosts_at_level( Uexchange, level );
+};
+
+template <class GhostComm >
+void GravitySolver_multigrid::exchange_specific_intermediate_ghosts_at_level(UserData& U_, const uint8_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm)
+{
+  std::vector<UserData::FieldAccessor::FieldInfo> field_info;
+  for(uint8_t i=0; i<exchange_vars.size(); i++)
+    field_info.push_back( {exchange_vars[i],i} );
+  auto Uexchange = U_.getAccessor_intermediate(field_info);
+  ghost_comm.exchange_intermediate_ghosts_at_level( Uexchange, level );
+};
+
+template <class GhostComm >
+void GravitySolver_multigrid::reduce_specific_ghosts_at_level(UserData& U_, const uint8_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm)
+{
+  std::vector<UserData::FieldAccessor::FieldInfo> field_info;
+  for(uint8_t i=0; i<exchange_vars.size(); i++)
+    field_info.push_back( {exchange_vars[i],i} );
+  auto Uexchange = U_.getAccessor(field_info);
+  ghost_comm.reduce_ghosts_at_level( Uexchange, level );
+};
+
+template <class GhostComm >
+void GravitySolver_multigrid::reduce_specific_intermediate_ghosts_at_level(UserData& U_, const uint8_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm)
+{
+  std::vector<UserData::FieldAccessor::FieldInfo> field_info;
+  for(uint8_t i=0; i<exchange_vars.size(); i++)
+    field_info.push_back( {exchange_vars[i],i} );
+  auto Uexchange = U_.getAccessor_intermediate(field_info);
+  ghost_comm.reduce_intermediate_ghosts_at_level( Uexchange, level );
+};
 
 /**
  * @brief Solves the Poisson equation and updates the gravity field
@@ -1886,6 +1966,8 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
     { "mask", Imask },
     });
   
+  pdata->U = U;
+  pdata->Uintermediate = Uintermediate;
  
   // Compute ghost communicators
   const auto& iter_space = U.getShape();
@@ -1899,13 +1981,17 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   );
   ghost_comm_minimal.init_intermediates(foreach_cell.get_amr_mesh(), iter_space, 1, mpi_comm);
   ghost_comm_blockwide.init_intermediates(foreach_cell.get_amr_mesh(), iter_space, iter_space.bx, mpi_comm);
+  ghost_comm_minimal.sort_ghosts_by_levels(lmesh, U.getShape(), global_max_level_found);
+  ghost_comm_blockwide.sort_ghosts_by_levels(lmesh, U.getShape(), global_max_level_found);
+  ghost_comm_minimal.sort_intermediate_ghosts_by_levels(lmesh, U.getShape(), global_max_level_found);
+  ghost_comm_blockwide.sort_intermediate_ghosts_by_levels(lmesh, U.getShape(), global_max_level_found);
 
   // Count and list octants per level
   count_octants_per_level(lmesh);
   list_octants_per_level(lmesh);
 
   // Additional check
-  check_parents(U, Uintermediate);
+  check_parents();
   // Compute rho mean
   real_t rho_mean = 0;
   const real_t xmin(pdata->xmin), ymin(pdata->ymin), zmin(pdata->zmin);
@@ -1938,7 +2024,7 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
     U.at(iCell, Irhs) = rhs;
     U.at(iCell, Isolution) = -rhs / (2. / (size[IX]*size[IX]) + 2. / (size[IY]*size[IY]) + 2. / (size[IZ]*size[IZ]));
   });
-  ghost_comm_blockwide.exchange_ghosts(U);
+  exchange_specific_ghosts(U_, {"solution"}, ghost_comm_blockwide);
   // Initialize RHS on intermediate levels. Solution will be interpolated from coarser levels so no need to initialize
   constexpr int ns = 8; 
 
@@ -1958,50 +2044,52 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
       const CellIndex iCell_p = iCell.getParent(Uintermediate.getShape());     
       Kokkos::atomic_add( &Uintermediate.at( iCell_p, Irho ), Uintermediate.at( iCell, Irho ) / ns );
     });
-    ghost_comm_blockwide.reduce_intermediate_ghosts_at_level(Uintermediate, level, make_array<int, 1>({Irho}));
-    ghost_comm_blockwide.exchange_intermediate_ghosts(Uintermediate); // Useful?
+    reduce_specific_intermediate_ghosts_at_level(U_, level, {"rho"}, ghost_comm_blockwide);
+    exchange_specific_intermediate_ghosts_at_level(U_, level, {"rho"}, ghost_comm_blockwide); // Useful?
   }
   foreach_cell.foreach_intermediate_cell( "Set RHS of Laplacian, based on rho", Uintermediate.getShape(),
   KOKKOS_LAMBDA( CellIndex& iCell)
   {
     Uintermediate.at( iCell, Irhs ) = (cosmo_run) ? b_cosmo(Uintermediate, iCell, rho_mean, aexp) : b(Uintermediate, iCell, rho_mean, four_Pi_G); //rho - rho_mean;
   }); 
-  ghost_comm_blockwide.exchange_intermediate_ghosts(Uintermediate);
 
-  residual_uniform(U, Uintermediate, level_coarse);
-  solution_to_potential(U, Uintermediate, level_coarse);
-  const real_t residual = residual_norm(U, Uintermediate, level_coarse);
+  residual_uniform(level_coarse);
+  solution_to_potential(level_coarse);
+  const real_t residual = residual_norm(level_coarse);
   if (mpi_rank == 0) printf("Level %d Residual norm init  V %.8e\n", level_coarse, residual);
 
   // Multigrid
   if (mpi_rank == 0) printf("Coarse Multigrid\n");
   for(uint32_t i = 0; i < pdata->Ncycles; i++)
   { 
-    V_cycle_uniform(U, Uintermediate, level_coarse, ghost_comm_minimal, ghost_comm_blockwide);
-    residual_uniform(U, Uintermediate, level_coarse);
-    solution_to_potential(U, Uintermediate, level_coarse);
-    const real_t residual = residual_norm(U, Uintermediate, level_coarse);
+    V_cycle_uniform(U_, level_coarse, ghost_comm_minimal, ghost_comm_blockwide);
+    residual_uniform(level_coarse);
+    solution_to_potential(level_coarse);
+    const real_t residual = residual_norm(level_coarse);
     if (mpi_rank == 0) printf("Level %d Residual norm after V %.8e\n", level_coarse, residual);
   }
   
   if (mpi_rank == 0) printf("AMR Multigrid\n");
   for (level_t ilevel = level_coarse+1; ilevel <= global_max_level_found; ilevel++) {
-    zero_solution(U, Uintermediate, ilevel);
-    prolongation_from_children(U, Uintermediate, ilevel);
-    zero_solution_residual_rhs(U, Uintermediate, ilevel-1);
-    solution_to_potential(U, Uintermediate, ilevel);
-    initialise_mask(U, Uintermediate, ilevel);
-    ghost_comm_minimal.exchange_ghosts(U);
-    ghost_comm_minimal.exchange_intermediate_ghosts(Uintermediate);
-
+    zero_solution(ilevel);
+    prolongation_from_children(ilevel);
+    zero_solution_residual_rhs(ilevel-1);
+    solution_to_potential(ilevel);
+    initialise_mask(ilevel);
+    exchange_specific_ghosts_at_level(U_, ilevel - 1, {"gphi","solution"}, ghost_comm_minimal); 
+    exchange_specific_intermediate_ghosts_at_level(U_, ilevel - 1, {"gphi","solution"}, ghost_comm_minimal);
+    exchange_specific_ghosts_at_level(U_, ilevel, {"gphi", "solution"}, ghost_comm_minimal);
+    exchange_specific_intermediate_ghosts_at_level(U_, ilevel, {"gphi", "solution"}, ghost_comm_minimal);
     for(uint32_t i = 0; i < pdata->Ncycles; i++)
     { 
-      V_cycle_amr(U, Uintermediate, ilevel, ilevel, ghost_comm_minimal, ghost_comm_blockwide);
-      residual_amr_finest(U, Uintermediate, ilevel);
-      solution_to_potential(U, Uintermediate, ilevel);
-      const real_t residual = residual_norm(U, Uintermediate, ilevel);
+      V_cycle_amr(U_, ilevel, ilevel, ghost_comm_minimal, ghost_comm_blockwide);
+      residual_amr_finest(ilevel);
+      const real_t residual = residual_norm(ilevel);
       if (mpi_rank == 0) printf("Level %d Residual norm after V %.8e\n", ilevel, residual);
     }
+    solution_to_potential(ilevel);
+    exchange_specific_ghosts_at_level(U_, ilevel, {"gphi"}, ghost_comm_minimal);
+    exchange_specific_intermediate_ghosts_at_level(U_, ilevel, {"gphi"}, ghost_comm_minimal);
   }
 
   // Update force field in U from potential
@@ -2011,13 +2099,11 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
     {"gy", Igy},
     {"gz", Igz},
     {"gphi", Iphi}
-    });
+  });
 
   UserData::FieldAccessor Uoutintermediate = U_.getAccessor_intermediate({
     {"gphi", Iphi},
-    });
-
-    //gradient0(Uout);
+  });
 
   printf("Now compute Force\n");
   gradient(Uout, Uoutintermediate);

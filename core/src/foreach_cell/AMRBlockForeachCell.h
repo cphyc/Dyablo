@@ -323,22 +323,22 @@ public:
   template <typename Function>
   void foreach_cell(const std::string& kernel_name, const CellArray_shape& iter_space, const Function& f) const
   {
-    uint32_t bx = iter_space.bx;
-    uint32_t by = iter_space.by;
-    uint32_t bz = iter_space.bz;
-    uint32_t nbCellsPerBlock = bx*by*bz;
-    uint32_t nbOcts = pmesh.getNumOctants();
+    const uint32_t bx = iter_space.bx;
+    const uint32_t by = iter_space.by;
+    const uint32_t bz = iter_space.bz;
+    const uint32_t nbCellsPerBlock = bx*by*bz;
+    const uint32_t nbOcts = pmesh.getNumOctants();
 
     Kokkos::parallel_for( kernel_name, 
       Kokkos::RangePolicy<>(0,nbCellsPerBlock*nbOcts), 
       KOKKOS_LAMBDA( uint32_t index )
     {
-      uint32_t iOct = index/nbCellsPerBlock;
+      const uint32_t iOct = index/nbCellsPerBlock;
       index = index%nbCellsPerBlock;
 
-      uint32_t k = index/(bx*by);
-      uint32_t j = (index - k*bx*by)/bx;
-      uint32_t i = index - j*bx - k*bx*by;
+      const uint32_t k = index/(bx*by);
+      const uint32_t j = (index - k*bx*by)/bx;
+      const uint32_t i = index - j*bx - k*bx*by;
 
       CellIndex iCell = {{iOct,false}, i, j, k, bx, by, bz};
       f( iCell );
@@ -347,22 +347,22 @@ public:
   template <typename Function>
   void foreach_cell_in_octants(const std::string& kernel_name, const CellArray_shape& iter_space, const Kokkos::View<uint32_t*> octants, const Function& f) const
   {
-    uint32_t bx = iter_space.bx;
-    uint32_t by = iter_space.by;
-    uint32_t bz = iter_space.bz;
-    uint32_t nbCellsPerBlock = bx*by*bz;
-    uint32_t nbOcts = octants.size();
+    const uint32_t bx = iter_space.bx;
+    const uint32_t by = iter_space.by;
+    const uint32_t bz = iter_space.bz;
+    const uint32_t nbCellsPerBlock = bx*by*bz;
+    const uint32_t nbOcts = octants.size(); 
 
     Kokkos::parallel_for( kernel_name, 
       Kokkos::RangePolicy<>(0,nbCellsPerBlock*nbOcts), 
       KOKKOS_LAMBDA( uint32_t index )
     {
-      uint32_t iOct = index/nbCellsPerBlock;
+      const uint32_t iOct = index/nbCellsPerBlock;
       index = index%nbCellsPerBlock;
 
-      uint32_t k = index/(bx*by);
-      uint32_t j = (index - k*bx*by)/bx;
-      uint32_t i = index - j*bx - k*bx*by;
+      const uint32_t k = index/(bx*by);
+      const uint32_t j = (index - k*bx*by)/bx;
+      const uint32_t i = index - j*bx - k*bx*by;
 
       CellIndex iCell = {{octants(iOct),false}, i, j, k, bx, by, bz};
       f( iCell );
@@ -375,22 +375,22 @@ public:
   template <typename Function>
   void foreach_ghost_cell(const std::string& kernel_name, const CellArray_shape& iter_space, const Function& f) const
   {
-    uint32_t bx = iter_space.bx;
-    uint32_t by = iter_space.by;
-    uint32_t bz = iter_space.bz;
-    uint32_t nbCellsPerBlock = bx*by*bz;
-    uint32_t nbGhosts = pmesh.getNumGhosts();
+    const uint32_t bx = iter_space.bx;
+    const uint32_t by = iter_space.by;
+    const uint32_t bz = iter_space.bz;
+    const uint32_t nbCellsPerBlock = bx*by*bz;
+    const uint32_t nbGhosts = pmesh.getNumGhosts();
 
     Kokkos::parallel_for( kernel_name, 
       Kokkos::RangePolicy<>(0,nbCellsPerBlock*nbGhosts), 
       KOKKOS_LAMBDA( uint32_t index )
     {
-      uint32_t iOct_ghost = index/nbCellsPerBlock;
+      const uint32_t iOct_ghost = index/nbCellsPerBlock;
       index = index%nbCellsPerBlock;
 
-      uint32_t k = index/(bx*by);
-      uint32_t j = (index - k*bx*by)/bx;
-      uint32_t i = index - j*bx - k*bx*by;
+      const uint32_t k = index/(bx*by);
+      const uint32_t j = (index - k*bx*by)/bx;
+      const uint32_t i = index - j*bx - k*bx*by;
 
       CellIndex iCell = {{iOct_ghost,true}, i, j, k, bx, by, bz};
       f( iCell );
@@ -399,22 +399,22 @@ public:
   template <typename Function>
   void foreach_ghost_cell_in_octants(const std::string& kernel_name, const CellArray_shape& iter_space, const Kokkos::View<uint32_t*> octants, const Function& f) const
   {
-    uint32_t bx = iter_space.bx;
-    uint32_t by = iter_space.by;
-    uint32_t bz = iter_space.bz;
-    uint32_t nbCellsPerBlock = bx*by*bz;
-    uint32_t nbGhosts = octants.size();
+    const uint32_t bx = iter_space.bx;
+    const uint32_t by = iter_space.by;
+    const uint32_t bz = iter_space.bz;
+    const uint32_t nbCellsPerBlock = bx*by*bz;
+    const uint32_t nbGhosts = octants.size();
 
     Kokkos::parallel_for( kernel_name, 
       Kokkos::RangePolicy<>(0,nbCellsPerBlock*nbGhosts), 
       KOKKOS_LAMBDA( uint32_t index )
     {
-      uint32_t iOct_ghost = index/nbCellsPerBlock;
+      const uint32_t iOct_ghost = index/nbCellsPerBlock;
       index = index%nbCellsPerBlock;
 
-      uint32_t k = index/(bx*by);
-      uint32_t j = (index - k*bx*by)/bx;
-      uint32_t i = index - j*bx - k*bx*by;
+      const uint32_t k = index/(bx*by);
+      const uint32_t j = (index - k*bx*by)/bx;
+      const uint32_t i = index - j*bx - k*bx*by;
 
       CellIndex iCell = {{octants(iOct_ghost),true}, i, j, k, bx, by, bz};
       f( iCell );
@@ -424,22 +424,22 @@ public:
   template <typename Function>
   void foreach_intermediate_cell(const std::string& kernel_name, const CellArray_shape& iter_space, const Function& f) const
   {
-    uint32_t bx = iter_space.bx;
-    uint32_t by = iter_space.by;
-    uint32_t bz = iter_space.bz;
-    uint32_t nbCellsPerBlock = bx*by*bz;
-    uint32_t nbIntermediate = pmesh.getLightOctree().getNumIntermediateOctants();
+    const uint32_t bx = iter_space.bx;
+    const uint32_t by = iter_space.by;
+    const uint32_t bz = iter_space.bz;
+    const uint32_t nbCellsPerBlock = bx*by*bz;
+    const uint32_t nbIntermediate = pmesh.getLightOctree().getNumIntermediateOctants();
 
     Kokkos::parallel_for( kernel_name, 
       Kokkos::RangePolicy<>(0,nbCellsPerBlock*nbIntermediate), 
       KOKKOS_LAMBDA( uint32_t index )
     {
-      uint32_t iOct = index/nbCellsPerBlock;
+      const uint32_t iOct = index/nbCellsPerBlock;
       index = index%nbCellsPerBlock;
 
-      uint32_t k = index/(bx*by);
-      uint32_t j = (index - k*bx*by)/bx;
-      uint32_t i = index - j*bx - k*bx*by;
+      const uint32_t k = index/(bx*by);
+      const uint32_t j = (index - k*bx*by)/bx;
+      const uint32_t i = index - j*bx - k*bx*by;
 
       CellIndex iCell = {{iOct,false,true}, i, j, k, bx, by, bz};
       f( iCell );
@@ -448,22 +448,22 @@ public:
   template <typename Function>
   void foreach_intermediate_cell_in_octants(const std::string& kernel_name, const CellArray_shape& iter_space, const Kokkos::View<uint32_t*> octants, const Function& f) const
   {
-    uint32_t bx = iter_space.bx;
-    uint32_t by = iter_space.by;
-    uint32_t bz = iter_space.bz;
-    uint32_t nbCellsPerBlock = bx*by*bz;
-    uint32_t nbIntermediate = octants.size();
+    const uint32_t bx = iter_space.bx;
+    const uint32_t by = iter_space.by;
+    const uint32_t bz = iter_space.bz;
+    const uint32_t nbCellsPerBlock = bx*by*bz;
+    const uint32_t nbIntermediate = octants.size();
 
     Kokkos::parallel_for( kernel_name, 
       Kokkos::RangePolicy<>(0,nbCellsPerBlock*nbIntermediate), 
       KOKKOS_LAMBDA( uint32_t index )
     {
-      uint32_t iOct = index/nbCellsPerBlock;
+      const uint32_t iOct = index/nbCellsPerBlock;
       index = index%nbCellsPerBlock;
 
-      uint32_t k = index/(bx*by);
-      uint32_t j = (index - k*bx*by)/bx;
-      uint32_t i = index - j*bx - k*bx*by;
+      const uint32_t k = index/(bx*by);
+      const uint32_t j = (index - k*bx*by)/bx;
+      const uint32_t i = index - j*bx - k*bx*by;
 
       CellIndex iCell = {{octants(iOct),false,true}, i, j, k, bx, by, bz};
       f( iCell );
@@ -473,22 +473,22 @@ public:
   template <typename Function>
   void foreach_intermediate_ghost_cell(const std::string& kernel_name, const CellArray_shape& iter_space, const Function& f) const
   {
-    uint32_t bx = iter_space.bx;
-    uint32_t by = iter_space.by;
-    uint32_t bz = iter_space.bz;
-    uint32_t nbCellsPerBlock = bx*by*bz;
-    uint32_t nbGhosts = pmesh.getLightOctree().getNumIntermediateGhosts();
+    const uint32_t bx = iter_space.bx;
+    const uint32_t by = iter_space.by;
+    const uint32_t bz = iter_space.bz;
+    const uint32_t nbCellsPerBlock = bx*by*bz;
+    const uint32_t nbGhosts = pmesh.getLightOctree().getNumIntermediateGhosts();
 
     Kokkos::parallel_for( kernel_name, 
       Kokkos::RangePolicy<>(0,nbCellsPerBlock*nbGhosts), 
       KOKKOS_LAMBDA( uint32_t index )
     {
-      uint32_t iOct = index/nbCellsPerBlock;
+      const uint32_t iOct = index/nbCellsPerBlock;
       index = index%nbCellsPerBlock;
 
-      uint32_t k = index/(bx*by);
-      uint32_t j = (index - k*bx*by)/bx;
-      uint32_t i = index - j*bx - k*bx*by;
+      const uint32_t k = index/(bx*by);
+      const uint32_t j = (index - k*bx*by)/bx;
+      const uint32_t i = index - j*bx - k*bx*by;
 
       CellIndex iCell = {{iOct,true,true}, i, j, k, bx, by, bz};
       f( iCell );
@@ -497,22 +497,22 @@ public:
   template <typename Function>
   void foreach_intermediate_ghost_cell_in_octants(const std::string& kernel_name, const CellArray_shape& iter_space, const Kokkos::View<uint32_t*> octants, const Function& f) const
   {
-    uint32_t bx = iter_space.bx;
-    uint32_t by = iter_space.by;
-    uint32_t bz = iter_space.bz;
-    uint32_t nbCellsPerBlock = bx*by*bz;
-    uint32_t nbGhosts = octants.size();
+    const uint32_t bx = iter_space.bx;
+    const uint32_t by = iter_space.by;
+    const uint32_t bz = iter_space.bz;
+    const uint32_t nbCellsPerBlock = bx*by*bz;
+    const uint32_t nbGhosts = octants.size();
 
     Kokkos::parallel_for( kernel_name, 
       Kokkos::RangePolicy<>(0,nbCellsPerBlock*nbGhosts), 
       KOKKOS_LAMBDA( uint32_t index )
     {
-      uint32_t iOct = index/nbCellsPerBlock;
+      const uint32_t iOct = index/nbCellsPerBlock;
       index = index%nbCellsPerBlock;
 
-      uint32_t k = index/(bx*by); 
-      uint32_t j = (index - k*bx*by)/bx;
-      uint32_t i = index - j*bx - k*bx*by;
+      const uint32_t k = index/(bx*by); 
+      const uint32_t j = (index - k*bx*by)/bx;
+      const uint32_t i = index - j*bx - k*bx*by;
 
       CellIndex iCell = {{octants(iOct),true,true}, i, j, k, bx, by, bz};
       f( iCell );
@@ -532,22 +532,22 @@ public:
   template <typename Function, typename... Reducer_t>
   void reduce_cell(const std::string& kernel_name, const CellArray_shape& iter_space, const Function& f, const Reducer_t&... reducer) const
   {
-    uint32_t bx = iter_space.bx;
-    uint32_t by = iter_space.by;
-    uint32_t bz = iter_space.bz;
-    uint32_t nbCellsPerBlock = bx*by*bz;
-    uint32_t nbOcts = pmesh.getNumOctants();
+    const uint32_t bx = iter_space.bx;
+    const uint32_t by = iter_space.by;
+    const uint32_t bz = iter_space.bz;
+    const uint32_t nbCellsPerBlock = bx*by*bz;
+    const uint32_t nbOcts = pmesh.getNumOctants();
 
     Kokkos::parallel_reduce( kernel_name, 
       Kokkos::RangePolicy<>(0,nbCellsPerBlock*nbOcts),
       KOKKOS_LAMBDA( uint32_t index, typename Reducer_t::value_type&... update )
     {
-      uint32_t iOct = index/nbCellsPerBlock;
+      const uint32_t iOct = index/nbCellsPerBlock;
       index = index%nbCellsPerBlock;
 
-      uint32_t k = index/(bx*by);
-      uint32_t j = (index - k*bx*by)/bx;
-      uint32_t i = index - j*bx - k*bx*by;
+      const uint32_t k = index/(bx*by);
+      const uint32_t j = (index - k*bx*by)/bx;
+      const uint32_t i = index - j*bx - k*bx*by;
 
       CellIndex iCell = {{iOct,false}, i, j, k, bx, by, bz};
       f( iCell, update... );
@@ -556,22 +556,22 @@ public:
   template <typename Function, typename... Reducer_t>
   void reduce_cell_in_octants(const std::string& kernel_name, const CellArray_shape& iter_space, const Kokkos::View<uint32_t*> octants, const Function& f, const Reducer_t&... reducer) const
   {
-    uint32_t bx = iter_space.bx;
-    uint32_t by = iter_space.by;
-    uint32_t bz = iter_space.bz;
-    uint32_t nbCellsPerBlock = bx*by*bz;
-    uint32_t nbOcts = octants.size();
+    const uint32_t bx = iter_space.bx;
+    const uint32_t by = iter_space.by;
+    const uint32_t bz = iter_space.bz;
+    const uint32_t nbCellsPerBlock = bx*by*bz;
+    const uint32_t nbOcts = octants.size();
 
     Kokkos::parallel_reduce( kernel_name, 
       Kokkos::RangePolicy<>(0,nbCellsPerBlock*nbOcts),
       KOKKOS_LAMBDA( uint32_t index, typename Reducer_t::value_type&... update )
     {
-      uint32_t iOct = index/nbCellsPerBlock;
+      const uint32_t iOct = index/nbCellsPerBlock;
       index = index%nbCellsPerBlock;
 
-      uint32_t k = index/(bx*by);
-      uint32_t j = (index - k*bx*by)/bx;
-      uint32_t i = index - j*bx - k*bx*by;
+      const uint32_t k = index/(bx*by);
+      const uint32_t j = (index - k*bx*by)/bx;
+      const uint32_t i = index - j*bx - k*bx*by;
 
       CellIndex iCell = {{octants(iOct),false}, i, j, k, bx, by, bz};
       f( iCell, update... );
@@ -593,22 +593,22 @@ public:
   template <typename Function, typename... Reducer_t>
   void reduce_intermediate_cell(const std::string& kernel_name, const CellArray_shape& iter_space, const Function& f, const Reducer_t&... reducer) const
   {
-    uint32_t bx = iter_space.bx;
-    uint32_t by = iter_space.by;
-    uint32_t bz = iter_space.bz;
-    uint32_t nbCellsPerBlock = bx*by*bz;
-    uint32_t nbIntermediate = pmesh.getLightOctree().getNumIntermediateOctants();
+    const uint32_t bx = iter_space.bx;
+    const uint32_t by = iter_space.by;
+    const uint32_t bz = iter_space.bz;
+    const uint32_t nbCellsPerBlock = bx*by*bz;
+    const uint32_t nbIntermediate = pmesh.getLightOctree().getNumIntermediateOctants();
 
     Kokkos::parallel_reduce( kernel_name, 
       Kokkos::RangePolicy<>(0,nbCellsPerBlock*nbIntermediate),
       KOKKOS_LAMBDA( uint32_t index, typename Reducer_t::value_type&... update )
     {
-      uint32_t iOct = index/nbCellsPerBlock;
+      const uint32_t iOct = index/nbCellsPerBlock;
       index = index%nbCellsPerBlock;
 
-      uint32_t k = index/(bx*by);
-      uint32_t j = (index - k*bx*by)/bx;
-      uint32_t i = index - j*bx - k*bx*by;
+      const uint32_t k = index/(bx*by);
+      const uint32_t j = (index - k*bx*by)/bx;
+      const uint32_t i = index - j*bx - k*bx*by;
 
       CellIndex iCell = {{iOct,false,true}, i, j, k, bx, by, bz};
       f( iCell, update... );
@@ -617,22 +617,22 @@ public:
   template <typename Function, typename... Reducer_t>
   void reduce_intermediate_cell_in_octants(const std::string& kernel_name, const CellArray_shape& iter_space, const Kokkos::View<uint32_t*> octants, const Function& f, const Reducer_t&... reducer) const
   {
-    uint32_t bx = iter_space.bx;
-    uint32_t by = iter_space.by;
-    uint32_t bz = iter_space.bz;
-    uint32_t nbCellsPerBlock = bx*by*bz;
-    uint32_t nbIntermediate = octants.size();
+    const uint32_t bx = iter_space.bx;
+    const uint32_t by = iter_space.by;
+    const uint32_t bz = iter_space.bz;
+    const uint32_t nbCellsPerBlock = bx*by*bz;
+    const uint32_t nbIntermediate = octants.size();
 
     Kokkos::parallel_reduce( kernel_name, 
       Kokkos::RangePolicy<>(0,nbCellsPerBlock*nbIntermediate),
       KOKKOS_LAMBDA( uint32_t index, typename Reducer_t::value_type&... update )
     {
-      uint32_t iOct = index/nbCellsPerBlock;
+      const uint32_t iOct = index/nbCellsPerBlock;
       index = index%nbCellsPerBlock;
 
-      uint32_t k = index/(bx*by);
-      uint32_t j = (index - k*bx*by)/bx;
-      uint32_t i = index - j*bx - k*bx*by;
+      const uint32_t k = index/(bx*by);
+      const uint32_t j = (index - k*bx*by)/bx;
+      const uint32_t i = index - j*bx - k*bx*by;
 
       CellIndex iCell = {{octants(iOct),false,true}, i, j, k, bx, by, bz};
       f( iCell, update... );
