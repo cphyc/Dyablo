@@ -30,11 +30,11 @@ public:
   void update_gravity_field( UserData& U, ScalarSimulationData& scalar_data);
 
   // MPI
-  template <class GhostComm > void exchange_specific_ghosts(UserData& U_, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm);
+  template <class GhostComm > void exchange_specific_leaf_ghosts(UserData& U_, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm);
   template <class GhostComm > void exchange_specific_intermediate_ghosts(UserData& U_, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm);
-  template <class GhostComm > void exchange_specific_ghosts_at_level(UserData& U_, const uint8_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm);
+  template <class GhostComm > void exchange_specific_leaf_ghosts_at_level(UserData& U_, const uint8_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm);
   template <class GhostComm > void exchange_specific_intermediate_ghosts_at_level(UserData& U_, const uint8_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm);
-  template <class GhostComm > void reduce_specific_ghosts_at_level(UserData& U_, const uint8_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm);
+  template <class GhostComm > void reduce_specific_leaf_ghosts_at_level(UserData& U_, const uint8_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm);
   template <class GhostComm > void reduce_specific_intermediate_ghosts_at_level(UserData& U_, const uint8_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm);
   template <typename T, size_t N> KOKKOS_INLINE_FUNCTION Kokkos::Array<T, N> make_array(const Kokkos::Array<T, N>& vals);
   static real_t MPI_Allreduce_scalar( real_t local_v );
@@ -59,7 +59,7 @@ public:
   KOKKOS_INLINE_FUNCTION static real_t b_cosmo(const UserData::FieldAccessor& Uin, const ForeachCell::CellIndex& iCell_Uin, real_t rho_mean, real_t aexp);
 
   // Mesh
-  void check_parents();
+  bool check_parents();
   KOKKOS_INLINE_FUNCTION static bool isRed(const ForeachCell::CellIndex& iCell);
   KOKKOS_INLINE_FUNCTION static bool isBlack(const ForeachCell::CellIndex& iCell);
   template< typename Array_t > KOKKOS_INLINE_FUNCTION static real_t get_value(const Array_t& U, const ForeachCell::CellIndex& iCell_U, VarIndex var, const ForeachCell::CellIndex::offset_t& offset, const int ndim);
@@ -70,6 +70,8 @@ public:
   void restriction_from_children(const level_t level);
   void prolongation_from_children(const level_t level);
   void prolongation_from_children_on_intermediate(const level_t level);
+  void prolongation_from_parents(const level_t level);
+  void prolongation_from_parents_on_intermediate(const level_t level);
   void zero_solution(const level_t level);
   void initialise_mask(const uint32_t finest_level);
   void zero_solution_residual_rhs(const level_t level);
@@ -89,10 +91,14 @@ public:
   void residual_amr_finest(const level_t level);
   void residual_uniform(const level_t level);
   void residual_intermediate_amr_correction(const level_t level);  
-  template< typename Function > void gauss_seidel_intermediate_amr_correction(const level_t level, const Function& is_coloured); 
-  template< typename Function > void gauss_seidel_leaves_amr_finest(const level_t level, const Function& is_coloured); 
-  template< typename Function > void gauss_seidel_leaves_uniform(const level_t level, const Function& is_coloured);
-  template< typename Function > void gauss_seidel_intermediate(const level_t level, const Function& is_coloured);
+  template< typename Array_t > KOKKOS_INLINE_FUNCTION static void gauss_seidel_intermediate_amr_correction(Array_t& Uintermediate, const ForeachCell::CellIndex& iCell, const Kokkos::Array<real_t, 3>& size, const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition); 
+  template< bool is_red > void gauss_seidel_intermediate_amr_correction_rb(const level_t level); 
+  template< typename Array_t > KOKKOS_INLINE_FUNCTION static void gauss_seidel_leaves_amr_finest(Array_t& U, Array_t& Uintermediate, const ForeachCell::CellIndex& iCell, const Kokkos::Array<real_t, 3>& size, const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition); 
+  template< bool is_red > void gauss_seidel_leaves_amr_finest_rb(const level_t level); 
+  template< typename Array_t > KOKKOS_INLINE_FUNCTION static void gauss_seidel_leaves_uniform(Array_t& U, Array_t& Uintermediate, const ForeachCell::CellIndex& iCell, const Kokkos::Array<real_t, 3>& size, const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition);
+  template< bool is_red > void gauss_seidel_leaves_uniform_rb(const level_t level);
+  template< typename Array_t > KOKKOS_INLINE_FUNCTION static void gauss_seidel_intermediate(Array_t& U, Array_t& Uintermediate, const ForeachCell::CellIndex& iCell, const Kokkos::Array<real_t, 3>& size, const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition); 
+  template< bool is_red > void gauss_seidel_intermediate_rb(const level_t level);
   void smoothing_intermediate_amr_correction(UserData& U_, const uint32_t nIterations, const level_t level, const GhostCommunicator& ghost_comm_minimal);
   void smoothing_uniform(UserData& U_, const uint32_t nIterations, const level_t level, const GhostCommunicator& ghost_comm_minimal);                 
   void smoothing_amr_finest(UserData& U_, const uint32_t nIterations, const level_t level, const GhostCommunicator& ghost_comm_minimal);

@@ -368,6 +368,56 @@ public:
       f( iCell );
     });
   }
+  template <typename Function>
+  void foreach_red_cell_in_octants(const std::string& kernel_name, const CellArray_shape& iter_space, const Kokkos::View<uint32_t*> octants, const Function& f) const
+  {
+    const uint32_t bx = iter_space.bx;
+    const uint32_t by = iter_space.by;
+    const uint32_t bz = iter_space.bz;
+    const uint32_t nbCellsPerBlock = bx*by*bz;
+    const uint32_t nbOcts = octants.size(); 
+
+    Kokkos::parallel_for( kernel_name, 
+      Kokkos::RangePolicy<>(0,nbCellsPerBlock*nbOcts / 2), 
+      KOKKOS_LAMBDA( uint32_t index )
+    {
+      index *= 2;
+      const uint32_t iOct = index/nbCellsPerBlock;
+      index = index%nbCellsPerBlock;
+
+      const uint32_t k = index/(bx*by);
+      const uint32_t j = (index - k*bx*by)/bx;
+      uint32_t i = index - j*bx - k*bx*by;
+      i += ((i + j + k) % 2) == 0;
+      CellIndex iCell = {{octants(iOct),false}, i, j, k, bx, by, bz};
+      f( iCell );
+    });
+  }
+  template <typename Function>
+  void foreach_black_cell_in_octants(const std::string& kernel_name, const CellArray_shape& iter_space, const Kokkos::View<uint32_t*> octants, const Function& f) const
+  {
+    const uint32_t bx = iter_space.bx;
+    const uint32_t by = iter_space.by;
+    const uint32_t bz = iter_space.bz;
+    const uint32_t nbCellsPerBlock = bx*by*bz;
+    const uint32_t nbOcts = octants.size(); 
+
+    Kokkos::parallel_for( kernel_name, 
+      Kokkos::RangePolicy<>(0,nbCellsPerBlock*nbOcts / 2), 
+      KOKKOS_LAMBDA( uint32_t index )
+    {
+      index *= 2;
+      const uint32_t iOct = index/nbCellsPerBlock;
+      index = index%nbCellsPerBlock;
+
+      const uint32_t k = index/(bx*by);
+      const uint32_t j = (index - k*bx*by)/bx;
+      uint32_t i = index - j*bx - k*bx*by;
+      i += (i + j + k) % 2;
+      CellIndex iCell = {{octants(iOct),false}, i, j, k, bx, by, bz};
+      f( iCell );
+    });
+  }
 
   /**
    * Calls the user defined function f for each MPI-ghost in the current domain
@@ -465,6 +515,56 @@ public:
       const uint32_t j = (index - k*bx*by)/bx;
       const uint32_t i = index - j*bx - k*bx*by;
 
+      CellIndex iCell = {{octants(iOct),false,true}, i, j, k, bx, by, bz};
+      f( iCell );
+    });
+  }
+  template <typename Function>
+  void foreach_intermediate_red_cell_in_octants(const std::string& kernel_name, const CellArray_shape& iter_space, const Kokkos::View<uint32_t*> octants, const Function& f) const
+  {
+    const uint32_t bx = iter_space.bx;
+    const uint32_t by = iter_space.by;
+    const uint32_t bz = iter_space.bz;
+    const uint32_t nbCellsPerBlock = bx*by*bz;
+    const uint32_t nbIntermediate = octants.size();
+
+    Kokkos::parallel_for( kernel_name, 
+      Kokkos::RangePolicy<>(0,nbCellsPerBlock*nbIntermediate / 2), 
+      KOKKOS_LAMBDA( uint32_t index )
+    {
+      index *= 2;
+      const uint32_t iOct = index/nbCellsPerBlock;
+      index = index%nbCellsPerBlock;
+
+      const uint32_t k = index/(bx*by);
+      const uint32_t j = (index - k*bx*by)/bx;
+      uint32_t i = index - j*bx - k*bx*by;
+      i += ((i + j + k) % 2) == 0;
+      CellIndex iCell = {{octants(iOct),false,true}, i, j, k, bx, by, bz};
+      f( iCell );
+    });
+  }
+  template <typename Function>
+  void foreach_intermediate_black_cell_in_octants(const std::string& kernel_name, const CellArray_shape& iter_space, const Kokkos::View<uint32_t*> octants, const Function& f) const
+  {
+    const uint32_t bx = iter_space.bx;
+    const uint32_t by = iter_space.by;
+    const uint32_t bz = iter_space.bz;
+    const uint32_t nbCellsPerBlock = bx*by*bz;
+    const uint32_t nbIntermediate = octants.size();
+
+    Kokkos::parallel_for( kernel_name, 
+      Kokkos::RangePolicy<>(0,nbCellsPerBlock*nbIntermediate / 2), 
+      KOKKOS_LAMBDA( uint32_t index )
+    {
+      index *= 2;
+      const uint32_t iOct = index/nbCellsPerBlock;
+      index = index%nbCellsPerBlock;
+
+      const uint32_t k = index/(bx*by);
+      const uint32_t j = (index - k*bx*by)/bx;
+      uint32_t i = index - j*bx - k*bx*by;
+      i += (i + j + k) % 2;
       CellIndex iCell = {{octants(iOct),false,true}, i, j, k, bx, by, bz};
       f( iCell );
     });
