@@ -54,7 +54,7 @@ public:
     smallr( configMap.getValue<real_t>("hydro","smallr", 1e-10) ),
     smallp( configMap.getValue<real_t>("hydro","smallp", 1e-10) ),
     slope_enabled( configMap.getValue<bool>("hydro","slope_enabled", true) ),
-    n_passive_scalars( configMap.getValue<int>("hydro", "n_passive_scalars", 0) )
+    n_passive_scalars( configMap.getValue<int>("run", "n_passive_scalars", 0) )
   { }
 
   /**

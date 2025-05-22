@@ -18,6 +18,7 @@
 #include "amr/MapUserData.h"
 #include "parabolic/ParabolicUpdate.h"
 #include "source_terms/SourceUpdate.h"
+#include "passive_scalars/PassiveScalar_IC.h"
 #include "UserData.h"
 #include "Cosmo.h"
 #include "mpi/GhostCommunicator.h"
@@ -433,7 +434,7 @@ public:
     }
 
     // Passive scalars
-    n_passive_scalars = configMap.getValue<uint>("hydro", "n_passive_scalars", 0);
+    n_passive_scalars = configMap.getValue<uint>("run", "n_passive_scalars", 0);
     if (n_passive_scalars > 0) {
       std::set<std::string> field_names;
       for (int i=0; i<n_passive_scalars; ++i) {
@@ -443,6 +444,26 @@ public:
       }
       U.new_fields(field_names);
     }
+    timers.get("passive_scalar_init").start();
+    // Get initial conditions ids
+    std::vector<std::string> passive_scalars_ids = configMap.getValue<std::vector<std::string>>("run", "passive_scalars_init");
+    // Initialize cells
+    {
+      int passive_id = 0;
+      for( std::string init_name : initial_conditions_ids )
+      {
+        if (init_name == "none")
+          continue;
+        std::unique_ptr<PassiveScalar_IC> passive_scalar_ic =
+          PassiveScalar_IC_Factory::make_instance(init_name, 
+            configMap,
+            m_foreach_cell,
+            timers);
+        passive_scalar_ic->init( U, passive_id );
+        passive_id++;
+      }     
+    } 
+    timers.get("passive_scalar_init").stop();
 
     // Sanity check : No sense in doing parabolic update without hydro 
     DYABLO_ASSERT_HOST_RELEASE(godunov_updater || !viscosity_updater, "Cannot have viscosity without hydro !");
@@ -796,6 +817,14 @@ public:
         U.move_field( "fx_rad", "fx_rad_next" ); 
         U.move_field( "fy_rad", "fy_rad_next" ); 
         U.move_field( "fz_rad", "fz_rad_next" );
+      }
+      if (n_passive_scalars > 0) {
+        for (int i=0; i < n_passive_scalars; ++i) {
+          std::ostringstream oss;
+          oss << "passive_scalar_" << i;
+          std::string field_name = oss.str();
+          U.move_field(field_name, field_name + "_next");
+        }
       }
     }
 
