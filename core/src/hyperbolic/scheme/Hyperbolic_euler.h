@@ -53,7 +53,8 @@ public:
     ndim(configMap.getValue<int>("mesh", "ndim", 3)),
     smallr( configMap.getValue<real_t>("hydro","smallr", 1e-10) ),
     smallp( configMap.getValue<real_t>("hydro","smallp", 1e-10) ),
-    slope_enabled( configMap.getValue<bool>("hydro","slope_enabled", true) )
+    slope_enabled( configMap.getValue<bool>("hydro","slope_enabled", true) ),
+    n_passive_scalars( configMap.getValue<int>("hydro", "n_passive_scalars", 0) )
   { }
 
   /**
@@ -74,7 +75,19 @@ public:
 
     FieldAccessor Uin = policy.getUin(U);
     FieldAccessor Uout = policy.getUout(U);
-    
+
+    int n_passive_scalars = this->n_passive_scalars;
+    std::vector<UserData::FieldAccessor::FieldInfo> passive_scalars_ids;
+    for (int i=0; i < n_passive_scalars; ++i) {
+      std::ostringstream oss;
+      oss << "passive_scalar_" << i;
+      passive_scalars_ids.push_back({oss.str(), i});
+    }
+    FieldAccessor passive_scalars_in  = U.getAccessor(passive_scalars_ids);
+    for (auto &s: passive_scalars_ids)
+      s.name += "_next";
+    FieldAccessor passive_scalars_out = U.getAccessor(passive_scalars_ids);
+
     timers.get("HyperbolicUpdate_euler").start();
 
     ForeachCell::CellMetaData cellmetadata = foreach_cell.getCellMetaData();
@@ -87,6 +100,9 @@ public:
     {
       ConsState uC = policy.getConsState(Uin, iCell);
       policy.setConsState(Uout, iCell, uC);
+
+      for (int iscalar=0; iscalar < n_passive_scalars; ++iscalar)
+        passive_scalars_out.at(iCell, iscalar) = passive_scalars_in.at(iCell, iscalar);
     });
 
     // Setting the ghosts to 0 to accumulate fluxes
@@ -96,6 +112,9 @@ public:
     {
       ConsState empty_state{};
       policy.setConsState(Uout, iCell, empty_state);
+
+      for (int iscalar=0; iscalar < n_passive_scalars; ++iscalar)
+        passive_scalars_out.at(iCell, iscalar) = 0.0;
     });
 
     auto fm_prim = PrimState::getFieldManager().get_id2index();
@@ -205,6 +224,19 @@ public:
                   ConsState du_n = fluxL * - dim_fac * dt / size_L;
                   policy.atomic_addConsState(Uout, iCell_Uin_m, du_n);
                 }
+
+                // Passive scalars
+                if (n_passive_scalars > 0) {
+                  for (int iscalar=0; iscalar < n_passive_scalars; ++iscalar) {
+                    const real_t cL = passive_scalars_in.at_ivar(iCell_Uin_m, iscalar);
+                    const real_t cR = passive_scalars_in.at_ivar(iCell_Uin, iscalar);
+                    const real_t dq = policy.passive_scalar_advection_speed(qL, qC, cL, cR, fluxL, dir);
+
+                    Kokkos::atomic_add(&passive_scalars_out.at(iCell_Uin, iscalar), dq * dt / size_C);
+                    if (Ldiff == 1) 
+                      Kokkos::atomic_add(&passive_scalars_out.at(iCell_Uin_m, iscalar), -dq * dim_fac * dt / size_L);
+                  }
+                }
               } // If smaller we skip
             }
           }
@@ -242,7 +274,20 @@ public:
                 {
                   ConsState du_n = fluxR * dim_fac * dt / size_R;
                   policy.atomic_addConsState(Uout, iCell_Uin_p, du_n);
-                }          
+                }   
+                
+                // Passive scalars
+                if (n_passive_scalars > 0) {
+                  for (int iscalar=0; iscalar < n_passive_scalars; ++iscalar) {
+                    const real_t cL = passive_scalars_in.at_ivar(iCell_Uin, iscalar);
+                    const real_t cR = passive_scalars_in.at_ivar(iCell_Uin_p, iscalar);
+                    const real_t dq = policy.passive_scalar_advection_speed(qC, qR, cL, cR, fluxR, dir);
+
+                    Kokkos::atomic_add(&passive_scalars_out.at(iCell_Uin, iscalar), -dq * dt / size_C);
+                    if (Rdiff == 1) 
+                      Kokkos::atomic_add(&passive_scalars_out.at(iCell_Uin_p, iscalar), dq * dim_fac * dt / size_R);
+                  }
+                }
               }
             }
           } 
@@ -271,6 +316,12 @@ public:
       Uout.getShape(),
       ghost_count );
     ghost_comm.reduce_ghosts( Uout );
+
+    ghost_comm = GhostCommunicator_partial_blocks (
+      foreach_cell.get_amr_mesh().getMesh(),
+      passive_scalars_out.getShape(),
+      ghost_count );
+    ghost_comm.reduce_ghosts( passive_scalars_out );
     
     if constexpr ( Policy::has_postProcess() )
     {
@@ -297,6 +348,8 @@ private:
   int ndim;
   real_t smallr, smallp;
   bool slope_enabled;
+
+  int n_passive_scalars;
 };
 
 } // namespace dyablo

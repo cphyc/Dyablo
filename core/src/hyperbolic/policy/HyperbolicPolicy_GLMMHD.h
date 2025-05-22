@@ -365,6 +365,63 @@ public:
     return flux;
   }
 
+  KOKKOS_INLINE_FUNCTION
+  real_t passive_scalar_advection_speed( PrimState qL, PrimState qR, real_t cL, real_t cR, ConsState flux, ComponentIndex3D dir) const
+  {
+    auto qleft  = swapComponents(qL, dir);
+    auto qright = swapComponents(qR, dir);
+
+    real_t gamma0 = rparams.gamma0;
+    real_t smallr = rparams.smallr;
+    real_t smallp = rparams.smallp;
+    real_t c_h    = rparams.c_h / scalar_data.dt;
+
+    // GLM MHD evaluation of Bx
+    const real_t Bx   = 0.5 * (qleft.Bx + qright.Bx) - 0.5/c_h * (qright.psi - qleft.psi);
+
+    // Left variables
+    real_t rl = fmax(qleft.rho, smallr);
+    real_t pl = fmax(qleft.p, rl*smallp);
+    real_t ul =      qleft.u;
+    real_t Byl =     qleft.By;
+    real_t Bzl =     qleft.Bz;
+    real_t B2l =     Bx*Bx+Byl*Byl+Bzl*Bzl;
+    real_t pTl =     pl + 0.5 * B2l;
+
+
+    // Right variables
+    real_t rr = fmax(qright.rho, smallr);
+    real_t pr = fmax(qright.p, rr*smallp);
+    real_t ur =      qright.u;
+    real_t Byr =     qright.By;
+    real_t Bzr =     qright.Bz;
+    real_t B2r =     Bx*Bx+Byr*Byr+Bzr*Bzr;
+    real_t pTr =     pr + 0.5 * B2r;
+
+    auto computeFastMagnetoAcousticSpeed = [&](const PrimState &q) {
+      const real_t gp = gamma0 * q.p;
+      const real_t B2 = Bx*Bx + q.By*q.By + q.Bz*q.Bz;
+      
+      return sqrt(0.5 * (gp + B2 + sqrt((gp + B2)*(gp + B2) - 4.0*gp*Bx*Bx)) / q.rho);
+    };
+    
+    
+    real_t cfl = computeFastMagnetoAcousticSpeed(qleft);
+    real_t cfr = computeFastMagnetoAcousticSpeed(qright);
+    
+    // HLL Wave speed
+    real_t Sl = fmin(ul, ur) - fmax(cfl, cfr);
+    real_t Sr = fmax(ul, ur) + fmax(cfl, cfr);
+
+    // Lagrangian speed of sound
+    const real_t rCl = rl*(ul-Sl);
+    const real_t rCr = rr*(Sr-ur);
+
+    // Entropy wave speed
+    real_t uS = (rCr*ur + rCl*ul - pTr + pTl) / (rCr+rCl);
+    return (uS > 0.0 ? cL : cR) * flux.rho;
+  }
+
 private:
 
   KOKKOS_INLINE_FUNCTION

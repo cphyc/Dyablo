@@ -261,6 +261,47 @@ public:
     return flux;
   }
 
+  KOKKOS_INLINE_FUNCTION
+  real_t passive_scalar_advection_speed( PrimState qL, PrimState qR, real_t cL, real_t cR, ConsState flux, ComponentIndex3D dir) const
+  {
+    auto qleft  = swapComponents(qL, dir);
+    auto qright = swapComponents(qR, dir);
+    
+    real_t gamma0 = rparams.gamma0;
+    real_t smallr = rparams.smallr;
+    real_t smallp = rparams.smallp;
+    real_t smallc = rparams.smallc;
+
+    // Left variables
+    real_t rl = fmax(qleft.rho, smallr);
+    real_t pl = fmax(qleft.p, rl*smallp);
+    real_t ul =      qleft.u;
+    real_t ptotl = pl;
+
+
+    // Right variables
+    real_t rr = fmax(qright.rho, smallr);
+    real_t pr = fmax(qright.p, rr*smallp);
+    real_t ur =      qright.u;
+    real_t ptotr = pr;
+    
+    // Find the largest eigenvalues in the normal direction to the interface
+    real_t cfastl = SQRT(fmax(gamma0*pl/rl,smallc*smallc));
+    real_t cfastr = SQRT(fmax(gamma0*pr/rr,smallc*smallc));
+
+    // Compute HLL wave speed
+    real_t SL = fmin(ul,ur) - fmax(cfastl,cfastr);
+    real_t SR = fmax(ul,ur) + fmax(cfastl,cfastr);
+
+    // Compute lagrangian sound speed
+    real_t rcl = rl*(ul-SL);
+    real_t rcr = rr*(SR-ur);
+    
+    // Compute acoustic star state
+    real_t uS = (rcr*ur + rcl*ul + (ptotl-ptotr))/(rcr+rcl);
+    return (uS > 0.0 ? cL : cR) * flux.rho;
+  }
+
 private:
 
   KOKKOS_INLINE_FUNCTION

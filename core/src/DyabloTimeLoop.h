@@ -432,6 +432,17 @@ public:
         timers);
     }
 
+    // Passive scalars
+    n_passive_scalars = configMap.getValue<uint>("hydro", "n_passive_scalars", 0);
+    if (n_passive_scalars > 0) {
+      std::set<std::string> field_names;
+      for (int i=0; i<n_passive_scalars; ++i) {
+        std::ostringstream oss;
+        oss << "passive_scalar_" << i;
+        field_names.insert(oss.str());
+      }
+      U.new_fields(field_names);
+    }
 
     // Sanity check : No sense in doing parabolic update without hydro 
     DYABLO_ASSERT_HOST_RELEASE(godunov_updater || !viscosity_updater, "Cannot have viscosity without hydro !");
@@ -731,6 +742,15 @@ public:
     if( godunov_updater )
     {
       U.new_fields({"rho_next", "e_tot_next", "rho_vx_next", "rho_vy_next", "rho_vz_next"});    
+      if (n_passive_scalars > 0) {
+        std::set<std::string> passive_scalar_names;
+        for (int i=0; i < n_passive_scalars; ++i) {
+          std::ostringstream oss;
+          oss << "passive_scalar_" << i << "_next";
+          passive_scalar_names.insert(oss.str());
+        }
+        U.new_fields(passive_scalar_names);
+      }
       // TODO automatic new fields according to kernel
       if( this->has_mhd ) {
         U.new_fields({"Bx_next", "By_next", "Bz_next"});
@@ -883,6 +903,8 @@ private:
   std::unique_ptr<ParabolicUpdate> thermal_conduction_updater;
   std::unique_ptr<ParabolicUpdate> viscosity_updater;
   std::vector<std::unique_ptr<SourceUpdate>> source_updaters;
+
+  int n_passive_scalars;
 
   Timers timers;
 };

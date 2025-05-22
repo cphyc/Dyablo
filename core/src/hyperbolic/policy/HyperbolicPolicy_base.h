@@ -169,8 +169,8 @@ public:
    * 
    * Compute flux at interface using states at both sides of the interface
    *
-   * @param qleft left state (primitive variables)
-   * @param qright right state (primitive variables)
+   * @param qL left state (primitive variables)
+   * @param qR right state (primitive variables)
    * @param dir x, y or z direction
    * @param policy_scalar_data PolicyScalarData object for the passage of scalar information  
    * @return output flux
@@ -179,6 +179,26 @@ public:
   ConsState riemann_solver( PrimState qL, PrimState qR, ComponentIndex3D dir) const
   {
     return impl.riemann_solver(qL, qR, dir);
+  }
+
+  /**
+   * @brief Advection speed for passive scalars
+   * 
+   * Computes the advection speed for passive scalars depending on the states left 
+   * and right of the interface
+   * 
+   * @param qL left state (primitive variables)
+   * @param qR right state (primitive variables)
+   * @param cL passive scalar concentration left
+   * @param cR passive scalar concentration right
+   * @param flux flux of the Riemann solver
+   * @dir x, y or z direction
+   * @return advection speed for the passive scalar.
+   */
+  KOKKOS_INLINE_FUNCTION
+  real_t passive_scalar_advection_speed( PrimState qL, PrimState qR, real_t cL, real_t cR, ConsState flux, ComponentIndex3D dir ) const
+  {
+    return impl.passive_scalar_advection_speed(qL, qR, cL, cR, flux, dir);
   }
 
   

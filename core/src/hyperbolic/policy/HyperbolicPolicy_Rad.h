@@ -180,6 +180,13 @@ public:
     return flux;
   }
 
+  // No passive scalar advection from radiation component
+  KOKKOS_INLINE_FUNCTION
+  real_t passive_scalar_advection_speed( PrimState qL, PrimState qR, real_t cL, real_t cR, ConsState flux, ComponentIndex3D dir) const
+  {
+    return 0.0;
+  }
+
 private:
 
   KOKKOS_INLINE_FUNCTION
