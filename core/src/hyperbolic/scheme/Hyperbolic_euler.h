@@ -83,11 +83,15 @@ public:
       oss << "passive_scalar_" << i;
       passive_scalars_ids.push_back({oss.str(), i});
     }
-    FieldAccessor passive_scalars_in  = U.getAccessor(passive_scalars_ids);
-    for (auto &s: passive_scalars_ids)
-      s.name += "_next";
-    FieldAccessor passive_scalars_out = U.getAccessor(passive_scalars_ids);
 
+    FieldAccessor passive_scalars_in, passive_scalars_out;
+    if (n_passive_scalars > 0) {
+      passive_scalars_in = U.getAccessor(passive_scalars_ids);
+      for (auto &s: passive_scalars_ids)
+        s.name += "_next";
+      passive_scalars_out = U.getAccessor(passive_scalars_ids);
+    }
+    
     timers.get("HyperbolicUpdate_euler").start();
 
     ForeachCell::CellMetaData cellmetadata = foreach_cell.getCellMetaData();
@@ -317,12 +321,14 @@ public:
       ghost_count );
     ghost_comm.reduce_ghosts( Uout );
 
-    ghost_comm = GhostCommunicator_partial_blocks (
-      foreach_cell.get_amr_mesh().getMesh(),
-      passive_scalars_out.getShape(),
-      ghost_count );
-    ghost_comm.reduce_ghosts( passive_scalars_out );
-    
+    if (n_passive_scalars > 0) {
+      ghost_comm = GhostCommunicator_partial_blocks (
+        foreach_cell.get_amr_mesh().getMesh(),
+        passive_scalars_out.getShape(),
+        ghost_count );
+      ghost_comm.reduce_ghosts( passive_scalars_out );
+    }
+  
     if constexpr ( Policy::has_postProcess() )
     {
       foreach_cell.foreach_cell( "HyperbolicUpdate::post-process", Uout.getShape(),

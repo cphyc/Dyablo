@@ -444,13 +444,14 @@ public:
       }
       U.new_fields(field_names);
     }
+    
     timers.get("passive_scalar_init").start();
     // Get initial conditions ids
-    std::vector<std::string> passive_scalars_ids = configMap.getValue<std::vector<std::string>>("run", "passive_scalars_init");
+    std::vector<std::string> passive_scalars_ids = configMap.getValue<std::vector<std::string>>("run", "passive_scalars_init", {});
     // Initialize cells
     {
       int passive_id = 0;
-      for( std::string init_name : initial_conditions_ids )
+      for( std::string init_name : passive_scalars_ids )
       {
         if (init_name == "none")
           continue;
