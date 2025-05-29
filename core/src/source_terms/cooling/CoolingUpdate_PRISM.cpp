@@ -1264,7 +1264,7 @@ public:
     update_UVB(redshift); // Interpolate to the correct redshift
     PRISM::copy_data_3D(HM12_UVB_z, tabData.HM12_UVB_z);
 
-    UserData::FieldAccessor Uin = U.getAccessor( {{"rho", PRISM::VarIndex::IRho}});
+    const UserData::FieldAccessor Uin = U.getAccessor( {{"rho", PRISM::VarIndex::IRho}});
     UserData::FieldAccessor Uout = U.getAccessor( {} );
 
 

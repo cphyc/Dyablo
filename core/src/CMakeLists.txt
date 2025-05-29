@@ -10,6 +10,7 @@ set( core_src
     ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/HydroUpdate_euler_nopatch.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/HydroUpdate_hancock.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/HydroUpdate_RK2.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/HydroUpdate_noop.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/GLMMHDUpdate_euler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/GLMMHDUpdate_hancock.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/hyperbolic/GLMMHDUpdate_RK2.cpp
@@ -58,6 +59,7 @@ set( ic_src
     ${CMAKE_CURRENT_SOURCE_DIR}/init/wholesun/InitialConditions_tri_layer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_zeldovitch_pancake.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_rad_blast.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_T_rho_grid.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/passive_scalars/PassiveScalar_IC_kelvin_helmholtz.cpp
 )
      

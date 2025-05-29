@@ -23,6 +23,9 @@ class AnalyticalFormula_sod;
 class AnalyticalFormula_Zeldovitch_pancake;
 class AnalyticalFormula_double_mach;
 
+// Cooling
+class AnalyticalFormula_T_rho_grid;
+
 // MHD
 template<typename State> class AnalyticalFormula_OrszagTang;
 template<typename State> class AnalyticalFormula_MHD_blast;
@@ -79,6 +82,7 @@ bool dyablo::InitialConditionsFactory::init()
 
   DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_C91> );
   DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_tri_layer> );
+  DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_T_rho_grid> );
 
   return true;
 }

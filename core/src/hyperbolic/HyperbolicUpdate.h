@@ -19,6 +19,9 @@ class GLMMHDUpdate_hancock;
 
 class RadUpdate_euler;
 
+// Deactivate Hydro
+class HydroUpdate_noop;
+
 } //namespace dyablo 
 
 
@@ -35,6 +38,7 @@ inline bool dyablo::HyperbolicUpdateFactory::init()
   DECLARE_REGISTERED(dyablo::GLMMHDUpdate_RK2);
   DECLARE_REGISTERED(dyablo::GLMMHDUpdate_hancock);
   DECLARE_REGISTERED(dyablo::RadUpdate_euler);
+  DECLARE_REGISTERED(dyablo::HydroUpdate_noop);
 
   return true;
 }
