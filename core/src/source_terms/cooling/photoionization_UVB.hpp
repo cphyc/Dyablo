@@ -20,7 +20,7 @@ double HM12_UVB_iron[N_UVB_POINTS][26][2];
 // Array that holds the UVB for each ion at a given redshift
 double HM12_UVB_z[27][27][2];
 
-void load_UVB_data() {
+void load_UVB_data(const std::string path) {
     // Load in all of the UV background tables
     //TODO(code): can probably abstract this into a function...
     FILE *file;
@@ -28,10 +28,8 @@ void load_UVB_data() {
     printf("Initializing UV background data\n");
 
     // Redshifts
-    file = fopen("./data/HM12/redshifts.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Redshifts UVB file\n");
-    }
+    file = fopen((path + "/redshifts.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Redshifts UVB file\n");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -41,10 +39,8 @@ void load_UVB_data() {
     fclose(file);
 
     // Hydrogen
-    file = fopen("./data/HM12/hydrogen_pi.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Hydrogen UVB file\n");
-    }
+    file = fopen((path + "/hydrogen_pi.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Hydrogen UVB file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -55,10 +51,8 @@ void load_UVB_data() {
     // Close the file
     fclose(file);
 
-    file = fopen("./data/HM12/hydrogen_ph.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Hydrogen UVB heat file\n");
-    }
+    file = fopen((path + "/hydrogen_ph.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Hydrogen UVB heat file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -70,10 +64,8 @@ void load_UVB_data() {
     fclose(file);
 
     // Helium
-    file = fopen("./data/HM12/helium_pi.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Helium UVB file\n");
-    }
+    file = fopen((path + "/helium_pi.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Helium UVB file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -84,10 +76,8 @@ void load_UVB_data() {
     // Close the file
     fclose(file);
 
-    file = fopen("./data/HM12/helium_ph.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Helium UVB heat file\n");
-    }
+    file = fopen((path + "/helium_ph.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Helium UVB heat file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -99,10 +89,8 @@ void load_UVB_data() {
     fclose(file);
 
     // Carbon
-    file = fopen("./data/HM12/carbon_pi.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Carbon UVB file\n");
-    }
+    file = fopen((path + "/carbon_pi.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Carbon UVB file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -113,10 +101,8 @@ void load_UVB_data() {
     // Close the file
     fclose(file);
 
-    file = fopen("./data/HM12/carbon_ph.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Carbon UVB heat file\n");
-    }
+    file = fopen((path + "/carbon_ph.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Carbon UVB heat file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -128,10 +114,8 @@ void load_UVB_data() {
     fclose(file);
 
     // Nitrogen
-    file = fopen("./data/HM12/nitrogen_pi.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Nitrogen UVB file\n");
-    }
+    file = fopen((path + "/nitrogen_pi.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Nitrogen UVB file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -142,10 +126,8 @@ void load_UVB_data() {
     // Close the file
     fclose(file);
 
-    file = fopen("./data/HM12/nitrogen_ph.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Nitrogen UVB heat file\n");
-    }
+    file = fopen((path + "/nitrogen_ph.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Nitrogen UVB heat file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -157,10 +139,8 @@ void load_UVB_data() {
     fclose(file);
 
     // Oxygen
-    file = fopen("./data/HM12/oxygen_pi.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Oxygen UVB file\n");
-    }
+    file = fopen((path + "/oxygen_pi.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Oxygen UVB file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -171,10 +151,8 @@ void load_UVB_data() {
     // Close the file
     fclose(file);
 
-    file = fopen("./data/HM12/oxygen_ph.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Oxygen UVB heat file\n");
-    }
+    file = fopen((path + "/oxygen_ph.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Oxygen UVB heat file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -186,10 +164,8 @@ void load_UVB_data() {
     fclose(file);
 
     // Neon
-    file = fopen("./data/HM12/neon_pi.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Neon UVB file\n");
-    }
+    file = fopen((path + "/neon_pi.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Neon UVB file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -200,10 +176,8 @@ void load_UVB_data() {
     // Close the file
     fclose(file);
 
-    file = fopen("./data/HM12/neon_ph.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Neon UVB heat file\n");
-    }
+    file = fopen((path + "/neon_ph.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Neon UVB heat file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -215,10 +189,8 @@ void load_UVB_data() {
     fclose(file);
 
     // Magnesium
-    file = fopen("./data/HM12/magnesium_pi.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Magnesium UVB file\n");
-    }
+    file = fopen((path + "/magnesium_pi.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Magnesium UVB file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -229,10 +201,8 @@ void load_UVB_data() {
     // Close the file
     fclose(file);
 
-    file = fopen("./data/HM12/magnesium_ph.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Magnesium UVB heat file\n");
-    }
+    file = fopen((path + "/magnesium_ph.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Magnesium UVB heat file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -244,10 +214,8 @@ void load_UVB_data() {
     fclose(file);
 
     // Silicon
-    file = fopen("./data/HM12/silicon_pi.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Silicon UVB file\n");
-    }
+    file = fopen((path + "/silicon_pi.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Silicon UVB file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -258,10 +226,8 @@ void load_UVB_data() {
     // Close the file
     fclose(file);
 
-    file = fopen("./data/HM12/silicon_ph.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Silicon UVB heat file\n");
-    }
+    file = fopen((path + "/silicon_ph.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Silicon UVB heat file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -273,10 +239,8 @@ void load_UVB_data() {
     fclose(file);
 
     // Sulfur
-    file = fopen("./data/HM12/sulfur_pi.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Sulfur UVB file\n");
-    }
+    file = fopen((path + "/sulfur_pi.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Sulfur UVB file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -287,10 +251,8 @@ void load_UVB_data() {
     // Close the file
     fclose(file);
 
-    file = fopen("./data/HM12/sulfur_ph.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Sulfur UVB heat file\n");
-    }
+    file = fopen((path + "/sulfur_ph.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Sulfur UVB heat file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -302,10 +264,8 @@ void load_UVB_data() {
     fclose(file);
 
     // Iron
-    file = fopen("./data/HM12/iron_pi.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Iron UVB file\n");
-    }
+    file = fopen((path + "/iron_pi.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Iron UVB file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {
@@ -316,10 +276,8 @@ void load_UVB_data() {
     // Close the file
     fclose(file);
 
-    file = fopen("./data/HM12/iron_ph.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open Iron UVB heat file\n");
-    }
+    file = fopen((path + "/iron_ph.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open Iron UVB heat file");
 
     // Reading data from the file into the 2D array
     for (int i = 0; i < N_UVB_POINTS; i++) {

@@ -221,7 +221,7 @@ double H2_cooling_GP98(double nH, double nH2, double T){
 }
 
 
-void initialize_high_temperature_metal_cooling(){
+void initialize_high_temperature_metal_cooling(const std::string path){
     // Cloudy tables of metal line cooling
     // which are valid at high temperature
     FILE *file;
@@ -229,10 +229,8 @@ void initialize_high_temperature_metal_cooling(){
     printf("Initializing high temperature cooling tables\n");
 
     // Temperatures
-    file = fopen("./data/high_T_cooling/temperatures.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open high temperature cooling temperatures file\n");
-    }
+    file = fopen((path + "/temperatures.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open high temperature cooling temperatures file");
 
     // Reading data from the file into the array
     for (int i = 0; i < N_HIGH_T_COOLING_TEMP; i++) {
@@ -252,10 +250,8 @@ void initialize_high_temperature_metal_cooling(){
     }
 
     // Carbon
-    file = fopen("./data/high_T_cooling/CARBON/all_cool.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open high temperature cooling carbon rates\n");
-    }
+    file = fopen((path + "/CARBON/all_cool.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open high temperature cooling carbon rates");
 
     // Reading data from the file into the 2D array
     for (int j = 0; j < 7; j++) { 
@@ -267,10 +263,8 @@ void initialize_high_temperature_metal_cooling(){
     fclose(file);
 
     // Nitrogen
-    file = fopen("./data/high_T_cooling/NITROGEN/all_cool.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open high temperature cooling nitrogen rates\n");
-    }
+    file = fopen((path + "/NITROGEN/all_cool.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open high temperature cooling nitrogen rates");
 
     // Reading data from the file into the 2D array
     for (int j = 0; j < 8; j++) { 
@@ -282,10 +276,8 @@ void initialize_high_temperature_metal_cooling(){
     fclose(file);
 
     // Oxygen
-    file = fopen("./data/high_T_cooling/OXYGEN/all_cool.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open high temperature cooling oxygen rates\n");
-    }
+    file = fopen((path + "/OXYGEN/all_cool.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open high temperature cooling oxygen rates");
 
     // Reading data from the file into the 2D array
     for (int j = 0; j < 9; j++) { 
@@ -297,10 +289,8 @@ void initialize_high_temperature_metal_cooling(){
     fclose(file);
 
     // Neon
-    file = fopen("./data/high_T_cooling/NEON/all_cool.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open high temperature cooling neon rates\n");
-    }
+    file = fopen((path + "/NEON/all_cool.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open high temperature cooling neon rates");
 
     // Reading data from the file into the 2D array
     for (int j = 0; j < 11; j++) { 
@@ -312,10 +302,8 @@ void initialize_high_temperature_metal_cooling(){
     fclose(file);
 
     // Magnesium
-    file = fopen("./data/high_T_cooling/MAGNESIUM/all_cool.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open high temperature cooling magnesium rates\n");
-    }
+    file = fopen((path + "/MAGNESIUM/all_cool.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open high temperature cooling magnesium rates");
 
     // Reading data from the file into the 2D array
     for (int j = 0; j < 13; j++) { 
@@ -327,10 +315,8 @@ void initialize_high_temperature_metal_cooling(){
     fclose(file);
 
     // Silicon
-    file = fopen("./data/high_T_cooling/SILICON/all_cool.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open high temperature cooling silicon rates\n");
-    }
+    file = fopen((path + "/SILICON/all_cool.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open high temperature cooling silicon rates");
 
     // Reading data from the file into the 2D array
     for (int j = 0; j < 15; j++) { 
@@ -342,10 +328,8 @@ void initialize_high_temperature_metal_cooling(){
     fclose(file);
 
     // Sulfur
-    file = fopen("./data/high_T_cooling/SULPHUR/all_cool.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open high temperature cooling sulphur rates\n");
-    }
+    file = fopen((path + "/SULPHUR/all_cool.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open high temperature cooling sulphur rates");
 
     // Reading data from the file into the 2D array
     for (int j = 0; j < 17; j++) { 
@@ -357,10 +341,8 @@ void initialize_high_temperature_metal_cooling(){
     fclose(file);
 
     // IRON
-    file = fopen("./data/high_T_cooling/IRON/all_cool.dat", "r");
-    if (file == NULL) {
-        printf("Error: Could not open high temperature cooling iron rates\n");
-    }
+    file = fopen((path + "/IRON/all_cool.dat").c_str(), "r");
+    DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Error: Could not open high temperature cooling iron rates");
 
     // Reading data from the file into the 2D array
     for (int j = 0; j < 27; j++) { 
@@ -472,12 +454,12 @@ double get_high_t_cooling_rates(double T, double ne,
     return total_metal_cooling_rate * t_scale_fac;
 }
 
-void init_fine_structure_tables(){
+void init_fine_structure_tables(const std::string path){
     // Initialization for fine structure cooling tables
     printf("Initializing fine structure cooling tables\n");
 
     const int N_LINES = 27; 
-    const char* file_names[N_LINES] = {
+    const std::string file_names[N_LINES] = {
         "CII_158um_rates.dat", "CI_609um_rates.dat", "CI_230um_rates.dat", "CI_370um_rates.dat",
         "NII_205um_rates.dat", "NII_76um_rates.dat", "NII_122um_rates.dat", "OI_63um_rates.dat",
         "OI_44um_rates.dat", "OI_145um_rates.dat", "NeII_13um_rates.dat", "SiII_35um_rates.dat",
@@ -487,37 +469,29 @@ void init_fine_structure_tables(){
         "SI_17um_rates.dat", "SI_25um_rates.dat", "SI_56um_rates.dat"
     };
 
-    char fs_cooling_dir[256] = "./data/fine_structure_data/";
 
-    char file_path[512];
+    std::string file_path;
     FILE* file;
-    bool ok;
 
     // Check that all files exist and concatenate directory and filename
     for (int i = 0; i < N_LINES; i++) {
-        snprintf(file_path, sizeof(file_path), "%s%s", fs_cooling_dir, file_names[i]);
-        file = fopen(file_path, "r");
-        ok = (file != NULL);
-        if (!ok) {
-            printf("Cannot access fine structure cooling file %s\n", file_path);
-        }
+        file_path = path + file_names[i];
+        file = fopen(file_path.c_str(), "r");
+        DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Cannot access fine structure cooling file " + file_path);
         fclose(file);
     }
 
     // Read in the fine structure data
     for (int j = 0; j < N_LINES; j++) {
-        snprintf(file_path, sizeof(file_path), "%s%s", fs_cooling_dir, file_names[j]);
-        file = fopen(file_path, "r");
-        if (!file) {
-            printf("Failed to open file %s\n", file_path);
-        }
+        file_path = path + file_names[j];
+        file = fopen(file_path.c_str(), "r");
+        DYABLO_ASSERT_HOST_RELEASE(file != NULL, "Failed to open file " + file_path);
 
         // Loop over temperatures
         for (int i = 0; i < 160; i++) {
             for (int k = 0; k < 8; k++) {
                 if (fscanf(file, "%lf", &fs_cool_tab[j][i][k]) != 1) {
-                    printf("Error reading data from file %s\n", file_path);
-                    fclose(file);
+                    DYABLO_ASSERT_HOST_RELEASE(false, "Error reading data from file " + file_path);
                 }
             }
         }

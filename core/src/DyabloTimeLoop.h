@@ -489,7 +489,7 @@ public:
         std::cout << std::endl << "Viscosity solver : " << viscosity_updater_id << std::endl;
       if (tc_updater_id != "none") 
         std::cout << "Thermal conduction solver : " << tc_updater_id << std::endl;
-      std::cout << "Source Terms : ";
+      std::cout << "Source Terms       : ";
       for(const std::string &id : source_updater_ids )
         std::cout << "`" << id << "` ";
       std::cout << std::endl;

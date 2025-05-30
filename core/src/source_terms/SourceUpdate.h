@@ -9,6 +9,8 @@ class SourceUpdate_GLM;
 class SourceUpdate_Ionization_Bunny;
 class SourceUpdate_Ionization_Chem;
 
+class CoolingUpdate_PRISM;
+
 } //namespace dyablo 
 
 
@@ -19,6 +21,8 @@ inline bool dyablo::SourceUpdateFactory::init()
   DECLARE_REGISTERED(dyablo::SourceUpdate_GLM);
   DECLARE_REGISTERED(dyablo::SourceUpdate_Ionization_Bunny);
   DECLARE_REGISTERED(dyablo::SourceUpdate_Ionization_Chem);
+
+  DECLARE_REGISTERED(dyablo::CoolingUpdate_PRISM);
 
   return true;
 }

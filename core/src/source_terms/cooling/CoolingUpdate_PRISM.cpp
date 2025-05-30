@@ -925,9 +925,9 @@ real_t get_chemical_eqm(const Element *elements,
                     residual = fmax(residual, ne_residual);
 
                     // residual of derivative
-                    real_t dy_dt = cr - (de * n_and_ion_fracs[i].ion_fracs[j]);
-                    real_t dx_dy_dt = -1.0 * de;
-                    real_t first_order_residual = fabs(dx_dy_dt / fmax(dy_dt, 1e-10));
+                    // real_t dy_dt = cr - (de * n_and_ion_fracs[i].ion_fracs[j]);
+                    // real_t dx_dy_dt = -1.0 * de;
+                    // real_t first_order_residual = fabs(dx_dy_dt / fmax(dy_dt, 1e-10));
                     // residual = fmax(residual,first_order_residual);
 
                     // Check if convergence rule is broken
@@ -1169,10 +1169,6 @@ real_t get_chemical_eqm(const Element *elements,
     return TK;
 }
 
-enum VarIndex {
-  IRho, IE
-};
-
 }
 
 namespace dyablo {
@@ -1202,22 +1198,26 @@ public:
     smallr(configMap.getValue<real_t>("hydro", "smallr", 1e-10)),
     smallc(configMap.getValue<real_t>("hydro", "smallc", 1e-10)),
     smallp(smallc * smallc / gamma0),
-    cosmo_run(configMap.getValue<bool>("cosmology", "active", false))
+    cosmo_run(configMap.getValue<bool>("cosmology", "active", false)),
+    UVB_table_path(configMap.getValue<std::string>("cooling", "UVB_tables")),
+    ct_rates_path(configMap.getValue<std::string>("cooling", "charge_transfer_tables")),
+    high_temperature_metal_cooling_path(configMap.getValue<std::string>("cooling", "high_temperature_metal_cooling_tables")),
+    fine_structure_path(configMap.getValue<std::string>("cooling", "fine_structure_tables"))
   {
     // Initialize the UV background data
-    load_UVB_data();      // First load the UVB data from files
+    load_UVB_data(UVB_table_path);      // First load the UVB data from files
 
     // Initialize cosmic ray rates
     initialize_cr_rates();
 
     // Initialize the charge transfer rates
-    load_ct_rates();
+    load_ct_rates(ct_rates_path);
 
     // Initialize high temperature cooling tables
-    initialize_high_temperature_metal_cooling();
+    initialize_high_temperature_metal_cooling(high_temperature_metal_cooling_path);
 
     // Initialize the low temperature cooling tables
-    init_fine_structure_tables();
+    init_fine_structure_tables(fine_structure_path);
     
     // HM-related data
     PRISM::copy_data_1D(G0_heating_rates, tabData.G0_heating_rates);
@@ -1250,7 +1250,6 @@ public:
                ScalarSimulationData& scalar_data
                )
   {
-
     constexpr bool include_H2 = true;                            // Whether to include molecular hydrogen
     constexpr bool include_CO = false;                           // Whether to include CO
     constexpr bool ramses_rt_T_scheme = true;                    // Whether to use the ramses-rt temperature update
@@ -1264,9 +1263,20 @@ public:
     update_UVB(redshift); // Interpolate to the correct redshift
     PRISM::copy_data_3D(HM12_UVB_z, tabData.HM12_UVB_z);
 
-    const UserData::FieldAccessor Uin = U.getAccessor( {{"rho", PRISM::VarIndex::IRho}});
-    UserData::FieldAccessor Uout = U.getAccessor( {} );
-
+    const UserData::FieldAccessor Uin = U.getAccessor( {
+        {"rho", dyablo::ConsHydroState::Irho},
+        {"e_tot", dyablo::ConsHydroState::Ie_tot},
+        {"rho_vx", dyablo::ConsHydroState::Irho_vx},
+        {"rho_vy", dyablo::ConsHydroState::Irho_vy},
+        {"rho_vz", dyablo::ConsHydroState::Irho_vz},
+    });
+    UserData::FieldAccessor Uout = U.getAccessor( {
+        {"rho_next", dyablo::ConsHydroState::Irho},
+        {"e_tot_next", dyablo::ConsHydroState::Ie_tot},
+        {"rho_vx_next", dyablo::ConsHydroState::Irho_vx},
+        {"rho_vy_next", dyablo::ConsHydroState::Irho_vy},
+        {"rho_vz_next", dyablo::ConsHydroState::Irho_vz},
+    });
 
     foreach_cell.foreach_cell( "Cooling::update", Uout.getShape(), 
       KOKKOS_LAMBDA(const ForeachCell::CellIndex& iCell) {
@@ -1290,9 +1300,15 @@ public:
         // TODO: read from state, q.rho in [cm^-3]
         initialize_ion_fracs(elements_loc,n_and_ion_fracs_loc,q.rho,1e-5,1);
 
-        PRISM::get_chemical_eqm<constant_temperature, ramses_rt_T_scheme, rosenbrock_T_scheme, include_H2, include_CO>(
+        const real_t Tout = PRISM::get_chemical_eqm<constant_temperature, ramses_rt_T_scheme, rosenbrock_T_scheme, include_H2, include_CO>(
             elements_loc, n_and_ion_fracs_loc, Tmu, aexp, -1.0, 0.0,
             0.0, 1.0, tabData);
+
+        // std::cout << "rho =" << q.rho
+        //           << " Tin = " << Tmu << " Tout = " << Tout
+        //           << " xHI  = " << n_and_ion_fracs_loc[1].ion_fracs_new[0]
+        //           << " xHII = " << n_and_ion_fracs_loc[1].ion_fracs_new[1]
+        //           << std::endl;
 
     });
 
@@ -1300,6 +1316,11 @@ public:
 
   TabulatedData tabData;
   bool cosmo_run;
+
+  std::string UVB_table_path;
+  std::string ct_rates_path;
+  std::string high_temperature_metal_cooling_path;
+  std::string fine_structure_path;
 };
 
 } // namespace dyablo
