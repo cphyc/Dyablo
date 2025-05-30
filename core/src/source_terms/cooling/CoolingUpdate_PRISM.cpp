@@ -1209,7 +1209,8 @@ public:
     UVB_table_path(configMap.getValue<std::string>("cooling", "UVB_tables")),
     ct_rates_path(configMap.getValue<std::string>("cooling", "charge_transfer_tables")),
     high_temperature_metal_cooling_path(configMap.getValue<std::string>("cooling", "high_temperature_metal_cooling_tables")),
-    fine_structure_path(configMap.getValue<std::string>("cooling", "fine_structure_tables"))
+    fine_structure_path(configMap.getValue<std::string>("cooling", "fine_structure_tables")),
+    n_passive_scalars( configMap.getValue<int>("run", "n_passive_scalars", 0) )
   {
     {
       std::string ions_variables = configMap.getValue<std::string>("cooling", "ions" );
@@ -1219,6 +1220,7 @@ public:
       {
         ions.push_back(ion_name);
       }
+      DYABLO_ASSERT_HOST_RELEASE(ions.size() <= n_passive_scalars, "More ions than passive scalars")
     }
 
     // Initialize the UV background data
@@ -1352,6 +1354,7 @@ public:
   std::string fine_structure_path;
 
   std::vector<std::string> ions;
+  int n_passive_scalars;
 };
 
 } // namespace dyablo

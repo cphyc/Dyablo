@@ -20,7 +20,7 @@ using str2int_t = std::unordered_map<std::string,int>;
  **/
 class id2index_t{
 private:
-  static constexpr int MAX_INDEX_COUNT = 64; 
+  static constexpr int MAX_INDEX_COUNT = 256;
 
   Kokkos::Array < int, MAX_INDEX_COUNT > id2index {};
   Kokkos::Array < bool,MAX_INDEX_COUNT > field_enabled {};
