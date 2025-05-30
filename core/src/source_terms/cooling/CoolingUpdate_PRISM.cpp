@@ -69,7 +69,7 @@ void copy_data_1D(T& src, Kokkos::View<T2> &dst) {
 
 
 // Structs for element properties
-KOKKOS_FUNCTION
+KOKKOS_INLINE_FUNCTION
 void initialize_elements(Element *elements)
 {
     // Initialize
@@ -214,7 +214,7 @@ real_t get_dust_mass_and_depletion(
 }
 
 // Structs for element properties
-KOKKOS_FUNCTION
+KOKKOS_INLINE_FUNCTION
 void initialize_ion_fracs(Element *elements, ParticleIonData *n_and_ion_fracs, real_t hdens, real_t metallicity, int itype)
 {
     // Loop over all elements
@@ -275,6 +275,13 @@ void initialize_ion_fracs(Element *elements, ParticleIonData *n_and_ion_fracs, r
                 n_and_ion_fracs[i].ion_fracs_new[0] = 1.0;
             }
             break;
+        case 4:
+            // Equally spread
+            for (int j = 0; j < elements[i].n_ions; ++j) {
+                n_and_ion_fracs[i].ion_fracs[j] = 1.0 / elements[i].n_ions;
+                n_and_ion_fracs[i].ion_fracs_new[j] = 1.0 / elements[i].n_ions;
+            }
+            break;
         default:
             printf("YOU NEED TO SELECT AN APPROPRIATE CASE\n");
             break;
@@ -282,7 +289,7 @@ void initialize_ion_fracs(Element *elements, ParticleIonData *n_and_ion_fracs, r
     }
 }
 
-KOKKOS_FUNCTION
+KOKKOS_INLINE_FUNCTION
 real_t get_ne(const Element *elements, const ParticleIonData *n_and_ion_fracs, const bool use_new)
 {
     /*
@@ -318,7 +325,7 @@ real_t get_ne(const Element *elements, const ParticleIonData *n_and_ion_fracs, c
     return fmax(ne, MIN_XION);
 }
 
-KOKKOS_FUNCTION
+KOKKOS_INLINE_FUNCTION
 real_t get_mu(real_t xHI, real_t xHII, real_t xHeII, real_t xHeIII, real_t nH, real_t nHe)
 {
     /*
@@ -398,10 +405,10 @@ template <
     bool constant_temperature,
     bool ramses_rt_T_scheme=true,
     bool rosenbrock_T_scheme=false,
-    bool include_H2=true,
+    bool include_H2=false,
     bool include_CO=false
 >
-KOKKOS_FUNCTION
+KOKKOS_INLINE_FUNCTION
 real_t get_chemical_eqm(const Element *elements,
                         ParticleIonData n_and_ion_fracs[MAX_ELEMENTS],
                         real_t TK,
@@ -1204,6 +1211,16 @@ public:
     high_temperature_metal_cooling_path(configMap.getValue<std::string>("cooling", "high_temperature_metal_cooling_tables")),
     fine_structure_path(configMap.getValue<std::string>("cooling", "fine_structure_tables"))
   {
+    {
+      std::string ions_variables = configMap.getValue<std::string>("cooling", "ions" );
+      std::stringstream sstream(ions_variables);
+      std::string ion_name;
+      while(std::getline(sstream, ion_name, ','))
+      {
+        ions.push_back(ion_name);
+      }
+    }
+
     // Initialize the UV background data
     load_UVB_data(UVB_table_path);      // First load the UVB data from files
 
@@ -1218,7 +1235,7 @@ public:
 
     // Initialize the low temperature cooling tables
     init_fine_structure_tables(fine_structure_path);
-    
+
     // HM-related data
     PRISM::copy_data_1D(G0_heating_rates, tabData.G0_heating_rates);
 
@@ -1250,35 +1267,48 @@ public:
                ScalarSimulationData& scalar_data
                )
   {
-    constexpr bool include_H2 = true;                            // Whether to include molecular hydrogen
-    constexpr bool include_CO = false;                           // Whether to include CO
-    constexpr bool ramses_rt_T_scheme = true;                    // Whether to use the ramses-rt temperature update
-    constexpr bool rosenbrock_T_scheme = false;                  // Whether to use the rosenbrocat temperature update
-    constexpr bool constant_temperature = false;                 // Whether to compute at constant temperature
+    constexpr bool include_H2 = false;               // Whether to include molecular hydrogen
+    constexpr bool include_CO = false;               // Whether to include CO
+    constexpr bool ramses_rt_T_scheme = true;        // Whether to use the ramses-rt temperature update
+    constexpr bool rosenbrock_T_scheme = false;      // Whether to use the rosenbrocat temperature update
+    constexpr bool constant_temperature = false;     // Whether to compute at constant temperature
+    constexpr real_t metallicity = 0.1;              // Some assumed metallicity
 
     const real_t aexp = cosmo_run ? scalar_data.get<real_t>("aexp") : 1;
     const real_t redshift = 1e0/aexp - 1e0;
-    
+
     // Update UVB
     update_UVB(redshift); // Interpolate to the correct redshift
     PRISM::copy_data_3D(HM12_UVB_z, tabData.HM12_UVB_z);
 
-    const UserData::FieldAccessor Uin = U.getAccessor( {
+    std::vector<dyablo::UserData_fields::FieldAccessor_FieldInfo> in_fields = {
         {"rho", dyablo::ConsHydroState::Irho},
         {"e_tot", dyablo::ConsHydroState::Ie_tot},
         {"rho_vx", dyablo::ConsHydroState::Irho_vx},
         {"rho_vy", dyablo::ConsHydroState::Irho_vy},
-        {"rho_vz", dyablo::ConsHydroState::Irho_vz},
-    });
-    UserData::FieldAccessor Uout = U.getAccessor( {
+        {"rho_vz", dyablo::ConsHydroState::Irho_vz}
+    };
+    std::vector<dyablo::UserData_fields::FieldAccessor_FieldInfo> out_fields = {
         {"rho_next", dyablo::ConsHydroState::Irho},
         {"e_tot_next", dyablo::ConsHydroState::Ie_tot},
         {"rho_vx_next", dyablo::ConsHydroState::Irho_vx},
         {"rho_vy_next", dyablo::ConsHydroState::Irho_vy},
         {"rho_vz_next", dyablo::ConsHydroState::Irho_vz},
-    });
+    };
+    // Push back the ion abundances
+    for (auto iion = 0; iion < ions.size(); ++iion) {
+        std::ostringstream oss;
+        oss << "passive_scalar_" << iion;
+        in_fields.push_back({oss.str(), dyablo::ConsHydroState::Irho_vz + iion + 1});
 
-    foreach_cell.foreach_cell( "Cooling::update", Uout.getShape(), 
+        oss << "_next";
+        out_fields.push_back({oss.str(), dyablo::ConsHydroState::Irho_vz + iion + 1});
+    }
+
+    const UserData::FieldAccessor Uin = U.getAccessor( in_fields );
+    UserData::FieldAccessor Uout = U.getAccessor( out_fields );
+
+    foreach_cell.foreach_cell( "Cooling::update", Uout.getShape(),
       KOKKOS_LAMBDA(const ForeachCell::CellIndex& iCell) {
         dyablo::ConsHydroState u;
         getConservativeState<3>(Uin, iCell, u);
@@ -1298,11 +1328,10 @@ public:
 
         // Initialize the ion fractions
         // TODO: read from state, q.rho in [cm^-3]
-        initialize_ion_fracs(elements_loc,n_and_ion_fracs_loc,q.rho,1e-5,1);
+        initialize_ion_fracs(elements_loc, n_and_ion_fracs_loc, q.rho, metallicity, 4);
 
         const real_t Tout = PRISM::get_chemical_eqm<constant_temperature, ramses_rt_T_scheme, rosenbrock_T_scheme, include_H2, include_CO>(
-            elements_loc, n_and_ion_fracs_loc, Tmu, aexp, -1.0, 0.0,
-            0.0, 1.0, tabData);
+            elements_loc, n_and_ion_fracs_loc, Tmu, aexp, -1.0, 0.59, 1e-10, 0.04, tabData);
 
         // std::cout << "rho =" << q.rho
         //           << " Tin = " << Tmu << " Tout = " << Tout
@@ -1321,6 +1350,8 @@ public:
   std::string ct_rates_path;
   std::string high_temperature_metal_cooling_path;
   std::string fine_structure_path;
+
+  std::vector<std::string> ions;
 };
 
 } // namespace dyablo
