@@ -141,13 +141,13 @@ public:
     Impl::init_intermediates(mesh.getMesh(), shape, ghost_count, mpi_comm);
   }
 
-  void sort_ghosts_by_levels(const LightOctree& lmesh, const CellArray_shape& iter_space, const uint8_t level_max)
+  void sort_ghosts_by_levels(const LightOctree& lmesh, const uint8_t level_max)
   {
-    Impl::sort_ghosts_by_levels(lmesh, iter_space, level_max);
+    Impl::sort_ghosts_by_levels(lmesh, level_max);
   }
-  void sort_intermediate_ghosts_by_levels(const LightOctree& lmesh, const CellArray_shape& iter_space, const uint8_t level_max)
+  void sort_intermediate_ghosts_by_levels(const LightOctree& lmesh, const uint8_t level_max)
   {
-    Impl::sort_intermediate_ghosts_by_levels(lmesh, iter_space, level_max);
+    Impl::sort_intermediate_ghosts_by_levels(lmesh, level_max);
   }
 
 };

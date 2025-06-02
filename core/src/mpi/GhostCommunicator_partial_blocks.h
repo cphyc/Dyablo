@@ -147,8 +147,8 @@ public:
       for( auto& v : recv_sizes )
         v*=num_vars;
 
-      const std::vector<uint32_t> send_total_ghost_cells_per_level = this->m_send_total_ghost_cells_per_level;
-      const std::vector<uint32_t> recv_total_ghost_cells_per_level = this->m_recv_total_ghost_cells_per_level;
+      const std::vector<uint32_t>& send_total_ghost_cells_per_level = this->m_send_total_ghost_cells_per_level;
+      const std::vector<uint32_t>& recv_total_ghost_cells_per_level = this->m_recv_total_ghost_cells_per_level;
       const auto send_pair_range = std::make_pair(send_total_ghost_cells_per_level[level], send_total_ghost_cells_per_level[level+1]);
       const auto recv_pair_range = std::make_pair(recv_total_ghost_cells_per_level[level], recv_total_ghost_cells_per_level[level+1]);
       
@@ -192,8 +192,8 @@ public:
       for( auto& v : recv_sizes )
         v*=num_vars;
 
-      const std::vector<uint32_t> send_total_ghost_cells_per_level = this->m_send_total_intermediate_ghost_cells_per_level;
-      const std::vector<uint32_t> recv_total_ghost_cells_per_level = this->m_recv_total_intermediate_ghost_cells_per_level;
+      const std::vector<uint32_t>& send_total_ghost_cells_per_level = this->m_send_total_intermediate_ghost_cells_per_level;
+      const std::vector<uint32_t>& recv_total_ghost_cells_per_level = this->m_recv_total_intermediate_ghost_cells_per_level;
       const auto send_pair_range = std::make_pair(send_total_ghost_cells_per_level[level], send_total_ghost_cells_per_level[level+1]);
       const auto recv_pair_range = std::make_pair(recv_total_ghost_cells_per_level[level], recv_total_ghost_cells_per_level[level+1]);
       
@@ -309,8 +309,8 @@ public:
       for( auto& v : recv_sizes )
         v*=num_vars;
 
-      const std::vector<uint32_t> send_total_ghost_cells_per_level = this->m_send_total_ghost_cells_per_level;
-      const std::vector<uint32_t> recv_total_ghost_cells_per_level = this->m_recv_total_ghost_cells_per_level;
+      const std::vector<uint32_t>& send_total_ghost_cells_per_level = this->m_send_total_ghost_cells_per_level;
+      const std::vector<uint32_t>& recv_total_ghost_cells_per_level = this->m_recv_total_ghost_cells_per_level;
       const auto send_pair_range = std::make_pair(send_total_ghost_cells_per_level[level], send_total_ghost_cells_per_level[level+1]);
       const auto recv_pair_range = std::make_pair(recv_total_ghost_cells_per_level[level], recv_total_ghost_cells_per_level[level+1]);
 
@@ -366,7 +366,7 @@ public:
       reducing_ghosts( U, num_vars, send_sizes, recv_sizes, send_iOct, send_iCell, recv_iOct, recv_iCell, true );
     }
 
-    void sort_ghosts_by_levels(const LightOctree& lmesh, const CellArray_shape& iter_space, const uint8_t level_max)
+    void sort_ghosts_by_levels(const LightOctree& lmesh, const uint8_t level_max)
     {
       const uint32_t mpi_size = mpi_comm.MPI_Comm_size();
       const uint32_t mpi_rank = mpi_comm.MPI_Comm_rank();
@@ -488,7 +488,7 @@ public:
       this->m_recv_iCell_per_level = recv_iCell_per_level;      
     }
 
-    void sort_intermediate_ghosts_by_levels(const LightOctree& lmesh, const CellArray_shape& iter_space, const uint8_t level_max)
+    void sort_intermediate_ghosts_by_levels(const LightOctree& lmesh, const uint8_t level_max)
     {
       const uint32_t mpi_size = mpi_comm.MPI_Comm_size();
       const uint32_t mpi_rank = mpi_comm.MPI_Comm_rank();

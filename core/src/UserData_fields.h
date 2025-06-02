@@ -20,7 +20,7 @@ public:
     class FieldAccessor; 
     struct FieldAccessor_FieldInfo;
 
-public: // FIXME: When cuda is enabled, needs to be put public for some reason...
+private:
     struct field_index_t
     {
         int index;
@@ -71,10 +71,36 @@ public:
         }
         fields = fields_new;
     }
+
+    static void initialise_new_aux(FieldView_t& fields, const int index)
+    {
+        const auto& U = fields.U;
+        const uint32_t extent_0 = U.extent(0);
+        const uint32_t extent_2 = U.extent(2);
+
+        Kokkos::parallel_for( "zero_new_field", Kokkos::RangePolicy<>(0, extent_0*extent_2),
+            KOKKOS_LAMBDA( const uint32_t i )
+        {
+            const uint32_t iCell = i%extent_0;
+            const uint32_t iOct  = i/extent_0;
+            U(iCell, index, iOct) = 0;
+        });
+        
+        const auto& Ughost = fields.Ughost;
+        const uint32_t extent_0_ghost = Ughost.extent(0);
+        const uint32_t extent_2_ghost = Ughost.extent(2);
+        Kokkos::parallel_for( "zero_new_field_ghost", Kokkos::RangePolicy<>(0, extent_0_ghost*extent_2_ghost),
+            KOKKOS_LAMBDA( const uint32_t i )
+        {
+            const uint32_t iCell = i%extent_0_ghost;
+            const uint32_t iOct  = i/extent_0_ghost;
+            Ughost(iCell, index, iOct) = 0;
+        });
+    }
     
     static void new_fields_aux( const std::set<std::string>& names,
-                                size_t nbOcts,
-                                size_t nbGhosts,
+                                const size_t nbOcts,
+                                const size_t nbGhosts,
                                 int& max_field_count,
                                 std::map<std::string, field_index_t>& field_index,
                                 FieldView_t& fields,
@@ -118,22 +144,7 @@ public:
             
             int index = first_free();
             field_index[name].index = index;
-            const auto& U = fields.U;
-            Kokkos::parallel_for( "zero_new_field", U.extent(0)*U.extent(2),
-                KOKKOS_LAMBDA( uint32_t i )
-            {
-                uint32_t iCell = i%U.extent(0);
-                uint32_t iOct  = i/U.extent(0);
-                U(iCell, index, iOct) = 0;
-            });
-            const auto& Ughost = fields.Ughost;
-            Kokkos::parallel_for( "zero_new_field_ghost", Ughost.extent(0)*Ughost.extent(2),
-                KOKKOS_LAMBDA( uint32_t i )
-            {
-                uint32_t iCell = i%Ughost.extent(0);
-                uint32_t iOct  = i/Ughost.extent(0);
-                Ughost(iCell, index, iOct) = 0;
-            });
+            initialise_new_aux(fields, index);
         }
     }
 
