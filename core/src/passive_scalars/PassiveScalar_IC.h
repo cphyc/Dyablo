@@ -6,6 +6,7 @@
 namespace dyablo{
 
 class PassiveScalar_IC_kelvin_helmholtz;
+class PassiveScalar_IC_PRISM;
 
 } // namespace dyablo
 
@@ -16,6 +17,7 @@ bool dyablo::PassiveScalar_IC_Factory::init()
 {
 
   DECLARE_REGISTERED( dyablo::PassiveScalar_IC_kelvin_helmholtz );
+  DECLARE_REGISTERED( dyablo::PassiveScalar_IC_PRISM );
 
   return true;
 }

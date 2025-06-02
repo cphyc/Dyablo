@@ -61,6 +61,7 @@ set( ic_src
     ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_rad_blast.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_T_rho_grid.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/passive_scalars/PassiveScalar_IC_kelvin_helmholtz.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/passive_scalars/PassiveScalar_IC_PRISM.cpp
 )
      
 set( legacy_src
