@@ -89,8 +89,8 @@ void AMRmesh_impl<Impl_t>::updateLightOctreeWithIntermediates(const uint8_t firs
   const Kokkos::View<morton_t*> morton_intervals = lmesh->getMortonIntervals();
   lmesh = nullptr;
   lmesh = std::make_unique<LightOctree>(
-    this->getMesh().getStorage(), 
-    this->getMesh().getStorageIntermediate(), 
+    this->getMesh().gettingStorage(), 
+    this->getMesh().gettingStorageIntermediate(), 
     level_min, 
     level_max,
     first_mpi_multigrid_level,

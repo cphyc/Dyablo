@@ -62,11 +62,11 @@ public:
         DYABLO_ASSERT_HOST_RELEASE(false, "init_intermediates() cannot be used without AMRmesh_hashmap_new");
     }
 
-    const Storage_t& getStorage() const
+    const Storage_t& gettingStorage() const
     {
         DYABLO_ASSERT_HOST_RELEASE(false, "getStorage() cannot be used without AMRmesh_hashmap_new");
     }
-    const Storage_t& getStorageIntermediate() const
+    const Storage_t& gettingStorageIntermediate() const
     {
         DYABLO_ASSERT_HOST_RELEASE(false, "getStorageIntermediate() cannot be used without AMRmesh_hashmap_new");
     }

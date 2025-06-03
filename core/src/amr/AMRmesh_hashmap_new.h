@@ -39,8 +39,16 @@ public:
   {
     return storage;
   }
+  // Rewritten because of the Pimpl idiom, this must also be written for AMRmesh_hashmap.
+  // However, when constructing AMRmesh_hashmap, we check if getStorage already exists to choose
+  // which constructor to call. In order to keep compatibility with the old AMRmesh_hashmap,
+  // we prefer to just create new methods. Can be removed in the future.
+  const Storage_t& gettingStorage() const
+  {
+    return storage;
+  }
 
-  const Storage_t& getStorageIntermediate() const
+  const Storage_t& gettingStorageIntermediate() const
   {
     return storage_intermediate;
   }
