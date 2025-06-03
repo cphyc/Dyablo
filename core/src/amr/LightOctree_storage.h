@@ -60,7 +60,7 @@ public:
 
   template< typename MemorySpace_t >
   LightOctree_storage(const LightOctree_storage<MemorySpace_t>& storage)
-   : LightOctree_storage( storage.getNdim(), storage.getNumOctants(), storage.getNumGhosts(), storage.level_min, storage.coarse_grid_size )
+   : LightOctree_storage( storage.getNdim(), storage.getNumOctants(), storage.getNumGhosts(), storage.level_min, storage.level_coarse, storage.coarse_grid_size )
   {
     // Cannot copy empty data to device
     if (storage.oct_data.extent(0) > 0 && storage.oct_data.extent(1) > 0){
@@ -126,14 +126,21 @@ public:
 
   // Create an empty LightOctree_storage
   LightOctree_storage( int ndim, uint32_t numOctants, uint32_t numGhosts, level_t level_min, const coarse_grid_size_t& coarse_grid_size )
-  : ndim(ndim), numOctants(numOctants), numGhosts(numGhosts), level_min(level_min),
+  : ndim(ndim), numOctants(numOctants), numGhosts(numGhosts), level_min(level_min), level_coarse(level_min),
+    coarse_grid_size(coarse_grid_size),
+    oct_data("LightOctree_storage", numOctants+numGhosts, oct_data_field_t::OCT_DATA_COUNT)
+  {}
+
+  // Create an empty intermediate LightOctree_storage, pass level_coarse
+  LightOctree_storage( int ndim, uint32_t numOctants, uint32_t numGhosts, level_t level_min, level_t level_coarse, const coarse_grid_size_t& coarse_grid_size )
+  : ndim(ndim), numOctants(numOctants), numGhosts(numGhosts), level_min(level_min), level_coarse(level_coarse),
     coarse_grid_size(coarse_grid_size),
     oct_data("LightOctree_storage", numOctants+numGhosts, oct_data_field_t::OCT_DATA_COUNT)
   {}
 
   // Create an empty LightOctree_storage (full coarse grid version)
   LightOctree_storage( int ndim, uint32_t numOctants, uint32_t numGhosts, level_t level_min)
-  : ndim(ndim), numOctants(numOctants), numGhosts(numGhosts), level_min(level_min),
+  : ndim(ndim), numOctants(numOctants), numGhosts(numGhosts), level_min(level_min), level_coarse(level_min),
     coarse_grid_size( { (1U << level_min), (1U << level_min), (ndim==3)?(1U << level_min):1 }  ),
     oct_data("LightOctree_storage", numOctants+numGhosts, oct_data_field_t::OCT_DATA_COUNT)
   {}
@@ -200,9 +207,10 @@ public:
   KOKKOS_INLINE_FUNCTION 
   pos_t getSize(const OctantIndex& iOct)  const
   {
-      return { 1.0/cell_count( IX, getLevel(iOct) ),
-               1.0/cell_count( IY, getLevel(iOct) ),
-               1.0/cell_count( IZ, getLevel(iOct) ) };
+    const level_t level = getLevel(iOct);
+    return {  1.0/cell_count( IX, level ),
+              1.0/cell_count( IY, level ),
+              1.0/cell_count( IZ, level ) };
   }
   //! @copydoc LightOctree_base::getLevel()
   KOKKOS_INLINE_FUNCTION level_t getLevel(const OctantIndex& iOct)  const
@@ -251,16 +259,18 @@ public:
 
   int ndim;
   uint32_t numOctants = 0, numGhosts = 0; //! Number of local octants (no ghosts), Number of ghosts.
-  level_t level_min;
+  level_t level_min, level_coarse;
   coarse_grid_size_t coarse_grid_size;
 
   KOKKOS_INLINE_FUNCTION
   logical_coord_t cell_count( ComponentIndex3D idim, level_t n ) const
   {
-      DYABLO_ASSERT_KOKKOS_DEBUG( n>=level_min, "Cannot ask cell_count with level < level_min" );
-      DYABLO_ASSERT_KOKKOS_DEBUG( n < sizeof(logical_coord_t)*8, "Overflow : cell_count too big for logical_coord_t" );
-      //return coarse_grid_size[idim] << (n-level_min);
-      return 1U << n;
+    DYABLO_ASSERT_KOKKOS_DEBUG( n>=level_min, "Cannot ask cell_count with level < level_min" );
+    DYABLO_ASSERT_KOKKOS_DEBUG( n < sizeof(logical_coord_t)*8, "Overflow : cell_count too big for logical_coord_t" );
+    const int shift_amount = n - level_coarse;
+    return (shift_amount >= 0)
+      ? (coarse_grid_size[idim] << shift_amount)
+      : (coarse_grid_size[idim] >> -shift_amount);
   }
 
   //! Kokkos::view containing octants position and level 

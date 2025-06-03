@@ -247,7 +247,7 @@ public:
                     iOct++;
                 }
             }, nbIntermediates);
-            storage_intermediate = LightOctree_storage( storage.ndim, nbIntermediates, 0, 0, storage.coarse_grid_size);
+            storage_intermediate = LightOctree_storage( storage.ndim, nbIntermediates, 0, 0, min_level, storage.coarse_grid_size);
         }
 
         auto& oct_data_intermediate = storage_intermediate.oct_data;

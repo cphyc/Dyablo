@@ -754,7 +754,7 @@ void AMRmesh_hashmap_new::init_intermediates(const LightOctree& lmesh, const uin
   
   ghost_comm.exchange_ghosts<0>( storage_intermediate_device.oct_data, storage_device_ghosts.oct_data );
 
-  const LightOctree_storage<> storage_device2( dim, storage_intermediate_device.getNumOctants(), nbGhosts, storage_intermediate_device.level_min, storage_intermediate_device.coarse_grid_size );
+  const LightOctree_storage<> storage_device2( dim, storage_intermediate_device.getNumOctants(), nbGhosts, storage_intermediate_device.level_min, storage_intermediate_device.level_coarse, storage_intermediate_device.coarse_grid_size );
   Kokkos::deep_copy( storage_device2.getLocalSubview(), storage_intermediate_device.getLocalSubview() );
   Kokkos::deep_copy( storage_device2.getGhostSubview(), storage_device_ghosts.getGhostSubview() );
 

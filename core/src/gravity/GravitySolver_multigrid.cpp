@@ -156,7 +156,13 @@ void GravitySolver_multigrid::gradient_3pt(Array_t& U, Array_t& Uintermediate)
   foreach_cell.foreach_cell("Gravity_mg::construct_force_field", iter_space, 
     KOKKOS_LAMBDA(const CellIndex& iCell)
   { 
-    const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
+    const level_t level = cells.getLevel(iCell);
+    const uint32_t nocts1d = 1U << level;
+    const Kokkos::Array<real_t, 3> size = {
+          1./(nocts1d * iter_space.bx), 
+          1./(nocts1d * iter_space.by), 
+          1./(nocts1d * iter_space.bz)
+    };
     const real_t phi_C = U.at(iCell, Iphi);
 
     for ( ComponentIndex3D dir : {IX,IY,IZ} )
@@ -2550,7 +2556,13 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   foreach_cell.reduce_cell("Compute rho_mean", iter_space,
     KOKKOS_LAMBDA(const CellIndex & iCell, real_t & update_rhomean)
   {
-    const ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell);
+    const level_t level = cells.getLevel(iCell);
+    const uint32_t nocts1d = 1U << level;
+    const Kokkos::Array<real_t, 3> size = {
+          1./(nocts1d * iter_space.bx), 
+          1./(nocts1d * iter_space.by), 
+          1./(nocts1d * iter_space.bz)
+    };
     const real_t rhoi = U.at(iCell, Irho);
     update_rhomean += rhoi * size[IX] * size[IY] * size[IZ];
   }, Kokkos::Sum<real_t>(rho_mean));
