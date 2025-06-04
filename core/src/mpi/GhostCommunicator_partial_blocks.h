@@ -54,8 +54,8 @@ public:
       uint32_t total_send_size = send_iOct.size(), total_recv_size = recv_iOct.size(); // send/recv buffer size (number of cells)    
       uint32_t bx=U.getShape().bx, by=U.getShape().by, bz=U.getShape().bz ; // Block size
 
-      if( num_vars*total_send_size == 0 )
-        return;
+      /* if( num_vars*total_send_size == 0 )
+        return; */
 
       Kokkos::View< real_t*, Kokkos::LayoutLeft > send_buffer("exchange_ghosts::send_buffer", num_vars*total_send_size );
 
@@ -83,10 +83,8 @@ public:
         Kokkos::fence();
       #else
         {
-          auto send_buffer_host = Kokkos::create_mirror_view(send_buffer);
-          auto recv_buffer_host = Kokkos::create_mirror_view(recv_buffer);
-
-          Kokkos::deep_copy(send_buffer_host, send_buffer);
+          const auto send_buffer_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), send_buffer);
+          auto recv_buffer_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), recv_buffer);
           mpi_comm.MPI_Alltoallv( send_buffer_host.data(), send_sizes.data(), recv_buffer_host.data(), recv_sizes.data() );
           Kokkos::deep_copy(recv_buffer, recv_buffer_host);
         }  
@@ -219,8 +217,8 @@ public:
       uint32_t total_send_size = send_iOct.size(), total_recv_size = recv_iOct.size(); // send/recv buffer size (number of cells)    
       uint32_t bx=U.getShape().bx, by=U.getShape().by, bz=U.getShape().bz ; // Block size
       
-      if( num_vars*total_send_size == 0 )
-        return;
+      /* if( num_vars*total_send_size == 0 )
+        return; */
 
       Kokkos::View< real_t*, Kokkos::LayoutLeft > send_buffer("reduce_ghosts::send_buffer", num_vars*total_send_size );
     
@@ -247,10 +245,8 @@ public:
         Kokkos::fence();
       #else
         {
-          auto send_buffer_host = Kokkos::create_mirror_view(send_buffer);
-          auto recv_buffer_host = Kokkos::create_mirror_view(recv_buffer);
-
-          Kokkos::deep_copy(send_buffer_host, send_buffer);
+          const auto send_buffer_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), send_buffer);
+          auto recv_buffer_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), recv_buffer);
           mpi_comm.MPI_Alltoallv( send_buffer_host.data(), send_sizes.data(), recv_buffer_host.data(), recv_sizes.data() );
           Kokkos::deep_copy(recv_buffer, recv_buffer_host);
         }  
