@@ -13,17 +13,12 @@ namespace dyablo {
 class GhostCommunicator_partial_blocks
 {
 public: 
-    using CellArray_shape = AMRBlockForeachCell_CellArray_impl::CellArray_shape;
 
-    GhostCommunicator_partial_blocks( const AMRmesh_hashmap_new& amr_mesh, const ForeachCell::CellArray_global_ghosted::Shape_t& shape,  int ghost_count, const MpiComm& mpi_comm = GlobalMpiSession::get_comm_world() );
+    GhostCommunicator_partial_blocks( const AMRmesh_hashmap_new& amr_mesh, const ForeachCell::CellArray_global_ghosted::Shape_t& shape,  uint32_t ghost_count, const MpiComm& mpi_comm = GlobalMpiSession::get_comm_world() );
 
     void init( const AMRmesh_hashmap_new& amr_mesh, const ForeachCell::CellArray_global_ghosted::Shape_t& shape, uint32_t ghost_count, const MpiComm& mpi_comm );
-    
-    void init_intermediates( 
-      const AMRmesh_hashmap_new& amr_mesh, 
-      const ForeachCell::CellArray_global_ghosted::Shape_t& shape, 
-      const uint32_t ghost_count,  
-      const MpiComm& mpi_comm );
+    void init_intermediates(const AMRmesh_hashmap_new& amr_mesh, const ForeachCell::CellArray_global_ghosted::Shape_t& shape, const uint32_t ghost_count, const MpiComm& mpi_comm );
+
     static std::string name()
     {
       return "GhostCommunicator_partial_blocks";
