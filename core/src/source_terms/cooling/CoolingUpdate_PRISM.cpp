@@ -39,11 +39,15 @@ public:
     ct_rates_path(configMap.getValue<std::string>("cooling", "charge_transfer_tables")),
     high_temperature_metal_cooling_path(configMap.getValue<std::string>("cooling", "high_temperature_metal_cooling_tables")),
     fine_structure_path(configMap.getValue<std::string>("cooling", "fine_structure_tables")),
+    n_passive_scalars( configMap.getValue<int>("run", "n_passive_scalars", 0) ),
     HM12_UVB_data(load_UVB_data(UVB_table_path)),
-    n_passive_scalars( configMap.getValue<int>("run", "n_passive_scalars", 0) )
+    ions( configMap.getValue<std::vector<std::string>>("cooling", "ions" ) ),
+    unit_time( configMap.getValue<real_t>("units", "time", 1.0) ),
+    unit_density( configMap.getValue<real_t>("units", "density", 1.0) ),
+    unit_length( configMap.getValue<real_t>("units", "length", 1.0) )
   {
 
-    PRISM::parseIonInputs(ions, this->nions, this->elems2passive, this->ions2passive, this->ion_counts); 
+    PRISM::parseIonInputs(ions, this->nions, this->elems2passive, this->ions2passive, this->ion_counts);
 
     // Initialize cosmic ray rates
     const auto& [cosmic_ray_ionization_rates, cosmic_ray_ionization_rates_induced_UV, cosmic_ray_ionization_rates_induced_UV_heat] = initialize_cr_rates();
@@ -92,6 +96,7 @@ public:
                ScalarSimulationData& scalar_data
                )
   {
+    timers.get("Cooling PRISM").start();
     constexpr bool include_H2 = false;               // Whether to include molecular hydrogen
     constexpr bool include_CO = false;               // Whether to include CO
     constexpr bool ramses_rt_T_scheme = true;        // Whether to use the ramses-rt temperature update
@@ -101,6 +106,8 @@ public:
 
     const real_t aexp = cosmo_run ? scalar_data.get<real_t>("aexp") : 1;
     const real_t redshift = 1e0/aexp - 1e0;
+
+    const real_t dt = scalar_data.get<real_t>("dt");
 
     // Update UVB
     const auto& HM12_UVB_z = update_UVB(redshift, this->HM12_UVB_data); // Interpolate to the correct redshift
@@ -130,57 +137,101 @@ public:
         out_fields.push_back({oss.str(), dyablo::ConsHydroState::Irho_vz + ipassive + 1});
     }
 
-    const Kokkos::Array<int, MAX_ELEMENTS> elems2passive = this->elems2passive;
-    const Kokkos::Array<int, MAX_ELEMENTS> ions2passive = this->ions2passive;
-
     const UserData::FieldAccessor Uin = U.getAccessor( in_fields );
     UserData::FieldAccessor Uout = U.getAccessor( out_fields );
 
-    foreach_cell.foreach_cell( "Cooling::update", Uout.getShape(),
-      KOKKOS_LAMBDA(const ForeachCell::CellIndex& iCell) {
+    const real_t unit_time = this->unit_time;  // code -> [s]
+    const real_t unit_density = this->unit_density / (Units::PROTON_MASS * 1e6); // code -> [kg/m^3] -> [mp/cm^3]
+    const real_t unit_T = SQR(this->unit_length / this->unit_time) * Units::PROTON_MASS / Units::KBOLTZ; // code -> [K]
+
+    const real_t dt_s = dt * unit_time;
+    const real_t gamma0 = this->gamma0;
+    const auto& nions = this->nions;
+    const auto& elems2passive = this->elems2passive;
+    const auto& ions2passive = this->ions2passive;
+    const auto& tabData = this->tabData;
+
+    int Ncell = 0, Nstep_tot = 0;
+    foreach_cell.reduce_cell( "Cooling::update", Uout.getShape(),
+      KOKKOS_LAMBDA(const ForeachCell::CellIndex& iCell, int Nstep_tot, int Ncell) {
         dyablo::ConsHydroState u;
         getConservativeState<3>(Uin, iCell, u);
-        const dyablo::PrimHydroState q = consToPrim<3>(u, gamma0);
+        dyablo::PrimHydroState q = consToPrim<3>(u, gamma0);
 
         // Compute temperature
-        // TODO: fix units!
-        const real_t Tmu = q.p / q.rho / Units::KBOLTZ * Units::PROTON_MASS;
+        const real_t Tmu = q.p / q.rho * (gamma0 - 1) * unit_T;
 
         // Extract ion data
         Element elements_loc[MAX_ELEMENTS];
         PRISM::ParticleIonData n_and_ion_fracs_loc[MAX_ELEMENTS];
-
-        // Initialize the elements
-        // TODO: read from state
-        PRISM::initialize_elements<include_H2, include_CO>(elements_loc, nions);
-
-        // Initialize the ion fractions
-        // TODO: read from state, q.rho in [cm^-3]
-        // initialize_ion_fracs(elements_loc, n_and_ion_fracs_loc, q.rho, metallicity, 4);
-        {
-            for (auto i = 1; i < MAX_ELEMENTS; ++i) {
-                if (elements_loc[i].atomic_number < 0) continue;
-                // FIXME: we assume rho to be in [mp/cm**3 already]
-                n_and_ion_fracs_loc[i].n_element = (
-                    q.rho * Uin.at_ivar(iCell, dyablo::ConsHydroState::Irho_vz + 1 + elems2passive[i])
-                    / (elements_loc[i].atomic_mass)
-                );
-                for (auto j = 0; j < elements_loc[i].n_ions + elements_loc[i].n_mol; ++j) {
-                    n_and_ion_fracs_loc[i].ion_fracs[j] = Uin.at_ivar(iCell, dyablo::ConsHydroState::Irho_vz + 1 + ions2passive[i] + j);
-                }
-            }
+        // Reset values
+        for (auto i = 0; i < MAX_ELEMENTS; ++i) {
+          n_and_ion_fracs_loc[i].n_element = 0.0;
+          for (auto j = 0; j < MAX_ELEMENTS; ++j) {
+            n_and_ion_fracs_loc[i].ion_fracs[j] = 0.0;
+            n_and_ion_fracs_loc[i].ion_fracs_new[j] = 0.0;
+          }
         }
 
-        const real_t Tout = PRISM::get_chemical_eqm<constant_temperature, ramses_rt_T_scheme, rosenbrock_T_scheme, include_H2, include_CO>(
-            elements_loc, n_and_ion_fracs_loc, Tmu, aexp, -1.0, 0.59, 1e-10, 0.04, tabData);
+        // Initialize the elements
+        PRISM::initialize_elements<include_H2, include_CO>(elements_loc, nions);
 
-        // std::cout << "rho =" << q.rho
-        //           << " Tin = " << Tmu << " Tout = " << Tout
-        //           << " xHI  = " << n_and_ion_fracs_loc[1].ion_fracs_new[0]
-        //           << " xHII = " << n_and_ion_fracs_loc[1].ion_fracs_new[1]
-        //           << std::endl;
+        // Get nH
+        real_t nH = q.rho * unit_density * (1.0 - Units::YHE) / elements_loc[1].atomic_mass;
+        n_and_ion_fracs_loc[1].n_element = nH;
 
-    });
+        // Get other species abundances
+        for (auto i = 2; i < MAX_ELEMENTS; ++i) {
+          if (elements_loc[i].atomic_number < 0) continue;
+          n_and_ion_fracs_loc[i].n_element = (
+              nH
+              * Uin.at_ivar(iCell, dyablo::ConsHydroState::Irho_vz + 1 + elems2passive[i])
+          );
+        }
+
+        // Get ion fractions (incl. H)
+        for (auto i = 1; i < MAX_ELEMENTS; ++i) {
+          if (elements_loc[i].atomic_number < 0) continue;
+          real_t xtot = 0.0;
+          for (auto j = 0; j < elements_loc[i].n_ions + elements_loc[i].n_mol; ++j) {
+              n_and_ion_fracs_loc[i].ion_fracs[j] = Uin.at_ivar(iCell, dyablo::ConsHydroState::Irho_vz + 1 + ions2passive[i] + j);
+              xtot += n_and_ion_fracs_loc[i].ion_fracs[j];
+          }
+          // Normalize ion fractions
+          for (auto j = 0; j < elements_loc[i].n_ions + elements_loc[i].n_mol; ++j) {
+              n_and_ion_fracs_loc[i].ion_fracs[j] /= xtot;
+          }
+        }
+
+        auto [total_iterations, Tout] = PRISM::get_chemical_eqm<constant_temperature, ramses_rt_T_scheme, rosenbrock_T_scheme, include_H2, include_CO>(elements_loc, n_and_ion_fracs_loc, Tmu, aexp, dt_s, 0.59, 1e-16, 0.04, tabData);
+
+        printf("steps = %10d, rho = %e, Tin = %e, Tout = %e (diff = %e), xHI = %e, xHII = %e\n",
+              total_iterations, q.rho, Tmu, Tout, Tout - Tmu,
+               n_and_ion_fracs_loc[1].ion_fracs[0], n_and_ion_fracs_loc[1].ion_fracs[1]);
+
+        // Store new temperature
+        // const real_t Tmu = q.p / q.rho * (gamma0 - 1) * unit_T;
+        q.p = q.rho * Tout / (gamma0 - 1) / unit_T;
+
+        u = primToCons<3>(q, gamma0);
+        Uout.at(iCell, dyablo::ConsHydroState::Ie_tot) = u.e_tot;
+        // Copy passive scalars
+        for (auto i = 1; i < MAX_ELEMENTS; ++i) {
+          if (elements_loc[i].atomic_number < 0) continue;
+          for (auto j = 0; j < elements_loc[i].n_ions + elements_loc[i].n_mol; ++j) {
+              n_and_ion_fracs_loc[i].ion_fracs[j] = 
+              Uout.at_ivar(iCell, dyablo::ConsHydroState::Irho_vz + 1 + ions2passive[i] + j) = n_and_ion_fracs_loc[i].ion_fracs_new[j];
+          }
+        }
+
+        Nstep_tot += total_iterations;
+        Ncell++;
+
+    }, Nstep_tot, Ncell);
+
+    std::cout << "Converged in " << real_t(Nstep_tot) / Ncell << " iterations on average." << std::endl;
+
+    timers.get("Cooling PRISM").stop();
 
   }
 
@@ -192,17 +243,24 @@ public:
   std::string high_temperature_metal_cooling_path;
   std::string fine_structure_path;
 
-  std::vector<std::string> ions;
-  std::map<std::string, int> ion_counts;
-  Kokkos::Array<int, MAX_ELEMENTS> nions;
-  Kokkos::Array<int, MAX_ELEMENTS> elems2passive;
-  Kokkos::Array<int, MAX_ELEMENTS> ions2passive;
+  int n_passive_scalars;
 
   // UV background data
   UVB_table_t HM12_UVB;
   struct UVB_data HM12_UVB_data;
 
-  int n_passive_scalars;
+  // Information about network
+  std::vector<std::string> ions;
+  std::map<std::string, int> ion_counts;
+  std::array<int, MAX_ELEMENTS> nions;
+  std::array<int, MAX_ELEMENTS> elems2passive;
+  std::array<int, MAX_ELEMENTS> ions2passive;
+
+  // Units
+  real_t unit_time;
+  real_t unit_density;
+  real_t unit_length;
+
 };
 
 } // namespace dyablo

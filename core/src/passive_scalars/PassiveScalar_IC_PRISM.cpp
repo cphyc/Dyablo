@@ -13,9 +13,9 @@ struct PassiveScalar_IC_PRISM : public PassiveScalar_IC {
   const std::vector<std::string> ions;
 
   std::map<std::string, int> ion_counts;
-  Kokkos::Array<int, MAX_ELEMENTS> nions;
-  Kokkos::Array<int, MAX_ELEMENTS> ions2passive;
-  Kokkos::Array<int, MAX_ELEMENTS> elems2passive;
+  std::array<int, MAX_ELEMENTS> nions;
+  std::array<int, MAX_ELEMENTS> ions2passive;
+  std::array<int, MAX_ELEMENTS> elems2passive;
 
   PassiveScalar_IC_PRISM(  ConfigMap& configMap,
                                       ForeachCell& foreach_cell,  

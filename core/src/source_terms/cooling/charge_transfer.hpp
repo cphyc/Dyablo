@@ -155,7 +155,7 @@ double charge_transfer_recombination(int ion, int nelem, double T, const Tabulat
     
     // Make sure te is between temp. boundaries; set constant outside of range
     double tused = 0.0;
-    tused = fmin(fmax(T,tabData.CTRecomb(4, ipIon, nelem)),tabData.CTRecomb(5, ipIon, nelem));
+    tused = FMIN(FMAX(T,tabData.CTRecomb(4, ipIon, nelem)),tabData.CTRecomb(5, ipIon, nelem));
     tused *= 1E-4;
 
     // The interpolation equation
@@ -272,9 +272,9 @@ double charge_transfer_ionization(int ion, int nelem, double T, const TabulatedD
 
     // ! Make sure te is between temp. boundaries; set constant outside of range
     double tused = 0.0;
-    tused = fmin(fmax(T, tabData.CTIon(4, ipIon, nelem)), tabData.CTIon(5, ipIon, nelem));
+    tused = FMIN(FMAX(T, tabData.CTIon(4, ipIon, nelem)), tabData.CTIon(5, ipIon, nelem));
     tused *= 1E-4;
-    tused = fmax(tused,1E-10); //! harley added to prevent zero temperature
+    tused = FMAX(tused,1E-10); //! harley added to prevent zero temperature
 
     // ! the interpolation equation
     ct_ion = tabData.CTIon(0, ipIon, nelem) * 1E-9 * pow(tused,tabData.CTIon(1, ipIon, nelem)) * (1. + tabData.CTIon(2, ipIon, nelem) * exp(tabData.CTIon(3, ipIon, nelem)*tused) ) * exp(-1.0 * tabData.CTIon(6, ipIon, nelem)/tused);

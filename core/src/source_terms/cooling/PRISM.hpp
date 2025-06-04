@@ -16,8 +16,8 @@ namespace PRISM {
 
 const real_t MIN_XION = 1E-20;         // Minimum ion fraction
 const real_t MIN_XION_FLOOR = 1E-10;   // Minimum ion fraction
-const real_t CONV_ABS = 1E-4;          // Value required for convergence
-const real_t CONV_ABS_H2_metal = 1E-4; // Value required for convergence
+const real_t CONV_ABS = 1E-6;          // Value required for convergence
+const real_t CONV_ABS_H2_metal = 1E-6; // Value required for convergence
 const real_t X_PCT_RULE = 1E-2;        // Value required for convergence
 const real_t X_PCT_RULE_TEMP = 1E-2;   // Value required for convergence
 const real_t X_PCT_RULE_metal = 1E-2;  // Value required for convergence
@@ -67,7 +67,7 @@ void copy_data_1D(T& src, Kokkos::View<T2> &dst) {
 // Structs for element properties
 template<bool include_H2, bool include_CO>
 KOKKOS_INLINE_FUNCTION
-void initialize_elements(Element *elements, Kokkos::Array<int, MAX_ELEMENTS> &nions)
+void initialize_elements(Element *elements, const std::array<int, MAX_ELEMENTS> &nions)
 {
     // Initialize
     for (int i = 0; i < MAX_ELEMENTS; i++)
@@ -209,7 +209,7 @@ inline real_t get_dust_mass_and_depletion(
     y = pow(10.0, y); // Convert to actual ratio
 
     // Set the depletion factors
-    real_t y_ratio = fmin(1.0, 162.0 / y);
+    real_t y_ratio = FMIN(1.0, 162.0 / y);
 
     for (int i = 1; i < MAX_ELEMENTS; i++)
     {
@@ -330,7 +330,7 @@ real_t get_ne(const Element *elements, const ParticleIonData *n_and_ion_fracs, c
         } // End loop ion fracs
     } // End loop elements
 
-    return fmax(ne, MIN_XION);
+    return FMAX(ne, MIN_XION);
 }
 
 KOKKOS_INLINE_FUNCTION
@@ -362,9 +362,9 @@ void reduce_xion(real_t *ion_fracs, int size)
     // Loop over all ions and get the total
     for (int i = 0; i < size; i++)
     {
-        ion_fracs[i] = fmax(ion_fracs[i], MIN_XION);
+        ion_fracs[i] = FMAX(ion_fracs[i], MIN_XION);
         total_ion_frac += ion_fracs[i];
-        // total_ion_frac += fmax(ion_fracs[i],MIN_XION);
+        // total_ion_frac += FMAX(ion_fracs[i],MIN_XION);
     }
     // Loop again to normalize
     for (int i = 0; i < size; i++)
@@ -388,7 +388,7 @@ void reduce_xion_max(real_t* ion_fracs, int size)
     // Loop over all ions and get the total
     for (int i = 0; i < size; i++)
     {
-        ion_fracs[i] = fmax(ion_fracs[i], MIN_XION);
+        ion_fracs[i] = FMAX(ion_fracs[i], MIN_XION);
         total_ion_frac += ion_fracs[i];
         if (ion_fracs[i] > max_frac)
         {
@@ -411,13 +411,13 @@ void reduce_xion_max(real_t* ion_fracs, int size)
 
 template <
     bool constant_temperature,
-    bool ramses_rt_T_scheme=true,
-    bool rosenbrock_T_scheme=false,
-    bool include_H2=false,
-    bool include_CO=false
+    bool ramses_rt_T_scheme,
+    bool rosenbrock_T_scheme,
+    bool include_H2,
+    bool include_CO
 >
 KOKKOS_INLINE_FUNCTION
-real_t get_chemical_eqm(const Element *elements,
+std::tuple<int, real_t> get_chemical_eqm(const Element *elements,
                         ParticleIonData n_and_ion_fracs[MAX_ELEMENTS],
                         real_t TK,
                         const real_t aexp,
@@ -437,13 +437,8 @@ real_t get_chemical_eqm(const Element *elements,
     */
 
     // Parameters
-    //  real_t ddt = 3.15E16; // Initial timestep [s]
-    real_t ddt = 10000.0 * 365.25 * 60. * 60.;
-    // If we are not running to convergence, try to take one single step
-    if (total_dt > 0)
-    {
-        ddt = total_dt;
-    }
+    // Set time step to 10,000 years if total_dt <= 0
+    real_t ddt = (total_dt > 0) ? total_dt : 10000.0 * 365.25 * 60. * 60. * 24;
 
     // Convergence variables
     int success_counter = 0;
@@ -510,8 +505,9 @@ real_t get_chemical_eqm(const Element *elements,
     recompute_tables(TK);
 
     // # infinite loop
-    while (1)
+    while (total_time < total_dt || total_dt < 0.0)
     { // Infinite loop: TODO(code): put a max loop counter here and then call an error function
+        // printf("\t\tniter=%d, total_time=%f, ddt=%f\n", total_iterations, total_time, ddt);
         total_iterations += 1;
         compute_atoms = true;
         compute_molecules = true;
@@ -559,13 +555,13 @@ real_t get_chemical_eqm(const Element *elements,
 
         // Make sure the timestep isn't larger than how long we
         // need to evolve for, otherwise shorten it
-        if (total_dt > 0.0)
-        {
-            if ((total_time + ddt) > total_dt)
-            {
-                ddt = total_dt - total_time;
-            }
-        }
+        // if (total_dt > 0.0)
+        // {
+        //     if ((total_time + ddt) > total_dt)
+        //     {
+        //         ddt = total_dt - total_time;
+        //     }
+        // }
 
         /////////////////////////
         //      Radiation      //
@@ -591,69 +587,66 @@ real_t get_chemical_eqm(const Element *elements,
 
         // Is we use the ramses-rt scheme for the temperature update
         // then we perform the update first
-        real_t nH = n_and_ion_fracs[1].n_element / 0.76;      // TODO(code): hard coded at 0.76 -- need to calculate
-        real_t X_nHkb = 1.0 / (1.5 * nH * 1.380649e-16 * mu); // TODO(code): real_t check mu goes here
+        real_t nH = n_and_ion_fracs[1].n_element / 0.76;
+        real_t X_nHkb = 1.0 / (1.5 * nH * 1.3806e-16 * mu);
         real_t TK_new = TK;
-        if constexpr (!constant_temperature)
+        if constexpr (!constant_temperature & ramses_rt_T_scheme)
         {
-            if constexpr (ramses_rt_T_scheme)
+            cooling_rate = all_cooling<include_H2>(TK, ne, aexp,
+                                        element_number_densities,
+                                        element_number_ions,
+                                        element_ion_fractions,
+                                        UV_background_G0,
+                                        dust_to_gas_mass_ratio_over_mw,
+                                        xe,
+                                        primary_cosmic_ray_ionization_rate,
+                                        2.0 * primary_cosmic_ray_ionization_rate,
+                                        ss_factor,
+                                        tabData);
+
+            cooling_rate_prime = all_cooling<include_H2>(1.001 * TK, ne, aexp,
+                                                element_number_densities,
+                                                element_number_ions,
+                                                element_ion_fractions,
+                                                UV_background_G0,
+                                                dust_to_gas_mass_ratio_over_mw,
+                                                xe,
+                                                primary_cosmic_ray_ionization_rate,
+                                                2.0 * primary_cosmic_ray_ionization_rate,
+                                                ss_factor,
+                                                tabData);
+
+            cooling_rate_prime = (cooling_rate - cooling_rate_prime) / (TK - (1.001 * TK));
+
+            cooling_rate *= X_nHkb;
+            cooling_rate_prime *= -X_nHkb;
+
+            real_t dUU = FABS(FMAX(T_MIN, TK + cooling_rate * ddt) - TK);
+
+            // ! New T2 value
+            TK_new = FMAX(T_MIN, TK + cooling_rate * ddt / (1. - cooling_rate_prime * ddt));
+            residual = FMAX(dUU, FABS(TK_new - TK)) / (TK + T_MIN);
+
+            // Convergence
+            // X% rule
+            // residual = dTK / TK;
+
+            // Update the max residual
+            max_residual = FMAX(max_residual, residual);
+
+            // Max residual over all elements
+            max_residual_all = FMAX(max_residual_all, max_residual);
+
+            real_t max_frac_diff_temp = X_PCT_RULE_TEMP;
+            if (residual > max_frac_diff_temp)
             {
-                cooling_rate = all_cooling(TK, ne, aexp,
-                                           element_number_densities,
-                                           element_number_ions,
-                                           element_ion_fractions,
-                                           UV_background_G0,
-                                           dust_to_gas_mass_ratio_over_mw,
-                                           xe,
-                                           primary_cosmic_ray_ionization_rate,
-                                           2.0 * primary_cosmic_ray_ionization_rate,
-                                           ss_factor,
-                                           tabData);
-
-                cooling_rate_prime = all_cooling(1.001 * TK, ne, aexp,
-                                                 element_number_densities,
-                                                 element_number_ions,
-                                                 element_ion_fractions,
-                                                 UV_background_G0,
-                                                 dust_to_gas_mass_ratio_over_mw,
-                                                 xe,
-                                                 primary_cosmic_ray_ionization_rate,
-                                                 2.0 * primary_cosmic_ray_ionization_rate,
-                                                 ss_factor,
-                                                 tabData);
-
-                cooling_rate_prime = (cooling_rate - cooling_rate_prime) / (TK - (1.001 * TK));
-
-                cooling_rate *= X_nHkb;
-                cooling_rate_prime *= (-X_nHkb);
-
-                real_t dUU = fabs(fmax(T_MIN, TK + cooling_rate * ddt) - TK);
-
-                // ! New T2 value
-                TK_new = fmax(T_MIN, TK + cooling_rate * ddt / (1. - cooling_rate_prime * ddt));
-                residual = fmax(dUU, fabs(TK_new - TK)) / (TK + T_MIN);
-
-                // Convergence
-                // X% rule
-                // residual = dTK / TK;
-
-                // Update the max residual
-                max_residual = fmax(max_residual, residual);
-
-                // Max residual over all elements
-                max_residual_all = fmax(max_residual_all, max_residual);
-
-                real_t max_frac_diff_temp = X_PCT_RULE_TEMP;
-                if (residual > max_frac_diff_temp)
-                {
-                    // printf("Broken temperature %e %e\n",TK,residual);
-                    // Declare the x-percent rule was violated
-                    x_percent_rule = false;
-                    // Dont compute molecules
-                    compute_molecules = false;
-                    // Don't compute atoms
-                    compute_atoms = false;
-                }
+                // printf("Broken temperature %e %e\n",TK,residual);
+                // Declare the x-percent rule was violated
+                x_percent_rule = false;
+                // Dont compute molecules
+                compute_molecules = false;
+                // Don't compute atoms
+                compute_atoms = false;
             }
         }
 
@@ -715,7 +708,7 @@ real_t get_chemical_eqm(const Element *elements,
                 xH2 = (cr_H2 * ddt + xH2) / (1. + de_H2 * ddt);
 
                 // Store in the struct
-                n_and_ion_fracs[1].ion_fracs_new[2] = 2.0 * fmin(fmax(xH2, MIN_XION), 0.5);
+                n_and_ion_fracs[1].ion_fracs_new[2] = 2.0 * FMIN(FMAX(xH2, MIN_XION), 0.5);
 
                 // Make sure ions sum to 1
                 int size = elements[1].n_ions + elements[1].n_mol;
@@ -726,20 +719,20 @@ real_t get_chemical_eqm(const Element *elements,
 
                 // Convergence
                 // X% rule
-                residual = fabs(n_and_ion_fracs[1].ion_fracs_new[2] - n_and_ion_fracs[1].ion_fracs[2]) / fmax(n_and_ion_fracs[1].ion_fracs[2], MIN_XION_FLOOR);
+                residual = FABS(n_and_ion_fracs[1].ion_fracs_new[2] - n_and_ion_fracs[1].ion_fracs[2]) / FMAX(n_and_ion_fracs[1].ion_fracs[2], MIN_XION_FLOOR);
 
                 // Update the max residual
-                max_residual = fmax(max_residual, residual);
+                max_residual = FMAX(max_residual, residual);
 
                 // Note that this functional format actually helps with convergence at high densities
-                if (fabs(n_and_ion_fracs[1].ion_fracs_new[2] - n_and_ion_fracs[1].ion_fracs[2]) > CONV_ABS_H2_metal)
+                if (FABS(n_and_ion_fracs[1].ion_fracs_new[2] - n_and_ion_fracs[1].ion_fracs[2]) > CONV_ABS_H2_metal)
                 {
                     convergence_bool = false;
                 }
 
                 // Max residual over all elements
-                max_residual_all = fmax(max_residual_all, max_residual);
-                max_residual_abs = fmax(max_residual_abs, fabs(n_and_ion_fracs[1].ion_fracs_new[2] - n_and_ion_fracs[1].ion_fracs[2]) / CONV_ABS);
+                max_residual_all = FMAX(max_residual_all, max_residual);
+                max_residual_abs = FMAX(max_residual_abs, FABS(n_and_ion_fracs[1].ion_fracs_new[2] - n_and_ion_fracs[1].ion_fracs[2]) / CONV_ABS);
 
                 if (residual > X_PCT_RULE)
                 {
@@ -747,6 +740,8 @@ real_t get_chemical_eqm(const Element *elements,
                     x_percent_rule = false;
                     // Break the loop over ions
                     compute_atoms = false;
+                    // Reset the success counter
+                    success_counter = 0;
                 }
             }
         }
@@ -917,7 +912,7 @@ real_t get_chemical_eqm(const Element *elements,
                     /////////////////////////
                     // The update
                     n_and_ion_fracs[i].ion_fracs_new[j] = (cr * ddt + n_and_ion_fracs[i].ion_fracs_new[j]) / (1.0 + de * ddt);
-                    n_and_ion_fracs[i].ion_fracs_new[j] = fmin(fmax(n_and_ion_fracs[i].ion_fracs_new[j], MIN_XION), 1.0);
+                    n_and_ion_fracs[i].ion_fracs_new[j] = FMIN(FMAX(n_and_ion_fracs[i].ion_fracs_new[j], MIN_XION), 1.0);
 
                     int size = elements[i].n_ions + elements[i].n_mol;
                     reduce_xion(n_and_ion_fracs[i].ion_fracs_new, size);
@@ -933,17 +928,17 @@ real_t get_chemical_eqm(const Element *elements,
                     //     Convergence     //
                     /////////////////////////
                     // X% rule
-                    residual = fabs(n_and_ion_fracs[i].ion_fracs_new[j] - n_and_ion_fracs[i].ion_fracs[j]) / fmax(n_and_ion_fracs[i].ion_fracs[j], MIN_XION_FLOOR);
+                    residual = FABS(n_and_ion_fracs[i].ion_fracs_new[j] - n_and_ion_fracs[i].ion_fracs[j]) / FMAX(n_and_ion_fracs[i].ion_fracs[j], MIN_XION_FLOOR);
 
                     // electron density residual
-                    ne_residual = fabs(ne - ne_initial) / fmax(ne, MIN_XION_FLOOR);
-                    residual = fmax(residual, ne_residual);
+                    ne_residual = FABS(ne - ne_initial) / FMAX(ne, MIN_XION_FLOOR);
+                    residual = FMAX(residual, ne_residual);
 
                     // residual of derivative
                     // real_t dy_dt = cr - (de * n_and_ion_fracs[i].ion_fracs[j]);
                     // real_t dx_dy_dt = -1.0 * de;
-                    // real_t first_order_residual = fabs(dx_dy_dt / fmax(dy_dt, 1e-10));
-                    // residual = fmax(residual,first_order_residual);
+                    // real_t first_order_residual = FABS(dx_dy_dt / FMAX(dy_dt, 1e-10));
+                    // residual = FMAX(residual,first_order_residual);
 
                     // Check if convergence rule is broken
                     real_t CONV_ABS_loc = CONV_ABS;
@@ -953,17 +948,17 @@ real_t get_chemical_eqm(const Element *elements,
                     }
 
                     // Check if the model has converged
-                    if (fabs(n_and_ion_fracs[i].ion_fracs_new[j] - n_and_ion_fracs[i].ion_fracs[j]) > CONV_ABS_loc)
+                    if (FABS(n_and_ion_fracs[i].ion_fracs_new[j] - n_and_ion_fracs[i].ion_fracs[j]) > CONV_ABS_loc)
                     {
                         convergence_bool = false;
                     }
 
                     // Update the max residual
-                    max_residual = fmax(max_residual, residual);
+                    max_residual = FMAX(max_residual, residual);
 
                     // Max residual over all elements
-                    max_residual_all = fmax(max_residual_all, max_residual);
-                    max_residual_abs = fmax(max_residual_abs, fabs(n_and_ion_fracs[i].ion_fracs_new[j] - n_and_ion_fracs[i].ion_fracs[j]) / CONV_ABS_loc);
+                    max_residual_all = FMAX(max_residual_all, max_residual);
+                    max_residual_abs = FMAX(max_residual_abs, FABS(n_and_ion_fracs[i].ion_fracs_new[j] - n_and_ion_fracs[i].ion_fracs[j]) / CONV_ABS_loc);
 
                     // Check if X percent rule is broken
                     real_t loc_X_PCT_RULE = X_PCT_RULE;
@@ -976,6 +971,8 @@ real_t get_chemical_eqm(const Element *elements,
                     {
                         // Declare the x-percent rule was violated
                         x_percent_rule = false;
+                        // Reset the success counter
+                        success_counter = 0;
                         // Break the loop over ions
                         break;
                     }
@@ -998,102 +995,103 @@ real_t get_chemical_eqm(const Element *elements,
         }
 
         // Update temeprature afterwards if using the rosenbrock T scheme
-        if constexpr (!constant_temperature)
+        if constexpr (!constant_temperature & rosenbrock_T_scheme)
         {
-            if constexpr (rosenbrock_T_scheme)
+
+            // Update mu
+            mu = get_mu(
+                n_and_ion_fracs[1].ion_fracs_new[0], n_and_ion_fracs[1].ion_fracs_new[1],
+                n_and_ion_fracs[2].ion_fracs_new[1], n_and_ion_fracs[2].ion_fracs_new[2],
+                n_and_ion_fracs[1].n_element, n_and_ion_fracs[2].n_element);
+            // Update X_nHkb
+            X_nHkb = 1.0 / (1.5 * nH * 1.380649e-16 * mu); // TODO(code): real_t check mu goes here
+
+            real_t rosenbrock_gamma = 0.5;
+            real_t rosenbrock_h = ddt;
+            real_t rosenbrock_time = 0.0;
+
+            while (rosenbrock_time < ddt)
             {
+                cooling_rate = all_cooling<include_H2>(TK, ne, aexp,
+                                            element_number_densities,
+                                            element_number_ions,
+                                            element_ion_fractions,
+                                            UV_background_G0,
+                                            dust_to_gas_mass_ratio_over_mw,
+                                            xe,
+                                            primary_cosmic_ray_ionization_rate,
+                                            2.0 * primary_cosmic_ray_ionization_rate,
+                                            ss_factor,
+                                            tabData);
 
-                // Update mu
-                mu = get_mu(
-                    n_and_ion_fracs[1].ion_fracs_new[0], n_and_ion_fracs[1].ion_fracs_new[1],
-                    n_and_ion_fracs[2].ion_fracs_new[1], n_and_ion_fracs[2].ion_fracs_new[2],
-                    n_and_ion_fracs[1].n_element, n_and_ion_fracs[2].n_element);
-                // Update X_nHkb
-                X_nHkb = 1.0 / (1.5 * nH * 1.380649e-16 * mu); // TODO(code): real_t check mu goes here
+                cooling_rate_prime = all_cooling<include_H2>(1.001 * TK, ne, aexp,
+                                                    element_number_densities,
+                                                    element_number_ions,
+                                                    element_ion_fractions,
+                                                    UV_background_G0,
+                                                    dust_to_gas_mass_ratio_over_mw,
+                                                    xe,
+                                                    primary_cosmic_ray_ionization_rate,
+                                                    2.0 * primary_cosmic_ray_ionization_rate,
+                                                    ss_factor,
+                                                    tabData);
 
-                real_t rosenbrock_gamma = 0.5;
-                real_t rosenbrock_h = ddt;
-                real_t rosenbrock_time = 0.0;
+                cooling_rate_prime = (cooling_rate - cooling_rate_prime) / (TK - (1.001 * TK));
 
-                while (rosenbrock_time < ddt)
+                cooling_rate *= X_nHkb;
+                cooling_rate_prime *= (-X_nHkb); // This is now the Jacobian
+
+                real_t rosenbrock_M = 1.0 - (rosenbrock_gamma * rosenbrock_h * cooling_rate_prime);
+                real_t rosenbrock_k1 = cooling_rate / rosenbrock_M;
+
+                real_t T_h_k1 = TK + (rosenbrock_h * rosenbrock_k1);
+
+                cooling_rate_2 = all_cooling<include_H2>(T_h_k1, ne, aexp,
+                                                element_number_densities,
+                                                element_number_ions,
+                                                element_ion_fractions,
+                                                UV_background_G0,
+                                                dust_to_gas_mass_ratio_over_mw,
+                                                xe,
+                                                primary_cosmic_ray_ionization_rate,
+                                                2.0 * primary_cosmic_ray_ionization_rate,
+                                                ss_factor,
+                                                tabData);
+
+                cooling_rate_2 *= X_nHkb;
+
+                real_t rosenbrock_k2 = (cooling_rate_2 - (-1.0 * (rosenbrock_M - 1.0) * rosenbrock_k1)) / rosenbrock_M;
+                TK_new = TK + rosenbrock_h * (rosenbrock_k1 + rosenbrock_k2);
+                TK_new = FMIN(FMAX(TK_new, T_MIN), T_MAX);
+
+                // 10% rule
+                residual = FABS(TK_new - TK) / (TK + T_MIN);
+
+                if (residual > 0.05)
                 {
-                    cooling_rate = all_cooling(TK, ne, aexp,
-                                               element_number_densities,
-                                               element_number_ions,
-                                               element_ion_fractions,
-                                               UV_background_G0,
-                                               dust_to_gas_mass_ratio_over_mw,
-                                               xe,
-                                               primary_cosmic_ray_ionization_rate,
-                                               2.0 * primary_cosmic_ray_ionization_rate,
-                                               ss_factor,
-                                               tabData);
-
-                    cooling_rate_prime = all_cooling(1.001 * TK, ne, aexp,
-                                                     element_number_densities,
-                                                     element_number_ions,
-                                                     element_ion_fractions,
-                                                     UV_background_G0,
-                                                     dust_to_gas_mass_ratio_over_mw,
-                                                     xe,
-                                                     primary_cosmic_ray_ionization_rate,
-                                                     2.0 * primary_cosmic_ray_ionization_rate,
-                                                     ss_factor,
-                                                     tabData);
-
-                    cooling_rate_prime = (cooling_rate - cooling_rate_prime) / (TK - (1.001 * TK));
-
-                    cooling_rate *= X_nHkb;
-                    cooling_rate_prime *= (-X_nHkb); // This is now the Jacobian
-
-                    real_t rosenbrock_M = 1.0 - (rosenbrock_gamma * rosenbrock_h * cooling_rate_prime);
-                    real_t rosenbrock_k1 = cooling_rate / rosenbrock_M;
-
-                    real_t T_h_k1 = TK + (rosenbrock_h * rosenbrock_k1);
-
-                    cooling_rate_2 = all_cooling(T_h_k1, ne, aexp,
-                                                 element_number_densities,
-                                                 element_number_ions,
-                                                 element_ion_fractions,
-                                                 UV_background_G0,
-                                                 dust_to_gas_mass_ratio_over_mw,
-                                                 xe,
-                                                 primary_cosmic_ray_ionization_rate,
-                                                 2.0 * primary_cosmic_ray_ionization_rate,
-                                                 ss_factor,
-                                                 tabData);
-
-                    cooling_rate_2 *= X_nHkb;
-
-                    real_t rosenbrock_k2 = (cooling_rate_2 - (-1.0 * (rosenbrock_M - 1.0) * rosenbrock_k1)) / rosenbrock_M;
-                    TK_new = TK + rosenbrock_h * (rosenbrock_k1 + rosenbrock_k2);
-                    TK_new = fmin(fmax(TK_new, T_MIN), T_MAX);
-
-                    // 10% rule
-                    residual = fabs(TK_new - TK) / (TK + T_MIN);
-
-                    if (residual > 0.05)
-                    {
-                        // Reduce the timestep if needed
-                        // Can be more clever here
-                        rosenbrock_h /= 2.0;
-                    }
-                    else
-                    {
-                        // Update the time
-                        rosenbrock_time += rosenbrock_h;
-
-                        // Don't overshoot the timestep
-                        if ((rosenbrock_time + rosenbrock_h) > ddt)
-                        {
-                            rosenbrock_h = ddt - rosenbrock_time;
-                        }
-                        // Update the temperature
-                        TK = TK_new;
-                    }
+                    // Reduce the timestep if needed
+                    // Can be more clever here
+                    rosenbrock_h /= 2.0;
                 }
-                recompute_tables(TK);
+                else
+                {
+                    // Update the time
+                    rosenbrock_time += rosenbrock_h;
+
+                    // Don't overshoot the timestep
+                    if ((rosenbrock_time + rosenbrock_h) > ddt)
+                    {
+                        rosenbrock_h = ddt - rosenbrock_time;
+                    }
+                    // Update the temperature
+                    TK = TK_new;
+                }
             }
+        }
+
+        // Update the total time
+        if (x_percent_rule) {
+            total_time += ddt;
         }
 
         /////////////////////////
@@ -1102,36 +1100,32 @@ real_t get_chemical_eqm(const Element *elements,
 
         // Set new dt --> Strategy from Nick Gnedin
         max_residual_all /= (X_PCT_RULE);
-        real_t max_residual_ddt = fmax(max_residual_all, max_residual_abs * CONV_ABS / 1e-3);
+        real_t max_residual_ddt = FMAX(max_residual_all, max_residual_abs * CONV_ABS / 1e-3);
         if (max_residual_ddt > 1.0)
-        {
             ddt = 0.9 * ddt / sqrt(2. + max_residual_ddt);
-        }
         else
-        {
             ddt = 0.9 * ddt / pow(0.07 + max_residual_ddt, 0.3);
-        }
-        ddt = fmin(ddt, 1E11);
+        ddt = FMIN(ddt, 1E11);
+        if (total_dt > 0.0)
+            ddt = FMIN(ddt, total_dt - total_time);
 
         // Check if the model has converged
-        if (convergence_bool)
-        {
-            // If yes, increment counter
-            convergence_counter += 1;
-        }
-        else
-        {
-            // Else reset the counter
-            convergence_counter = 0;
-        }
+        if (x_percent_rule && convergence_bool) convergence_counter++;
+        else convergence_counter = 0;
 
         // If all elements completed
         // Loop over elements and ions and
         // set old values to new values
-        if (x_percent_rule)
-        {
+        // printf("\ttotal_time=%e/%e (%.0f%%, dt=%e) T=%e Tnew=%e xHI=%e xHII=%e xHeI=%e xHeII=%e xHeIII=%e\n",
+        //        total_time, total_dt, total_time / total_dt * 100, ddt, 
+        //        TK, TK_new,
+        //        n_and_ion_fracs[1].ion_fracs[0], n_and_ion_fracs[1].ion_fracs[1],
+        //        n_and_ion_fracs[2].ion_fracs[0], n_and_ion_fracs[2].ion_fracs[1], n_and_ion_fracs[2].ion_fracs[2]
+        //     );
+
+        if (x_percent_rule) {
             // Update temperature
-            TK_new = fmin(fmax(TK_new, T_MIN), T_MAX);
+            TK_new = FMIN(FMAX(TK_new, T_MIN), T_MAX);
             if (TK != TK_new) {
                 TK = TK_new;
                 recompute_tables(TK);
@@ -1148,32 +1142,20 @@ real_t get_chemical_eqm(const Element *elements,
                     n_and_ion_fracs[i].ion_fracs[j] = n_and_ion_fracs[i].ion_fracs_new[j];
                 } // End ion loop
             } // End element loop
-        }
 
-        // Update the success counter
-        success_counter += 1;
+            // Update the success counter
+            success_counter += 1;
+        }
 
         // Check if we are converged
-        if (convergence_counter > 5000)
-        {
-            // printf("#Converged\n");
-            model_converged = true;
-        }
-        if (success_counter > 1000)
-        {
-            // printf("#Success\n");
-            model_converged = true;
-        }
+        model_converged = (convergence_counter > 500); // || (success_counter > 1000);
 
-        // Update the total time
-        total_time += ddt;
-
-        // Break the infinite loop if the timestep has been reached
-        if (total_dt > 0.0)
-        {
-            if (fabs(total_time - total_dt) / total_dt < 1e-6)
-                break;
-        }
+        // // Break the infinite loop if the timestep has been reached
+        // if (total_dt > 0.0)
+        // {
+        //     if (FABS(total_time - total_dt) / total_dt < 1e-6)
+        //         break;
+        // }
 
         // std::cout << "\ttotal_time=" << total_time
         //           << " success_counter=" << success_counter
@@ -1183,30 +1165,35 @@ real_t get_chemical_eqm(const Element *elements,
         //           << std::endl;
 
         // Finish the calculation if model converged
-        if (model_converged)
+        if (total_dt < 0 && model_converged)
             break; // break from infinite loop
 
     } // End infinite loop
 
-    return TK;
+    return std::make_tuple(total_iterations, TK);
 }
 
 inline void parseIonInputs(
     const std::vector<std::string>& ions,
-    Kokkos::Array<int, MAX_ELEMENTS>& nions,
-    Kokkos::Array<int, MAX_ELEMENTS>& elems2passive,
-    Kokkos::Array<int, MAX_ELEMENTS>& ions2passive,
+    std::array<int, MAX_ELEMENTS>& nions,
+    std::array<int, MAX_ELEMENTS>& elems2passive,
+    std::array<int, MAX_ELEMENTS>& ions2passive,
     std::map<std::string, int>& ion_counts
 ) {
     for (auto ion : ions) {
+        // Trim whitespace
+        ion.erase(ion.find_last_not_of(" \n\r\t") + 1);
+        ion.erase(0, ion.find_first_not_of(" \n\r\t"));
+
         std::string element_name;
         if (ion == "H2") {
           // Special case for H2, we don't want to count it as an ion
           element_name = "H";
-        }
-        if (ion == "CO") {
+        } else if (ion == "CO") {
             // Special case for CO, we don't want to count it as an ion
             element_name = "C"; // TODO: Add to O?
+        } else {
+            element_name = ion.substr(0, ion.find_first_of("_"));
         }
 
         // Insert if missing
@@ -1214,16 +1201,22 @@ inline void parseIonInputs(
           // If the element is not already in the map, initialize to 0
           ion_counts[element_name] = 0;
         }
-        
+
         // Increment
         ion_counts[element_name]++;
     }
 
     // DYABLO_ASSERT_HOST_RELEASE(ion_counts.size() + ions.size() <= n_passive_scalars, "More ions than passive scalars");
 
-    // Create mask of elements 
+    // Create mask of elements
     int iions = ion_counts.size(), ielems = 0;
-    auto check_set = [&](const std::string& elem_name, Kokkos::Array<int, MAX_ELEMENTS>& nions, Kokkos::Array<int, MAX_ELEMENTS>& ions2passive, Kokkos::Array<int, MAX_ELEMENTS>& elems2passive, const int index) {
+    auto check_set = [&](
+        const std::string& elem_name,
+        std::array<int, MAX_ELEMENTS>& nions,
+        std::array<int, MAX_ELEMENTS>& elems2passive,
+        std::array<int, MAX_ELEMENTS>& ions2passive,
+        const int index
+    ) {
         if (ion_counts.find(elem_name) == ion_counts.end()) return;
 
         int nions_this_element = ion_counts.at(elem_name);
@@ -1232,13 +1225,20 @@ inline void parseIonInputs(
         elems2passive[index] = ielems;
         iions += nions_this_element;
         ielems++;
+
+        // std::cout << "Element: " << elem_name
+        //           << ", Index: " << index
+        //           << ", nions: " << nions_this_element
+        //           << ", ions2passive: " << ions2passive[index]
+        //           << ", elems2passive: " << elems2passive[index]
+        //           << std::endl;
     };
 
     for (auto i = 0; i < MAX_ELEMENTS; ++i) {
         nions[i] = 0;
         ions2passive[i] = -1;
     }
-    
+
     check_set( "H", nions, elems2passive, ions2passive,  1);
     check_set("He", nions, elems2passive, ions2passive,  2);
     check_set( "C", nions, elems2passive, ions2passive,  6);
@@ -1250,8 +1250,5 @@ inline void parseIonInputs(
     check_set( "S", nions, elems2passive, ions2passive, 16);
     check_set("Fe", nions, elems2passive, ions2passive, 26);
 
-    for (auto i = 0; i < MAX_ELEMENTS; ++i) {
-        std::cout << "ions2passive[" << i << "] = " << ions2passive[i] << std::endl;
-    }
 }
 }

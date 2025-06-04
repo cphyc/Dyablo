@@ -19,7 +19,7 @@ double alpha_H2_prim(double T, double xe, double H2_cosmic_ray_ionization_rate, 
     }
 
     // ! H- + H -> H2 + e
-    double k2 = 4.0E-9*pow(fmax(T,300.0),-0.17);
+    double k2 = 4.0E-9*pow(FMAX(T,300.0),-0.17);
 
     // ! H- + H+ -> H + H
     double k5 = 2.4E-6/sqrt(T)*(1.0 + T/20000.);
@@ -64,7 +64,7 @@ double alpha_H2_dust(double T, double dust_to_gas_mass_ratio_over_mw){
     // Formation on dust
     double clumping_factor = 1.0;
     double T2 = T / 100.0;
-    double formation_rate = dust_to_gas_mass_ratio_over_mw * (3.5E-17) * clumping_factor * sqrt(fmin(T2,5));
+    double formation_rate = dust_to_gas_mass_ratio_over_mw * (3.5E-17) * clumping_factor * sqrt(FMIN(T2,5));
 
     return formation_rate;
 }
@@ -146,13 +146,13 @@ double beta_H2(double T, double nH, double xHI, double xH2, double xHe, double n
     double k11 = pow(10.0,-27.029 + (3.801*log10(T)) - (29487.0/T));
     double k11L = pow(10.0,-2.729 - (1.75*log10(T)) - (23474.0/T));
 
-    k8   = fmax(k8, 1E-40);
-    k9   = fmax(k9, 1E-40);
-    k10  = fmax(k10, 1E-40);
-    k11  = fmax(k11, 1E-40);
-    k9L  = fmax(k9L, 1E-40);
-    k10L = fmax(k10L, 1E-40);
-    k11L = fmax(k11L, 1E-40);
+    k8   = FMAX(k8, 1E-40);
+    k9   = FMAX(k9, 1E-40);
+    k10  = FMAX(k10, 1E-40);
+    k11  = FMAX(k11, 1E-40);
+    k9L  = FMAX(k9L, 1E-40);
+    k10L = FMAX(k10L, 1E-40);
+    k11L = FMAX(k11L, 1E-40);
 
     // !Log of all the rates
     double lk8 = log10(k8);
@@ -161,7 +161,7 @@ double beta_H2(double T, double nH, double xHI, double xH2, double xHe, double n
     double lk11 = (LTEfac*log10(k11L)) + (NLTEfac*log10(k11));
 
     double destruction_rate = (ne*pow(10.0,lk8)) + (nHI*pow(10.0,lk9)) + (nH2*pow(10.0,lk10)) + (nHeI*pow(10.0,lk11));
-    destruction_rate = fmax(destruction_rate, 1E-40);
+    destruction_rate = FMAX(destruction_rate, 1E-40);
 
     return destruction_rate;
 }

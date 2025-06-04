@@ -37,6 +37,7 @@ using real_t = float;
 #else
 #define FMAX(x,y) ( x>y ? x : y )
 #define FMIN(x,y) ( x<y ? x : y )
+#define FABS(x) (x>0 ? x : -x)
 #define SQRT(x) sqrtf(x)
 #define FABS(x) fabsf(x)
 #define COPYSIGN(x,y) copysignf(x,y)

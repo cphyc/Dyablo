@@ -54,12 +54,12 @@ struct AnalyticalFormula_T_rho_grid : public AnalyticalFormula_base{
     ConsHydroState value( real_t x, real_t y, real_t z, real_t dx, real_t dy, real_t dz ) const
     {
         // Quadrant size
-        real_t T = Tmin * pow(Tmax / Tmin, x);
-        real_t rho = rhomin * pow(rhomax / rhomin, y);
+        real_t rho = rhomin * pow(rhomax / rhomin, 1-x);
+        real_t T = Tmin * pow(Tmax / Tmin, 1-y);
         real_t redshift = zmin + (zmax - zmin) * z;
-        real_t scale_T2 = Units::PROTON_MASS / Units::KBOLTZ * SQR(scale_v);
+        real_t scale_T = Units::PROTON_MASS / Units::KBOLTZ * SQR(scale_v);
 
-        real_t P = T / (gamma0 - 1) / scale_T2 * rho;
+        real_t P = T / (gamma0 - 1) / scale_T * rho;
 
         PrimHydroState q;
         q.rho = rho;

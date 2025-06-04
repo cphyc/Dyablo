@@ -193,8 +193,8 @@ double H2_cooling(double nH, double nH2, double T){
 KOKKOS_INLINE_FUNCTION
 double H2_cooling_GP98(double nH, double nH2, double T){
     // H2 cooling from galli and palli 98
-    double tm = fmax(T, 13.0); //    ! no cooling below 13 Kelvin
-    tm = fmin(T, 1E5); //      ! fixes numerics
+    double tm = FMAX(T, 13.0); //    ! no cooling below 13 Kelvin
+    tm = FMIN(T, 1E5); //      ! fixes numerics
     double logT = log10(tm);
     double t3 = tm * 1E-3;
 
@@ -415,7 +415,7 @@ double get_high_t_cooling_rates(double T, double ne,
     // Computes the high-temperature cooling rates
     // derived from Harley's custom cloudy models
 
-    double loc_T = fmax(T,1000.0);
+    double loc_T = FMAX(T,1000.0);
     double log_T = log10(loc_T);
     double t_min = 3.0;
     double t_max = 9.0;
@@ -545,8 +545,8 @@ double three_level(double g_0, double g_1, double g_2,
     double tmin = 1.0;
     double tmax = 4.975;
     double delta_temp = 0.025;
-    logT = fmax(logT,1.0);
-    logT = fmin(logT,tmax);
+    logT = FMAX(logT,1.0);
+    logT = FMIN(logT,tmax);
 
     double nu_10 = C_CGS / (lam_10 * 1E-4); //! Hz
     double nu_20 = C_CGS / (lam_20 * 1E-4); //! Hz
@@ -681,8 +681,8 @@ double two_level(double g_0, double g_1, double lam_10, double A_10,
     double tmin = 1.0;
     double tmax = 4.975;
     double delta_temp = 0.025;
-    logT = fmax(logT,tmin);
-    logT = fmin(logT,tmax);
+    logT = FMAX(logT,tmin);
+    logT = FMIN(logT,tmax);
 
     double nu_10 = C_CGS / (lam_10 * 1E-4); //! Hz
 
@@ -1144,10 +1144,10 @@ double dust_recombination_cooling_WD01(double T, double G0, double ne, double f_
 KOKKOS_INLINE_FUNCTION
 double dust_gas_collisional_cooling(double T, double G0, double xH2, double aexp, double nH, double f_dg){
     double dust_hc_const = 1.0E-33; //! For atomic dominated regions
-    dust_hc_const =  1.0E-33 + (3.8E-33 - 1.0E-33) * fmax(fmin(xH2,1.0),0.0);
+    dust_hc_const =  1.0E-33 + (3.8E-33 - 1.0E-33) * FMAX(FMIN(xH2,1.0),0.0);
 
     double T_dust = 16.4 * pow(1.7 * G0,1.0/6.0);
-    T_dust = fmax( T_dust, 2.725 * ( (1.0/aexp) - 1.0 ) ); // ! Limit dust temp minimum to CMB temp
+    T_dust = FMAX( T_dust, 2.725 * ( (1.0/aexp) - 1.0 ) ); // ! Limit dust temp minimum to CMB temp
 
     double dust_coll_cool = dust_hc_const * sqrt(T) * (T - T_dust) * ( 1.0 - ( 0.80 * exp(-75.0/T) ) );
     return dust_coll_cool * nH * nH * f_dg;
@@ -1349,13 +1349,13 @@ double H2_heating(double G0, double nH2, double nH, double T, double xH2, double
 
     // Heating from destructiona and pumping
     double fpump = 6.94; // ! Pumping fraction in the ISM: Draine and Bertoldi 1996
-    double Ebpump = fmax(Epump(nH, T, xH2, xHI), 0.0); //! Pumping energy in ergs
+    double Ebpump = FMAX(Epump(nH, T, xH2, xHI), 0.0); //! Pumping energy in ergs
     double EUV = 0.4 * EV_2_ERG; //! Energy from photodissociation in ergs (Black and Dalgarno 1977)
 
     double kUV = G0 * 5.68E-11; 
     double HrateLW = ((kUV*fpump*Ebpump) + (kUV*EUV))*nH2; //! [erg/s/cm3] = [#/s]*[erg/#]*[cm-3]
 
-    heating_rate += fmax(HrateLW, 0.0);
+    heating_rate += FMAX(HrateLW, 0.0);
 
     // // Heating from H2 formation
     // double H2_formation_rate = alpha_H2(T, f_dg, xe, xi_h2_cr, G0, xHI, xHII);
@@ -1440,6 +1440,7 @@ double CT_heat_cool(double T, double *element_number_densities,
 }
 
 
+template<bool include_H2>
 KOKKOS_INLINE_FUNCTION
 double all_cooling(double T, double ne, double aexp, double *element_number_densities, 
                    int *element_number_ions, Array2D& element_ion_fractions,
@@ -1461,7 +1462,7 @@ double all_cooling(double T, double ne, double aexp, double *element_number_dens
 
     double nH_I = element_number_densities[1] * element_ion_fractions[1][0];
     double nH_II = element_number_densities[1] * element_ion_fractions[1][1];
-    double nH2 = element_number_densities[1] * element_ion_fractions[1][2] * 0.5;
+    double nH2 = include_H2 ? (element_number_densities[1] * element_ion_fractions[1][2] * 0.5) : 0.0;
     double nHe_I = element_number_densities[2] * element_ion_fractions[2][0];
     double nHe_II = element_number_densities[2] * element_ion_fractions[2][1];
     double nHe_III = element_number_densities[2] * element_ion_fractions[2][2];
@@ -1486,7 +1487,7 @@ double all_cooling(double T, double ne, double aexp, double *element_number_dens
     double cooling_HeIII = recombination_cooling_case_B_HeIII(T) * ne * nHe_III;
     double cooling_bremmstrahlung = bremmstrahlung(T) * ne * (nH_II + nHe_II + (4.0 * nHe_III));
     double cooling_compton = compton_cooling(T,aexp) * ne;
-    double cooling_H2 = H2_cooling(nH, nH2, T);
+    double cooling_H2 = include_H2 ? H2_cooling(nH, nH2, T) : 0.0;
 
     double total_primordial_cooling = cooling_HI \
                                       + cooling_HII \
