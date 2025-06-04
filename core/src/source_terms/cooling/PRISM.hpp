@@ -181,7 +181,7 @@ typedef struct
     real_t ion_fracs_new[MAX_ELEMENTS];
 } ParticleIonData;
 
-real_t get_dust_mass_and_depletion(
+inline real_t get_dust_mass_and_depletion(
     Element *elements, real_t metallicity)
 {
     // Parameters for the RR14 dust-to-gas mass ratio
@@ -1191,7 +1191,7 @@ real_t get_chemical_eqm(const Element *elements,
     return TK;
 }
 
-void parseIonInputs(
+inline void parseIonInputs(
     const std::vector<std::string>& ions,
     Kokkos::Array<int, MAX_ELEMENTS>& nions,
     Kokkos::Array<int, MAX_ELEMENTS>& elems2passive,

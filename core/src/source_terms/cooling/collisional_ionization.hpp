@@ -5,7 +5,7 @@
 #include <Kokkos_Core.hpp>
 
 template<int N>
-void copy1D (double src[N], Kokkos::View<double[N]> &data_d) {
+inline void copy1D (double src[N], Kokkos::View<double[N]> &data_d) {
     data_d = Kokkos::View<double[N]>("data_d", N);
     auto data_h = Kokkos::create_mirror_view(data_d);
     for (int i = 0; i < N; i++)
@@ -13,7 +13,8 @@ void copy1D (double src[N], Kokkos::View<double[N]> &data_d) {
 
     Kokkos::deep_copy(data_d, data_h);
 }
-void init_collisional_ionization(TabulatedData& tabData) {
+
+inline void init_collisional_ionization(TabulatedData& tabData) {
     // Define the collisional ionization data
     // "carbon"
     double dE_carbon[] = { 11.3e0, 24.4e0, 47.9e0, 64.5e0, 392.1e0, 490.0e0 };
@@ -119,7 +120,7 @@ double coll_ion(double T, double dE, double A, double X, double K, double P){
     return A * (1. + P * sqrt(U)) * pow(U,K) * exp(-U) / (X + U);
 }
 
-KOKKOS_FUNCTION
+KOKKOS_INLINE_FUNCTION
 double collisional_ionization(double T, int ion, int element_idx, const TabulatedData& tabData) {
     /*
     collisional ionization rate

@@ -12,42 +12,43 @@ const double MIN_COOL_ION = 1.E-10; //minimum number density to calculate coolin
 
 // Initialize the relevant arrays
 const int N_HIGH_T_COOLING_TEMP = 121;
-double high_t_cooling_temp[N_HIGH_T_COOLING_TEMP];
-double high_t_cooling_rates[N_HIGH_T_COOLING_TEMP][27][27];
-bool high_t_cooling_rates_tflag[27][27];
-double fs_cool_tab[27][160][8];  // Array for fine structure cooling rates
+// double high_t_cooling_temp[N_HIGH_T_COOLING_TEMP];
+// double high_t_cooling_rates[N_HIGH_T_COOLING_TEMP][27][27];
+// bool high_t_cooling_rates_tflag[27][27];
+// double fs_cool_tab[27][160][8];  // Array for fine structure cooling rates
 
 
-double G0_heating_rates[27] = {
-    0.0, // 0 
-    0.0, // 1 - Hydrogen
-    0.0, // 2 - Helium
-    0.0, // 3
-    0.0, // 4
-    0.0, // 5
-    3.39E-10 * 0.8399 * EV_2_ERG, // 6 - Carbon
-    0.0, // 7 - Nitrogen
-    0.0, // 8 - Oxygen
-    0.0, // 9
-    0.0, // 10 - Neon
-    0.0, // 11
-    6.59E-11 * 2.0113 * EV_2_ERG, // 12 - Magnesium
-    0.0, // 13
-    4.47E-9 * 1.840 * EV_2_ERG, // 14 - Silicon
-    0.0, // 15
-    1.13E-9 * 1.126 * EV_2_ERG, // 16 - Sulfur
-    0.0, // 17
-    0.0, // 18
-    0.0, // 19
-    0.0, // 20
-    0.0, // 21
-    0.0, // 22
-    0.0, // 23
-    0.0, // 24
-    0.0, // 25
-    4.71E-10  * 1.924 * EV_2_ERG, // 26 - Iron
-};
-
+inline std::array<double, 27> get_G0_heating_rates() {
+    return {
+        0.0, // 0 
+        0.0, // 1 - Hydrogen
+        0.0, // 2 - Helium
+        0.0, // 3
+        0.0, // 4
+        0.0, // 5
+        3.39E-10 * 0.8399 * EV_2_ERG, // 6 - Carbon
+        0.0, // 7 - Nitrogen
+        0.0, // 8 - Oxygen
+        0.0, // 9
+        0.0, // 10 - Neon
+        0.0, // 11
+        6.59E-11 * 2.0113 * EV_2_ERG, // 12 - Magnesium
+        0.0, // 13
+        4.47E-9 * 1.840 * EV_2_ERG, // 14 - Silicon
+        0.0, // 15
+        1.13E-9 * 1.126 * EV_2_ERG, // 16 - Sulfur
+        0.0, // 17
+        0.0, // 18
+        0.0, // 19
+        0.0, // 20
+        0.0, // 21
+        0.0, // 22
+        0.0, // 23
+        0.0, // 24
+        0.0, // 25
+        4.71E-10  * 1.924 * EV_2_ERG, // 26 - Iron
+    };
+}
 
 KOKKOS_INLINE_FUNCTION
 double collisional_ionization_cooling_HI(double T){
@@ -220,8 +221,19 @@ double H2_cooling_GP98(double nH, double nH2, double T){
     return cooling_H2GP;
 }
 
+using _ct_t = std::array<double, N_HIGH_T_COOLING_TEMP>;
+using _cr_t = std::array<std::array<std::array<double, MAX_ELEMENTS>, MAX_ELEMENTS>, N_HIGH_T_COOLING_TEMP>;
+using _crt_t = std::array<std::array<bool, MAX_ELEMENTS>, MAX_ELEMENTS>;
 
-void initialize_high_temperature_metal_cooling(const std::string path){
+inline std::tuple<
+    _cr_t,
+    _crt_t
+>
+initialize_high_temperature_metal_cooling(const std::string path){
+    _cr_t high_t_cooling_rates;
+    _crt_t high_t_cooling_rates_tflag;
+    _ct_t high_t_cooling_temp;
+
     // Cloudy tables of metal line cooling
     // which are valid at high temperature
     FILE *file;
@@ -389,9 +401,11 @@ void initialize_high_temperature_metal_cooling(const std::string path){
     // FeII
     high_t_cooling_rates_tflag[26][1] = true;
 
+    return std::make_tuple(high_t_cooling_rates, high_t_cooling_rates_tflag);
+
 }
 
-KOKKOS_FUNCTION
+KOKKOS_INLINE_FUNCTION
 double get_high_t_cooling_rates(double T, double ne, 
                                 double *element_number_densities,
                                 int *element_number_ions,
@@ -454,11 +468,15 @@ double get_high_t_cooling_rates(double T, double ne,
     return total_metal_cooling_rate * t_scale_fac;
 }
 
-void init_fine_structure_tables(const std::string path){
+// double fs_cool_tab[27][160][8];
+using _fs_cool_tab_t = std::array<std::array<std::array<double, 8>, 160>, 27>;
+inline _fs_cool_tab_t init_fine_structure_tables(const std::string path){
     // Initialization for fine structure cooling tables
     printf("Initializing fine structure cooling tables\n");
 
-    const int N_LINES = 27; 
+    _fs_cool_tab_t fs_cool_tab;
+
+    const int N_LINES = 27;
     const std::string file_names[N_LINES] = {
         "CII_158um_rates.dat", "CI_609um_rates.dat", "CI_230um_rates.dat", "CI_370um_rates.dat",
         "NII_205um_rates.dat", "NII_76um_rates.dat", "NII_122um_rates.dat", "OI_63um_rates.dat",
@@ -498,9 +516,11 @@ void init_fine_structure_tables(const std::string path){
 
         fclose(file);
     }
+
+    return fs_cool_tab;
 }
 
-KOKKOS_FUNCTION
+KOKKOS_INLINE_FUNCTION
 double three_level(double g_0, double g_1, double g_2, 
                    double lam_10, double lam_20, double lam_21, 
                    double A_10, double A_20, double A_21, 
@@ -642,7 +662,7 @@ double three_level(double g_0, double g_1, double g_2,
     return three_level_cooling;
 }
 
-KOKKOS_FUNCTION
+KOKKOS_INLINE_FUNCTION
 double two_level(double g_0, double g_1, double lam_10, double A_10,
                 double z, double T, double n_ion, double ne, 
                 double nH, double nHp, double nHe, double nHep, 
@@ -1167,7 +1187,7 @@ double photoelectric_heating_WD01(double T, double G0, double ne, double f_dg, d
     return HratePE;
 }
 
-KOKKOS_FUNCTION
+KOKKOS_INLINE_FUNCTION
 double cosmic_ray_heating(double xe, double n_HI, double n_HeI, double n_H2,
                           double ne, double xi_h_cr,
                           double *element_number_densities,
@@ -1420,7 +1440,7 @@ double CT_heat_cool(double T, double *element_number_densities,
 }
 
 
-KOKKOS_FUNCTION
+KOKKOS_INLINE_FUNCTION
 double all_cooling(double T, double ne, double aexp, double *element_number_densities, 
                    int *element_number_ions, Array2D& element_ion_fractions,
                    double G0, double f_dg, double xe, double xi_h_cr, double xi_h2_cr,

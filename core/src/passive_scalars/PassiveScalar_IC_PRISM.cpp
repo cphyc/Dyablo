@@ -6,6 +6,8 @@ namespace dyablo{
 struct PassiveScalar_IC_PRISM : public PassiveScalar_IC {
   ForeachCell &foreach_cell;
 
+  int n_passive_scalars;
+
   const std::vector<real_t> initial_abundances;
   const std::vector<real_t> initial_ionization;
   const std::vector<std::string> ions;
@@ -14,8 +16,6 @@ struct PassiveScalar_IC_PRISM : public PassiveScalar_IC {
   Kokkos::Array<int, MAX_ELEMENTS> nions;
   Kokkos::Array<int, MAX_ELEMENTS> ions2passive;
   Kokkos::Array<int, MAX_ELEMENTS> elems2passive;
-
-  int n_passive_scalars;
 
   PassiveScalar_IC_PRISM(  ConfigMap& configMap,
                                       ForeachCell& foreach_cell,  
@@ -39,12 +39,12 @@ struct PassiveScalar_IC_PRISM : public PassiveScalar_IC {
         "ions.size() = " << ions.size() << ", "
         "initial_ionization.size() = " << initial_ionization.size() );
 
-      for (auto i = 0; i < initial_abundances.size(); ++i) {
+      for (auto i = 0; i < int(initial_abundances.size()); ++i) {
         DYABLO_ASSERT_HOST_DEBUG( initial_abundances[i] >= 0.0 && initial_abundances[i] <= 1.0,
           "Initial abundance must be between 0 and 1. "
           "initial_abundances[" << i << "] = " << initial_abundances[i] );
       }
-      for (auto i = 0; i < initial_ionization.size(); ++i) {
+      for (auto i = 0; i < int(initial_ionization.size()); ++i) {
         DYABLO_ASSERT_HOST_DEBUG( initial_ionization[i] >= 0.0 && initial_ionization[i] <= 1.0,
           "Initial ionization must be between 0 and 1. "
           "initial_ionization[" << i << "] = " << initial_ionization[i] );

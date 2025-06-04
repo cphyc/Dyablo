@@ -21,7 +21,7 @@ void copy2D (double src[N][M], Kokkos::View<double[N][M]> &data_d) {
 }
 
 
-void init_recombination_rates(TabulatedData &tabData) {
+inline void init_recombination_rates(TabulatedData &tabData) {
     // ###
     // ### Carbon
     // ###
@@ -616,7 +616,7 @@ double alpha_DR(const double T, const Kokkos::View<double [N][M]>& DR_rates_e, c
     return comp_Alpha;
 }
 
-KOKKOS_FUNCTION
+KOKKOS_INLINE_FUNCTION
 double recombination(double T, int ion, int element_idx, const TabulatedData& tabData){
     /*
     recombination rate [cm^3 s^-1]

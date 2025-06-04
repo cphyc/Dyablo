@@ -39,25 +39,27 @@ public:
     ct_rates_path(configMap.getValue<std::string>("cooling", "charge_transfer_tables")),
     high_temperature_metal_cooling_path(configMap.getValue<std::string>("cooling", "high_temperature_metal_cooling_tables")),
     fine_structure_path(configMap.getValue<std::string>("cooling", "fine_structure_tables")),
+    HM12_UVB_data(load_UVB_data(UVB_table_path)),
     n_passive_scalars( configMap.getValue<int>("run", "n_passive_scalars", 0) )
   {
 
     PRISM::parseIonInputs(ions, this->nions, this->elems2passive, this->ions2passive, this->ion_counts); 
 
-    // Initialize the UV background data
-    load_UVB_data(UVB_table_path);      // First load the UVB data from files
-
     // Initialize cosmic ray rates
-    initialize_cr_rates();
+    const auto& [cosmic_ray_ionization_rates, cosmic_ray_ionization_rates_induced_UV, cosmic_ray_ionization_rates_induced_UV_heat] = initialize_cr_rates();
 
     // Initialize the charge transfer rates
-    load_ct_rates(ct_rates_path);
+    const auto& [CTRecomb, CTIon] = load_ct_rates(ct_rates_path);
 
     // Initialize high temperature cooling tables
-    initialize_high_temperature_metal_cooling(high_temperature_metal_cooling_path);
+    const auto& [high_t_cooling_rates, high_t_cooling_rates_tflag] = initialize_high_temperature_metal_cooling(high_temperature_metal_cooling_path);
 
     // Initialize the low temperature cooling tables
-    init_fine_structure_tables(fine_structure_path);
+    const auto& fs_cool_tab = init_fine_structure_tables(fine_structure_path);
+
+    // Get hard-coded rates
+    const auto& dust_rec_coefs = get_dust_rec_coefs();
+    const auto& G0_heating_rates = get_G0_heating_rates();
 
     // HM-related data
     PRISM::copy_data_1D(G0_heating_rates, tabData.G0_heating_rates);
@@ -95,13 +97,13 @@ public:
     constexpr bool ramses_rt_T_scheme = true;        // Whether to use the ramses-rt temperature update
     constexpr bool rosenbrock_T_scheme = false;      // Whether to use the rosenbrocat temperature update
     constexpr bool constant_temperature = false;     // Whether to compute at constant temperature
-    constexpr real_t metallicity = 0.1;              // Some assumed metallicity
+    // constexpr real_t metallicity = 0.1;              // Some assumed metallicity
 
     const real_t aexp = cosmo_run ? scalar_data.get<real_t>("aexp") : 1;
     const real_t redshift = 1e0/aexp - 1e0;
 
     // Update UVB
-    update_UVB(redshift); // Interpolate to the correct redshift
+    const auto& HM12_UVB_z = update_UVB(redshift, this->HM12_UVB_data); // Interpolate to the correct redshift
     PRISM::copy_data_3D(HM12_UVB_z, tabData.HM12_UVB_z);
 
     std::vector<dyablo::UserData_fields::FieldAccessor_FieldInfo> in_fields = {
@@ -119,7 +121,7 @@ public:
         {"rho_vz_next", dyablo::ConsHydroState::Irho_vz},
     };
     // Push back the ion abundances + element mass fractions
-    for (auto ipassive = 0; ipassive < ion_counts.size() + ions.size(); ++ipassive) {
+    for (auto ipassive = 0; ipassive < int(ion_counts.size() + ions.size()); ++ipassive) {
         std::ostringstream oss;
         oss << "passive_scalar_" << ipassive;
         in_fields.push_back({oss.str(), dyablo::ConsHydroState::Irho_vz + ipassive + 1});
@@ -195,6 +197,11 @@ public:
   Kokkos::Array<int, MAX_ELEMENTS> nions;
   Kokkos::Array<int, MAX_ELEMENTS> elems2passive;
   Kokkos::Array<int, MAX_ELEMENTS> ions2passive;
+
+  // UV background data
+  UVB_table_t HM12_UVB;
+  struct UVB_data HM12_UVB_data;
+
   int n_passive_scalars;
 };
 

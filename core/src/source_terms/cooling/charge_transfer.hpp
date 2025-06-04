@@ -6,10 +6,18 @@
 #include "types.hpp"
 
 
-double CTRecomb[6][4][31];
-double CTIon[7][3][31];
+// double CTRecomb[6][4][31];
+// double CTIon[7][3][31];
 
-void load_ct_rates(const std::string path){
+using _CTRecomb_t = std::array<std::array<std::array<double, 31>, 4>, 6>;
+using _CTIon_t = std::array<std::array<std::array<double, 31>, 3>, 7>;
+
+inline std::tuple<
+    _CTRecomb_t,
+    _CTIon_t
+> load_ct_rates(const std::string path){
+    _CTRecomb_t CTRecomb;
+    _CTIon_t CTIon;
     // Load the charge transfer ionization
     // and recombination rates from file
 
@@ -52,9 +60,13 @@ void load_ct_rates(const std::string path){
     // Close the file
     fclose(file);
 
+    return std::make_tuple(
+        CTRecomb,
+        CTIon
+    );
 }
 
-KOKKOS_FUNCTION
+KOKKOS_INLINE_FUNCTION
 double charge_transfer_recombination(int ion, int nelem, double T, const TabulatedData& tabData){
     // ion is stage of ionization, 2 for the ion going to the atom
     // nelem is atomic number of element, 2 up to 30
@@ -152,7 +164,7 @@ double charge_transfer_recombination(int ion, int nelem, double T, const Tabulat
     return ct_recomb;
 }
 
-KOKKOS_FUNCTION
+KOKKOS_INLINE_FUNCTION
 double charge_transfer_ionization(int ion, int nelem, double T, const TabulatedData& tabData){
     // ion is stage of ionization, 1 for atom
     // nelem is atomic number of element, 2 up to 30

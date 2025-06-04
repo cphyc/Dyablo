@@ -59,7 +59,7 @@ double alpha_H2_prim(double T, double xe, double H2_cosmic_ray_ionization_rate, 
     return formation_rate;
 }
 
-KOKKOS_FUNCTION
+KOKKOS_INLINE_FUNCTION
 double alpha_H2_dust(double T, double dust_to_gas_mass_ratio_over_mw){
     // Formation on dust
     double clumping_factor = 1.0;
@@ -69,7 +69,7 @@ double alpha_H2_dust(double T, double dust_to_gas_mass_ratio_over_mw){
     return formation_rate;
 }
 
-KOKKOS_FUNCTION
+KOKKOS_INLINE_FUNCTION
 double alpha_H2(double T, double dust_to_gas_mass_ratio_over_mw, double xe, double H2_cosmic_ray_ionization_rate, double G0, double xHI, double xHII, double nH){
     // Creation rate of molecular hydrogen
     // We consider both the primordial channel (via H-) as well

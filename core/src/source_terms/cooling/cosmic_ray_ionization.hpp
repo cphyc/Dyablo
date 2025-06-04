@@ -3,40 +3,48 @@
 
 #include <Kokkos_Core.hpp>
 
-// Array that holds the cosmic ray ionization rate data
-double cosmic_ray_ionization_rates[27][27];
-double cosmic_ray_ionization_rates_induced_UV[27];
-double cosmic_ray_ionization_rates_induced_UV_heat[27];
+// // Array that holds the cosmic ray ionization rate data
+// double cosmic_ray_ionization_rates[27][27];
+// double cosmic_ray_ionization_rates_induced_UV[27];
+// double cosmic_ray_ionization_rates_induced_UV_heat[27];
 
-// Hydrogen
-double cosmic_ray_ionization_rates_hydrogen[27]  = { 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-// Helium
-double cosmic_ray_ionization_rates_helium[27]    = { 1.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-// Carbon
-double cosmic_ray_ionization_rates_carbon[27]    = { 3.83, 1.6638695, 0.8312262, 0.4541473, 0.06937006, 0.027755102, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-// Nitrogen
-double cosmic_ray_ionization_rates_nitrogen[27]  = { 4.52, 1.8237852, 0.8574613, 0.5265334, 0.30504152, 0.04926644, 0.020386748, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-// Oxygen
-double cosmic_ray_ionization_rates_oxygen[27]    = { 5.637, 1.9201249, 0.98636097, 0.5261845, 0.36398333, 0.21907325, 0.03679156, 0.015607069, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-// Neon
-double cosmic_ray_ionization_rates_neon[27]      = { 4.8251953, 2.2843935, 1.2726027, 0.6982404, 0.43035796, 0.2581805, 0.204098, 0.12864962, 0.022742474, 0.009985316, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-// Magnesium
-double cosmic_ray_ionization_rates_magnesium[27] = { 9.016716, 5.037889, 1.345602, 0.86565775, 0.5749281, 0.36411676, 0.24167651, 0.15331018, 0.13045996, 0.084565096, 0.015437003, 0.006928171, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-// Silicon
-double cosmic_ray_ionization_rates_silicon[27]   = { 6.37329, 2.4664342, 2.5934594, 1.8422631, 0.64957255, 0.46263242, 0.3302073, 0.22406998, 0.15485357, 0.10161172, 0.09062556, 0.059769776, 0.011156686, 0.0050879163, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-// Sulfur
-double cosmic_ray_ionization_rates_sulfur[27]    = { 7.5164065, 2.8824131, 1.5510099, 0.8586138, 1.2691398, 0.9713803, 0.38636714, 0.28946567, 0.21488377, 0.15199806, 0.107721165, 0.07223445, 0.066572525, 0.044464245, 0.008436725, 0.003892387, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-// Iron
-double cosmic_ray_ionization_rates_iron[27]      = { 3.192021, 5.842174, 4.724112, 2.5858068, 1.7483323, 1.2082134, 0.85902447, 0.62585855, 0.46490052, 0.3626024, 0.28070357, 0.20538796, 0.15056798, 0.10395802, 0.21419027, 0.18064684, 0.086154655, 0.07006637, 0.056015324, 0.042974997, 0.032204125, 0.02267751, 0.022580078, 0.015563778, 0.0030807566, 0.0014658332, 0.0 };
 
-void initialize_cr_rates(){
+using _crir_t = std::array<std::array<double, 27>, 27>;
+using _criu_t = std::array<double, 27>;
+using _criu_heat_t = std::array<double, 27>;
+
+inline std::tuple<
+    _crir_t,
+    _criu_t,
+    _criu_heat_t
+> initialize_cr_rates(){
+    _crir_t cosmic_ray_ionization_rates;
+    _criu_t cosmic_ray_ionization_rates_induced_UV;
+    _criu_heat_t cosmic_ray_ionization_rates_induced_UV_heat;
+    
+    // Hydrogen
+    constexpr double cosmic_ray_ionization_rates_hydrogen[27]  = { 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+    // Helium
+    constexpr double cosmic_ray_ionization_rates_helium[27]    = { 1.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+    // Carbon
+    constexpr double cosmic_ray_ionization_rates_carbon[27]    = { 3.83, 1.6638695, 0.8312262, 0.4541473, 0.06937006, 0.027755102, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+    // Nitrogen
+    constexpr double cosmic_ray_ionization_rates_nitrogen[27]  = { 4.52, 1.8237852, 0.8574613, 0.5265334, 0.30504152, 0.04926644, 0.020386748, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+    // Oxygen
+    constexpr double cosmic_ray_ionization_rates_oxygen[27]    = { 5.637, 1.9201249, 0.98636097, 0.5261845, 0.36398333, 0.21907325, 0.03679156, 0.015607069, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+    // Neon
+    constexpr double cosmic_ray_ionization_rates_neon[27]      = { 4.8251953, 2.2843935, 1.2726027, 0.6982404, 0.43035796, 0.2581805, 0.204098, 0.12864962, 0.022742474, 0.009985316, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+    // Magnesium
+    constexpr double cosmic_ray_ionization_rates_magnesium[27] = { 9.016716, 5.037889, 1.345602, 0.86565775, 0.5749281, 0.36411676, 0.24167651, 0.15331018, 0.13045996, 0.084565096, 0.015437003, 0.006928171, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+    // Silicon
+    constexpr double cosmic_ray_ionization_rates_silicon[27]   = { 6.37329, 2.4664342, 2.5934594, 1.8422631, 0.64957255, 0.46263242, 0.3302073, 0.22406998, 0.15485357, 0.10161172, 0.09062556, 0.059769776, 0.011156686, 0.0050879163, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+    // Sulfur
+    constexpr double cosmic_ray_ionization_rates_sulfur[27]    = { 7.5164065, 2.8824131, 1.5510099, 0.8586138, 1.2691398, 0.9713803, 0.38636714, 0.28946567, 0.21488377, 0.15199806, 0.107721165, 0.07223445, 0.066572525, 0.044464245, 0.008436725, 0.003892387, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+    // Iron
+    constexpr double cosmic_ray_ionization_rates_iron[27]      = { 3.192021, 5.842174, 4.724112, 2.5858068, 1.7483323, 1.2082134, 0.85902447, 0.62585855, 0.46490052, 0.3626024, 0.28070357, 0.20538796, 0.15056798, 0.10395802, 0.21419027, 0.18064684, 0.086154655, 0.07006637, 0.056015324, 0.042974997, 0.032204125, 0.02267751, 0.022580078, 0.015563778, 0.0030807566, 0.0014658332, 0.0 };
     // Initialize
-    for (int i = 0; i < 27; i++) {
-        for (int j = 0; j < 27; j++) {
-            cosmic_ray_ionization_rates[i][j] = 0.0;
-            cosmic_ray_ionization_rates_induced_UV_heat[i] = 0.0;
-        }
-    }
+    cosmic_ray_ionization_rates_induced_UV.fill(0.0);
+    cosmic_ray_ionization_rates_induced_UV_heat.fill(0.0);
 
     // Now populate
     for (int i = 0; i < 27; i++) {
@@ -81,9 +89,14 @@ void initialize_cr_rates(){
     cosmic_ray_ionization_rates_induced_UV_heat[16] = 1.32; // Sulfur
     cosmic_ray_ionization_rates_induced_UV_heat[26] = 2.32; // Iron
 
+    return std::make_tuple(
+        cosmic_ray_ionization_rates,
+        cosmic_ray_ionization_rates_induced_UV,
+        cosmic_ray_ionization_rates_induced_UV_heat
+    );
 }
 
-KOKKOS_FUNCTION
+KOKKOS_INLINE_FUNCTION
 double secondary_cr_rates(double xe){
     /*
     Secondary CR ionization rate
