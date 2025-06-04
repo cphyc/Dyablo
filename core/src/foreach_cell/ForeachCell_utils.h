@@ -92,13 +92,6 @@ template< bool enable_different_block=true, typename Func >
 KOKKOS_INLINE_FUNCTION
 int foreach_sibling( int ndim, const CellIndex& iCell, const CellArray_global_ghosted::Shape_t& array, const Func& apply_sibling )
 {
-  return foreach_sibling( ndim, iCell, array, apply_sibling );
-}
-
-template< bool enable_different_block=true, typename Func >
-KOKKOS_INLINE_FUNCTION
-int foreach_sibling( int ndim, const CellIndex& iCell, const CellArray_global_ghosted::Shape_t& array, const Func& apply_sibling )
-{
   // enable_different_block must be activated for cell-based or odd block size
   DYABLO_ASSERT_KOKKOS_DEBUG( enable_different_block || ( iCell.bx%2 == 0 && iCell.by%2 == 0 && iCell.bz%2 == 0 ),
     "enable_different_block must be activated for cell-based or odd block size" );

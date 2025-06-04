@@ -115,8 +115,8 @@ void test_FullTree()
       {
         ForeachCell::CellIndex iCell_c0 = iCell.getChildren(Uintermediate.getShape());
 
-        pos_t parent_pos = cells.getCellCenter( iCell );
-        pos_t child_pos =  cells.getCellCenter( iCell_c0 );
+        //pos_t parent_pos = cells.getCellCenter( iCell );
+        //pos_t child_pos =  cells.getCellCenter( iCell_c0 );
 
         pos_t p{};
         int ns = foreach_sibling( ndim, iCell_c0, Uintermediate.getShape(),
