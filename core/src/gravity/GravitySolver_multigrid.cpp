@@ -781,8 +781,8 @@ void GravitySolver_multigrid::compute_mask(UserData& U_, const level_t level_min
 
   for (level_t level = level_max - 1; level >= level_min_mpi; level--) 
   {
-    reduce_specific_intermediate_ghosts_at_level(U_, level, {"mask"}, ghost_comm_blockwide);
-    exchange_specific_intermediate_ghosts_at_level(U_, level, {"mask"}, ghost_comm_minimal); 
+    reduce_ghosts_at_level<Target::INTERMEDIATES>(U_, level, {"mask"}, ghost_comm_blockwide);
+    exchange_ghosts_at_level<Target::INTERMEDIATES>(U_, level, {"mask"}, ghost_comm_minimal); 
   }
 }
 
@@ -1720,10 +1720,10 @@ void GravitySolver_multigrid::smoothing_intermediate_amr_correction(UserData& U_
   for (uint32_t i = 0; i < nIterations; i++) 
   {
     gauss_seidel_intermediate_amr_correction_rb<is_red>(level);
-    if (isMPILevel) exchange_specific_intermediate_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
+    if (isMPILevel) exchange_ghosts_at_level<Target::INTERMEDIATES>(U_, level, {"solution"}, ghost_comm);
 
     gauss_seidel_intermediate_amr_correction_rb<is_black>(level);
-    if (isMPILevel && i < nIterations - 1) exchange_specific_intermediate_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
+    if (isMPILevel && i < nIterations - 1) exchange_ghosts_at_level<Target::INTERMEDIATES>(U_, level, {"solution"}, ghost_comm);
   }
 }
 
@@ -1759,26 +1759,14 @@ void GravitySolver_multigrid::smoothing_uniform(UserData& U_, const uint32_t nIt
     if constexpr (target == Target::INTERMEDIATES || target == Target::BOTH)
       gauss_seidel_intermediate_rb<is_red>(level);
 
-    if (isMPILevel) 
-    {
-      if constexpr (target == Target::LEAVES || target == Target::BOTH)
-        exchange_specific_leaf_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
-      if constexpr (target == Target::INTERMEDIATES || target == Target::BOTH)
-        exchange_specific_intermediate_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
-    }
+    if (isMPILevel) exchange_ghosts_at_level<target>(U_, level, {"solution"}, ghost_comm);
 
     if constexpr (target == Target::LEAVES || target == Target::BOTH)
       gauss_seidel_leaves_uniform_rb<is_black>(level);
     if constexpr (target == Target::INTERMEDIATES || target == Target::BOTH)
       gauss_seidel_intermediate_rb<is_black>(level);
 
-    if (isMPILevel && i < nIterations - 1)
-    {
-      if constexpr (target == Target::LEAVES || target == Target::BOTH)
-        exchange_specific_leaf_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
-      if constexpr (target == Target::INTERMEDIATES || target == Target::BOTH)
-        exchange_specific_intermediate_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
-    }
+    if (isMPILevel && i < nIterations - 1) exchange_ghosts_at_level<target>(U_, level, {"solution"}, ghost_comm);
   }
 }
 
@@ -1806,20 +1794,12 @@ void GravitySolver_multigrid::smoothing_amr_finest(UserData& U_, const uint32_t 
     gauss_seidel_leaves_amr_finest_rb<is_red>(level);
     gauss_seidel_intermediate_rb<is_red>(level);
 
-    if (isMPILevel)
-    {
-      exchange_specific_leaf_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
-      exchange_specific_intermediate_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
-    }
+    if (isMPILevel) exchange_ghosts_at_level<Target::BOTH>(U_, level, {"solution"}, ghost_comm);
 
     gauss_seidel_leaves_amr_finest_rb<is_black>(level);
     gauss_seidel_intermediate_rb<is_black>(level);
 
-    if (isMPILevel && i < nIterations - 1)
-    {
-      exchange_specific_leaf_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
-      exchange_specific_intermediate_ghosts_at_level(U_, level, {"solution"}, ghost_comm);
-    }
+    if (isMPILevel && i < nIterations - 1) exchange_ghosts_at_level<Target::BOTH>(U_, level, {"solution"}, ghost_comm);
   }
 }
 
@@ -1847,21 +1827,17 @@ void GravitySolver_multigrid::V_cycle_uniform(UserData& U_, const level_t level,
   if (level == pdata->level_coarse)
   {
     smoothing_uniform<Target::BOTH>(U_, pdata->Npre, level, ghost_comm_minimal);
-    if (isMPILevel)
-    {
-      exchange_specific_leaf_ghosts_at_level(U_, level, {"solution"}, ghost_comm_minimal);
-      exchange_specific_intermediate_ghosts_at_level(U_, level, {"solution"}, ghost_comm_minimal);
-    }
+    if (isMPILevel) exchange_ghosts_at_level<Target::BOTH>(U_, level, {"solution"}, ghost_comm_minimal);
     residual_uniform<Target::BOTH>(level);
-    if (isMPILevel) exchange_specific_leaf_ghosts_at_level(U_, level, {"res"}, ghost_comm_minimal);
+    if (isMPILevel) exchange_ghosts_at_level<Target::LEAVES>(U_, level, {"res"}, ghost_comm_minimal);
   } 
   else 
   {
     smoothing_uniform<Target::INTERMEDIATES>(U_, pdata->Npre, level, ghost_comm_minimal);
-    if (isMPILevel) exchange_specific_intermediate_ghosts_at_level(U_, level, {"solution"}, ghost_comm_minimal);
+    if (isMPILevel) exchange_ghosts_at_level<Target::INTERMEDIATES>(U_, level, {"solution"}, ghost_comm_minimal);
     residual_uniform<Target::INTERMEDIATES>(level);
   }
-  if (isMPILevel) exchange_specific_intermediate_ghosts_at_level(U_, level, {"res"}, ghost_comm_minimal);  
+  if (isMPILevel) exchange_ghosts_at_level<Target::INTERMEDIATES>(U_, level, {"res"}, ghost_comm_minimal);  
 
   if (level == pdata->level_coarse) 
     restriction_from_children<Target::BOTH>(level - 1, level, kokkos_array<int>(Iresidual), kokkos_array<int>(Irhs));
@@ -1872,8 +1848,8 @@ void GravitySolver_multigrid::V_cycle_uniform(UserData& U_, const level_t level,
     reduce_nonMPI_levels(pdata->first_mpi_multigrid_level - 1, kokkos_array<int>(Irhs));
   else if (isMPILevel)
   {
-    reduce_specific_intermediate_ghosts_at_level(U_, level - 1, {"rhs"}, ghost_comm_blockwide);
-    exchange_specific_intermediate_ghosts_at_level(U_, level - 1, {"rhs"}, ghost_comm_minimal);
+    reduce_ghosts_at_level<Target::INTERMEDIATES>(U_, level - 1, {"rhs"}, ghost_comm_blockwide);
+    exchange_ghosts_at_level<Target::INTERMEDIATES>(U_, level - 1, {"rhs"}, ghost_comm_minimal);
   }
 
   initialise_lhs_from_rhs<Target::ALL_INTERMEDIATES>(level - 1);
@@ -1881,7 +1857,7 @@ void GravitySolver_multigrid::V_cycle_uniform(UserData& U_, const level_t level,
   if (level == 1) 
   {
     smoothing_uniform<Target::INTERMEDIATES>(U_, pdata->Npre, level - 1, ghost_comm_minimal);
-    if (isMPILevel) exchange_specific_intermediate_ghosts_at_level(U_, level - 1, {"solution"}, ghost_comm_blockwide);
+    if (isMPILevel) exchange_ghosts_at_level<Target::INTERMEDIATES>(U_, level - 1, {"solution"}, ghost_comm_blockwide);
   }
   else V_cycle_uniform(U_, level - 1, ghost_comm_minimal, ghost_comm_blockwide);
     
@@ -1890,21 +1866,17 @@ void GravitySolver_multigrid::V_cycle_uniform(UserData& U_, const level_t level,
   else 
     prolongation_from_children<Target::INTERMEDIATES>(level);
 
-  if (isMPILevel)
-  {
-    exchange_specific_leaf_ghosts_at_level(U_, level, {"solution"}, ghost_comm_minimal);
-    exchange_specific_intermediate_ghosts_at_level(U_, level, {"solution"}, ghost_comm_minimal);
-  } 
+  if (isMPILevel) exchange_ghosts_at_level<Target::BOTH>(U_, level, {"solution"}, ghost_comm_minimal);
 
   if (level == pdata->level_coarse)
   {
     smoothing_uniform<Target::BOTH>(U_, pdata->Npost, level, ghost_comm_minimal);
-    if (isMPILevel) exchange_specific_leaf_ghosts_at_level(U_, level, {"solution"}, ghost_comm_minimal);
+    if (isMPILevel) exchange_ghosts_at_level<Target::LEAVES>(U_, level, {"solution"}, ghost_comm_minimal);
   } 
   else 
     smoothing_uniform<Target::INTERMEDIATES>(U_, pdata->Npost, level, ghost_comm_minimal);
   
-  if (isMPILevel) exchange_specific_intermediate_ghosts_at_level(U_, level, {"solution"}, ghost_comm_blockwide);
+  if (isMPILevel) exchange_ghosts_at_level<Target::INTERMEDIATES>(U_, level, {"solution"}, ghost_comm_blockwide);
 }
 
 
@@ -1935,21 +1907,17 @@ void GravitySolver_multigrid::V_cycle_amr(UserData& U_, const level_t current_le
   if ( current_level == finest_level ) 
   {
     smoothing_amr_finest(U_, pdata->Npre, current_level, ghost_comm_minimal);
-    if (isMPILevel) 
-    {
-      exchange_specific_leaf_ghosts_at_level(U_, current_level, {"solution"}, ghost_comm_minimal);
-      exchange_specific_intermediate_ghosts_at_level(U_, current_level, {"solution"}, ghost_comm_minimal);
-    }
+    if (isMPILevel) exchange_ghosts_at_level<Target::BOTH>(U_, current_level, {"solution"}, ghost_comm_minimal);
     residual_amr_finest(current_level);
-    if (isMPILevel) exchange_specific_leaf_ghosts_at_level(U_, current_level, {"res"}, ghost_comm_minimal);
+    if (isMPILevel) exchange_ghosts_at_level<Target::LEAVES>(U_, current_level, {"res"}, ghost_comm_minimal);
   } 
   else 
   {
     smoothing_intermediate_amr_correction(U_, pdata->Npre, current_level, ghost_comm_minimal);
-    if (isMPILevel) exchange_specific_intermediate_ghosts_at_level(U_, current_level, {"solution"}, ghost_comm_minimal);
+    if (isMPILevel) exchange_ghosts_at_level<Target::INTERMEDIATES>(U_, current_level, {"solution"}, ghost_comm_minimal);
     residual_intermediate_amr_correction(current_level);
   }
-  if (isMPILevel) exchange_specific_intermediate_ghosts_at_level(U_, current_level, {"res"}, ghost_comm_minimal);
+  if (isMPILevel) exchange_ghosts_at_level<Target::INTERMEDIATES>(U_, current_level, {"res"}, ghost_comm_minimal);
   
   if ( current_level == finest_level ) 
     restriction_from_children<Target::BOTH>(current_level - 1, current_level, kokkos_array<int>(Iresidual), kokkos_array<int>(Irhs));
@@ -1961,8 +1929,8 @@ void GravitySolver_multigrid::V_cycle_amr(UserData& U_, const level_t current_le
     reduce_nonMPI_levels(pdata->first_mpi_multigrid_level - 1, kokkos_array<int>(Irhs)); 
   else if (isMPILevel)
   {
-    reduce_specific_intermediate_ghosts_at_level(U_, current_level - 1, {"rhs"}, ghost_comm_blockwide);
-    exchange_specific_intermediate_ghosts_at_level(U_, current_level - 1, {"rhs"}, ghost_comm_minimal);
+    reduce_ghosts_at_level<Target::INTERMEDIATES>(U_, current_level - 1, {"rhs"}, ghost_comm_blockwide);
+    exchange_ghosts_at_level<Target::INTERMEDIATES>(U_, current_level - 1, {"rhs"}, ghost_comm_minimal);
   }
 
   initialise_lhs_from_rhs<Target::ALL_INTERMEDIATES>(current_level - 1);
@@ -1970,27 +1938,23 @@ void GravitySolver_multigrid::V_cycle_amr(UserData& U_, const level_t current_le
   if ( std::max(0, finest_level - 3) == current_level ) 
   { // TODO: finest - 2 seems to works aswell for spherical symmetry. Check for more realistic cases
     smoothing_intermediate_amr_correction(U_, pdata->Npre, current_level - 1, ghost_comm_minimal);
-    if (isMPILevel) exchange_specific_intermediate_ghosts_at_level(U_, current_level - 1, {"solution"}, ghost_comm_blockwide);
+    if (isMPILevel) exchange_ghosts_at_level<Target::INTERMEDIATES>(U_, current_level - 1, {"solution"}, ghost_comm_blockwide);
   } else V_cycle_amr(U_, current_level - 1, finest_level, ghost_comm_minimal, ghost_comm_blockwide); 
   
   if ( current_level == finest_level ) 
   {
     prolongation_from_children<Target::BOTH>(current_level);
-    if (isMPILevel)
-    {
-      exchange_specific_leaf_ghosts_at_level(U_, current_level, {"solution"}, ghost_comm_minimal);
-      exchange_specific_intermediate_ghosts_at_level(U_, current_level, {"solution"}, ghost_comm_minimal);
-    }
+    if (isMPILevel) exchange_ghosts_at_level<Target::BOTH>(U_, current_level, {"solution"}, ghost_comm_minimal);
     smoothing_amr_finest(U_, pdata->Npost, current_level, ghost_comm_minimal);
-    if (isMPILevel) exchange_specific_leaf_ghosts_at_level(U_, current_level, {"solution"}, ghost_comm_minimal);
+    if (isMPILevel) exchange_ghosts_at_level<Target::LEAVES>(U_, current_level, {"solution"}, ghost_comm_minimal);
   } 
   else 
   {
     prolongation_from_children<Target::INTERMEDIATES>(current_level);
-    if (isMPILevel) exchange_specific_intermediate_ghosts_at_level(U_, current_level, {"solution"}, ghost_comm_minimal);
+    if (isMPILevel) exchange_ghosts_at_level<Target::INTERMEDIATES>(U_, current_level, {"solution"}, ghost_comm_minimal);
     smoothing_intermediate_amr_correction(U_, pdata->Npost, current_level, ghost_comm_minimal);
   }   
-  if (isMPILevel) exchange_specific_intermediate_ghosts_at_level(U_, current_level, {"solution"}, ghost_comm_blockwide); 
+  if (isMPILevel) exchange_ghosts_at_level<Target::INTERMEDIATES>(U_, current_level, {"solution"}, ghost_comm_blockwide); 
 }
 
 /**
@@ -2393,64 +2357,43 @@ const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_ghosts_interm
 
 //} // namespace
 
-template <class GhostComm >
-void GravitySolver_multigrid::exchange_specific_leaf_ghosts(UserData& U_, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm)
+template <Target target, class GhostComm >
+void GravitySolver_multigrid::exchange_ghosts_at_level(UserData& U_, const level_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm)
 {
   std::vector<UserData::FieldAccessor::FieldInfo> field_info;
   for(uint8_t i=0; i<exchange_vars.size(); i++)
     field_info.push_back( {exchange_vars[i],i} );
-  auto Uexchange = U_.getAccessor(field_info);
-  ghost_comm.exchange_ghosts( Uexchange );
+
+  if constexpr (target == Target::LEAVES || target == Target::BOTH) 
+  {
+    auto Uexchange = U_.getAccessor(field_info);
+    ghost_comm.exchange_ghosts_at_level( U_.getAccessor(field_info), level );
+  }
+  if constexpr (target == Target::INTERMEDIATES || target == Target::BOTH) 
+  {
+    auto Uexchange = U_.getAccessor_intermediate(field_info);
+    ghost_comm.exchange_intermediate_ghosts_at_level( Uexchange, level );
+  }
 };
 
-template <class GhostComm >
-void GravitySolver_multigrid::exchange_specific_intermediate_ghosts(UserData& U_, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm)
+template <Target target, class GhostComm >
+void GravitySolver_multigrid::reduce_ghosts_at_level(UserData& U_, const level_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm)
 {
   std::vector<UserData::FieldAccessor::FieldInfo> field_info;
   for(uint8_t i=0; i<exchange_vars.size(); i++)
     field_info.push_back( {exchange_vars[i],i} );
-  auto Uexchange = U_.getAccessor_intermediate(field_info);
-  ghost_comm.exchange_intermediate_ghosts( Uexchange );
-};
-
-template <class GhostComm >
-void GravitySolver_multigrid::exchange_specific_leaf_ghosts_at_level(UserData& U_, const level_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm)
-{
-  std::vector<UserData::FieldAccessor::FieldInfo> field_info;
-  for(uint8_t i=0; i<exchange_vars.size(); i++)
-    field_info.push_back( {exchange_vars[i],i} );
-  auto Uexchange = U_.getAccessor(field_info);
-  ghost_comm.exchange_ghosts_at_level( Uexchange, level );
-};
-
-template <class GhostComm >
-void GravitySolver_multigrid::exchange_specific_intermediate_ghosts_at_level(UserData& U_, const level_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm)
-{
-  std::vector<UserData::FieldAccessor::FieldInfo> field_info;
-  for(uint8_t i=0; i<exchange_vars.size(); i++)
-    field_info.push_back( {exchange_vars[i],i} );
-  auto Uexchange = U_.getAccessor_intermediate(field_info);
-  ghost_comm.exchange_intermediate_ghosts_at_level( Uexchange, level );
-};
-
-template <class GhostComm >
-void GravitySolver_multigrid::reduce_specific_leaf_ghosts_at_level(UserData& U_, const level_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm)
-{
-  std::vector<UserData::FieldAccessor::FieldInfo> field_info;
-  for(uint8_t i=0; i<exchange_vars.size(); i++)
-    field_info.push_back( {exchange_vars[i],i} );
-  auto Uexchange = U_.getAccessor(field_info);
-  ghost_comm.reduce_ghosts_at_level( Uexchange, level );
-};
-
-template <class GhostComm >
-void GravitySolver_multigrid::reduce_specific_intermediate_ghosts_at_level(UserData& U_, const level_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm)
-{
-  std::vector<UserData::FieldAccessor::FieldInfo> field_info;
-  for(uint8_t i=0; i<exchange_vars.size(); i++)
-    field_info.push_back( {exchange_vars[i],i} );
-  auto Uexchange = U_.getAccessor_intermediate(field_info);
-  ghost_comm.reduce_intermediate_ghosts_at_level( Uexchange, level );
+  
+  if constexpr (target == Target::LEAVES || target == Target::BOTH) 
+  {
+    auto Uexchange = U_.getAccessor(field_info);
+    ghost_comm.reduce_ghosts_at_level( Uexchange, level );
+   
+  }
+  if constexpr (target == Target::INTERMEDIATES || target == Target::BOTH) 
+  {
+    auto Uexchange = U_.getAccessor_intermediate(field_info);
+    ghost_comm.reduce_intermediate_ghosts_at_level( Uexchange, level );
+  }
 };
 
 /**
@@ -2580,7 +2523,7 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   for( level_t level = level_coarse + 1; level <= global_level_max_found; level++ )
     restriction_from_children<Target::LEAVES>(level_coarse, level, kokkos_array<int>(Irho), kokkos_array<int>(Irho));
   for( level_t level = level_coarse; level < global_level_max_found; level++ )
-    reduce_specific_intermediate_ghosts_at_level(U_, level, {"rho"}, ghost_comm_blockwide);
+    reduce_ghosts_at_level<Target::INTERMEDIATES>(U_, level, {"rho"}, ghost_comm_blockwide);
 
   // Compute RHS
   foreach_cell.foreach_cell("Set RHS of Laplacian, based on rho", iter_space,
@@ -2598,8 +2541,7 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   // TODO: Do not initialise leaf solution if gphi already exists
   // In this case, copy_multigrid_fields<Target::BOTH>(level_coarse, kokkos_array<int>(Iphi), kokkos_array<int>(Isolution));
   initialise_lhs_from_rhs<Target::BOTH>(level_coarse);
-  exchange_specific_leaf_ghosts_at_level(U_, level_coarse, {"solution"}, ghost_comm_minimal);
-  exchange_specific_intermediate_ghosts_at_level(U_, level_coarse, {"solution"}, ghost_comm_minimal);
+  exchange_ghosts_at_level<Target::BOTH>(U_, level_coarse, {"solution"}, ghost_comm_minimal);
 
   // Multigrid
   if (mpi_rank == 0) printf("Coarse Multigrid\n");
@@ -2612,8 +2554,8 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   // Truncation error
   operator_uniform(level_coarse);
   restriction_from_children<Target::BOTH>(level_coarse - 1, level_coarse, kokkos_array<int>(Isolution, Iresidual), kokkos_array<int>(Isolution, Irhs));
-  reduce_specific_intermediate_ghosts_at_level(U_, level_coarse - 1, {"rhs", "solution"}, ghost_comm_blockwide);
-  exchange_specific_intermediate_ghosts_at_level(U_, level_coarse - 1, {"solution"}, ghost_comm_minimal);
+  reduce_ghosts_at_level<Target::INTERMEDIATES>(U_, level_coarse - 1, {"rhs", "solution"}, ghost_comm_blockwide);
+  exchange_ghosts_at_level<Target::INTERMEDIATES>(U_, level_coarse - 1, {"solution"}, ghost_comm_minimal);
   operator_uniform(level_coarse - 1);
   const real_t truncation = truncation_norm(level_coarse - 1);
   const real_t threshold = epsilon * truncation;
@@ -2634,16 +2576,15 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   for (level_t ilevel = level_coarse+1; ilevel <= global_level_max_found; ilevel++) 
   {
     prolongation_from_children<Target::BOTH>(ilevel);
-    exchange_specific_leaf_ghosts_at_level(U_, ilevel, {"solution"}, ghost_comm_minimal);
-    exchange_specific_intermediate_ghosts_at_level(U_, ilevel, {"solution"}, ghost_comm_minimal);
+    exchange_ghosts_at_level<Target::BOTH>(U_, ilevel, {"solution"}, ghost_comm_minimal);
     compute_mask(U_, std::max(0, ilevel - 4), ilevel, ghost_comm_minimal, ghost_comm_blockwide);
 
     // Truncation
     operator_amr_finest(ilevel);
     fill_multigrid_fields<Target::ALL_INTERMEDIATES>(ilevel - 1, ilevel - 1, kokkos_array<int>(Isolution, Irhs, Iresidual) , kokkos_array<real_t>(0,0,0));
     restriction_from_children<Target::BOTH>(ilevel - 1, ilevel, kokkos_array<int>(Isolution, Iresidual), kokkos_array<int>(Isolution, Irhs));
-    reduce_specific_intermediate_ghosts_at_level(U_, ilevel - 1, {"rhs", "solution"}, ghost_comm_blockwide);
-    exchange_specific_intermediate_ghosts_at_level(U_, ilevel - 1, {"solution"}, ghost_comm_minimal);
+    reduce_ghosts_at_level<Target::INTERMEDIATES>(U_, ilevel - 1, {"rhs", "solution"}, ghost_comm_blockwide);
+    exchange_ghosts_at_level<Target::INTERMEDIATES>(U_, ilevel - 1, {"solution"}, ghost_comm_minimal);
     operator_intermediate_amr_correction(ilevel - 1);
     const real_t truncation = truncation_norm(ilevel - 1);
     const real_t threshold = epsilon * truncation;

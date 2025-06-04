@@ -44,12 +44,8 @@ public:
   void update_gravity_field( UserData& U, ScalarSimulationData& scalar_data);
 
   // MPI
-  template <class GhostComm > void exchange_specific_leaf_ghosts(UserData& U_, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm);
-  template <class GhostComm > void exchange_specific_intermediate_ghosts(UserData& U_, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm);
-  template <class GhostComm > void exchange_specific_leaf_ghosts_at_level(UserData& U_, const uint8_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm);
-  template <class GhostComm > void exchange_specific_intermediate_ghosts_at_level(UserData& U_, const uint8_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm);
-  template <class GhostComm > void reduce_specific_leaf_ghosts_at_level(UserData& U_, const uint8_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm);
-  template <class GhostComm > void reduce_specific_intermediate_ghosts_at_level(UserData& U_, const uint8_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm);
+  template <Target target, class GhostComm > void exchange_ghosts_at_level(UserData& U_, const uint8_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm);
+  template <Target target, class GhostComm > void reduce_ghosts_at_level(UserData& U_, const uint8_t level, const std::vector< std::string >& exchange_vars, GhostComm& ghost_comm);
 
   template <typename T, typename... Ts>
   KOKKOS_INLINE_FUNCTION
