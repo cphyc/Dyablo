@@ -185,7 +185,7 @@ public:
           if (elements_loc[i].atomic_number < 0) continue;
           n_and_ion_fracs_loc[i].n_element = (
               nH
-              * Uin.at_ivar(iCell, dyablo::ConsHydroState::Irho_vz + 1 + elems2passive[i])
+              * Uin.at(iCell, dyablo::ConsHydroState::Irho_vz + 1 + elems2passive[i])
           );
         }
 
@@ -215,7 +215,7 @@ public:
           if (elements_loc[i].atomic_number < 0) continue;
           for (auto j = 0; j < elements_loc[i].n_ions + elements_loc[i].n_mol; ++j) {
               n_and_ion_fracs_loc[i].ion_fracs[j] = 
-              Uout.at_ivar(iCell, dyablo::ConsHydroState::Irho_vz + 1 + ions2passive[i] + j) = n_and_ion_fracs_loc[i].ion_fracs_new[j];
+              Uout.at(iCell, dyablo::ConsHydroState::Irho_vz + 1 + ions2passive[i] + j) = n_and_ion_fracs_loc[i].ion_fracs_new[j];
           }
         }
 
