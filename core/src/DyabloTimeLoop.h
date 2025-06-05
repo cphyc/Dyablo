@@ -763,22 +763,22 @@ public:
     // Update hydro
     if( godunov_updater )
     {
-      U.new_fields({"rho_next", "e_tot_next", "rho_vx_next", "rho_vy_next", "rho_vz_next"});    
+      std::set<std::string> new_fields = {"rho_next", "e_tot_next", "rho_vx_next", "rho_vy_next", "rho_vz_next"};
       if (n_passive_scalars > 0) {
         std::set<std::string> passive_scalar_names;
         for (int i=0; i < n_passive_scalars; ++i) {
           std::ostringstream oss;
           oss << "passive_scalar_" << i << "_next";
-          passive_scalar_names.insert(oss.str());
+          new_fields.insert(oss.str());
         }
-        U.new_fields(passive_scalar_names);
       }
       // TODO automatic new fields according to kernel
       if( this->has_mhd ) {
-        U.new_fields({"Bx_next", "By_next", "Bz_next"});
+        new_fields.insert({"Bx_next", "By_next", "Bz_next"});
         if (this->is_glm)
-          U.new_fields({"psi_next"});
+          new_fields.insert({"psi_next"});
       }
+      U.new_fields(new_fields);
 
       godunov_updater->update( U, m_scalar_data );
 
