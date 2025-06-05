@@ -153,7 +153,7 @@ public:
 
     int Ncell = 0, Nstep_tot = 0;
     foreach_cell.reduce_cell( "Cooling::update", Uout.getShape(),
-      KOKKOS_LAMBDA(const ForeachCell::CellIndex& iCell, int Nstep_tot, int Ncell) {
+      KOKKOS_LAMBDA(const ForeachCell::CellIndex& iCell, int& Nstep_tot, int& Ncell) {
         dyablo::ConsHydroState u;
         getConservativeState<3>(Uin, iCell, u);
         dyablo::PrimHydroState q = consToPrim<3>(u, gamma0);
@@ -205,12 +205,7 @@ public:
 
         auto [total_iterations, Tout] = PRISM::get_chemical_eqm<constant_temperature, ramses_rt_T_scheme, rosenbrock_T_scheme, include_H2, include_CO>(elements_loc, n_and_ion_fracs_loc, Tmu, aexp, dt_s, 0.59, 1e-16, 0.04, tabData);
 
-        printf("steps = %10d, rho = %e, Tin = %e, Tout = %e (diff = %e), xHI = %e, xHII = %e\n",
-              total_iterations, q.rho, Tmu, Tout, Tout - Tmu,
-               n_and_ion_fracs_loc[1].ion_fracs[0], n_and_ion_fracs_loc[1].ion_fracs[1]);
-
         // Store new temperature
-        // const real_t Tmu = q.p / q.rho * (gamma0 - 1) * unit_T;
         q.p = q.rho * Tout / (gamma0 - 1) / unit_T;
 
         u = primToCons<3>(q, gamma0);
