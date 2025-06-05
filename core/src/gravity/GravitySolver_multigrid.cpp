@@ -77,7 +77,7 @@ GravitySolver_multigrid::GravitySolver_multigrid(
       configMap.getValue<bool>("cosmology", "active", false),
       -1.0, // gravity_constant 4*Pi*G, defined later
       configMap.getValue<real_t>("gravity", "MG_eps", 1E-2),
-      configMap.getValue<uint32_t>("gravity", "first_mpi_multigrid_level", 3),
+      configMap.getValue<uint32_t>("gravity", "first_mpi_multigrid_level", 2),
       4,    // level coarse
       configMap.getValue<uint32_t>("gravity", "Npre", 2),
       configMap.getValue<uint32_t>("gravity", "Npost", 1),
@@ -147,11 +147,12 @@ void GravitySolver_multigrid::get_weight_and_contrib_gradient_3pt(Array_t& U, Ar
 template< typename Array_t >
 void GravitySolver_multigrid::gradient_3pt(Array_t& U, Array_t& Uintermediate)
 {
+  constexpr real_t zero(0), one(1);
   const auto& iter_space = U.getShape();
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
-  const Kokkos::Array< VarIndex, 3 > IG = {Igx, Igy, Igz};
+  constexpr Kokkos::Array< VarIndex, 3 > IG = {Igx, Igy, Igz};
 
   foreach_cell.foreach_cell("Gravity_mg::construct_force_field", iter_space, 
     KOKKOS_LAMBDA(const CellIndex& iCell)
@@ -167,7 +168,7 @@ void GravitySolver_multigrid::gradient_3pt(Array_t& U, Array_t& Uintermediate)
 
     for ( ComponentIndex3D dir : {IX,IY,IZ} )
     {
-      real_t phi_L(0), phi_R(0), a(1), b(1);
+      real_t phi_L(zero), phi_R(zero), a(one), b(one);
       get_weight_and_contrib_gradient_3pt(U, Uintermediate, iCell, iter_space, -1, a, phi_L, dir, boundarycondition);
       get_weight_and_contrib_gradient_3pt(U, Uintermediate, iCell, iter_space, +1, b, phi_R, dir, boundarycondition);
 
@@ -221,7 +222,7 @@ real_t GravitySolver_multigrid::average_8bigger_neighbors(const Array_t& U, cons
   const int8_t offset_x = (!abs(offset[0])); 
   const int8_t offset_y = (!abs(offset[1])); 
   const int8_t offset_z = (!abs(offset[2]));
-  Kokkos::Array<real_t, 4> tmp = {9./32, 3./32, 3./32, 1./32};
+  constexpr Kokkos::Array<real_t, 4> tmp = {9./32, 3./32, 3./32, 1./32};
   for (int8_t i = 0; i <= offset_x; i++)
   for (int8_t j = 0; j <= offset_y; j++)
   for (int8_t k = 0; k <= offset_z; k++)
@@ -778,7 +779,7 @@ void GravitySolver_multigrid::compute_mask(UserData& U_, const level_t level_min
       });
     }
   }
-
+  // MPI Communications at each level
   for (level_t level = level_max - 1; level >= level_min_mpi; level--) 
   {
     reduce_ghosts_at_level<Target::INTERMEDIATES>(U_, level, {"mask"}, ghost_comm_blockwide);
@@ -1105,7 +1106,7 @@ void GravitySolver_multigrid::get_weight_and_contrib_intermediate_amr_correction
   if (iCell_X.status == CellIndex::BIGGER) w = half;
   else if (Uintermediate.at(iCell_X, Imask) <= 0) 
   {
-    real_t neighbor_mask = Uintermediate.at(iCell_X, Imask);
+    const real_t neighbor_mask = Uintermediate.at(iCell_X, Imask);
     w = mask / (mask - neighbor_mask);
   } //else if (Uintermediate.at(iCell_X, Imask) < 1) w = 1;  // First-order reconstruction 
   else contrib = Uintermediate.at(iCell_X, Isolution);
@@ -2040,7 +2041,7 @@ uint32_t GravitySolver_multigrid::MPI_Allreduce_int_max( uint32_t local_v )
 template< typename T, size_t N >
 void GravitySolver_multigrid::reduce_nonMPI_levels(const level_t first_nonMPI_multigrid_level, const Kokkos::Array<T, N>& iFields) 
 {
-  const uint32_t num_vars = N; // number of vars for each cell
+  constexpr uint32_t num_vars = N; // number of vars for each cell
 
   auto& Uintermediate = pdata->Uintermediate;
   ForeachCell& foreach_cell = pdata->foreach_cell;
@@ -2447,23 +2448,16 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
 
   U_.new_fields({"solution", "rhs",  "res", "mask" });
   U_.new_intermediate_fields( {"rho","gphi", "solution", "rhs", "res", "mask"} ); 
-  UserData::FieldAccessor U = U_.getAccessor({
+  const std::vector<UserData_fields::FieldAccessor_FieldInfo> fields_info = {
     {"rho", Irho},
     {"gphi", Iphi},
     {"solution", Isolution},
     {"rhs", Irhs},
     { "res", Iresidual },
     { "mask", Imask },
-    });
-  UserData::FieldAccessor Uintermediate = U_.getAccessor_intermediate({
-    {"rho", Irho},
-    {"gphi", Iphi},
-    {"solution", Isolution},
-    {"rhs", Irhs},
-    { "res", Iresidual },
-    { "mask", Imask },
-    });
-  
+  };
+  UserData::FieldAccessor U = U_.getAccessor({fields_info});
+  UserData::FieldAccessor Uintermediate = U_.getAccessor_intermediate({fields_info});
   pdata->U = U;
   pdata->Uintermediate = Uintermediate;
  
@@ -2511,7 +2505,7 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   }, Kokkos::Sum<real_t>(rho_mean));
   const real_t Vtot = (xmax - xmin) * (ymax - ymin) * (zmax - zmin);
   rho_mean = MPI_Allreduce_scalar(rho_mean) / Vtot;
-  printf("rhomean = %.5e\n", rho_mean);
+  if (mpi_rank == 0) printf("rhomean = %.5e\n", rho_mean);
 
   const bool cosmo_run = pdata->cosmo_run;
   real_t aexp = 0;
@@ -2614,7 +2608,7 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
     {"gphi", Iphi},
   });
 
-  printf("Now compute Force\n");
+  if (mpi_rank == 0) printf("Now compute Force\n");
   gradient_3pt(Uout, Uoutintermediate);
 
   // TODO: Delete MG arrays 

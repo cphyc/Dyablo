@@ -49,7 +49,7 @@ public:
 
   template <typename T, typename... Ts>
   KOKKOS_INLINE_FUNCTION
-  static const Kokkos::Array<T, sizeof...(Ts)> kokkos_array(const Ts... vals) {
+  static constexpr Kokkos::Array<T, sizeof...(Ts)> kokkos_array(const Ts... vals) {
     return Kokkos::Array<T, sizeof...(Ts)>{static_cast<T>(vals)...};
   }
   
