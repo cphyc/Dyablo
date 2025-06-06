@@ -205,7 +205,7 @@ class UserData_fields::FieldAccessor
 friend GhostCommunicator_full_blocks;
 friend UserData_fields;
 public:
-    static constexpr int MAX_FIELD_COUNT = 32;
+    static constexpr int MAX_FIELD_COUNT = 256;
     using FieldInfo = FieldAccessor_FieldInfo;
 
     FieldAccessor() = default;

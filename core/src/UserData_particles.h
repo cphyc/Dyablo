@@ -286,7 +286,7 @@ struct UserData_particles::ParticleAccessor_AttributeInfo
 class UserData_particles::ParticleAccessor
 {
 public:
-    static constexpr int MAX_ATTR_COUNT = 32;
+    static constexpr int MAX_ATTR_COUNT = 256;
     using AttributeInfo = ParticleAccessor_AttributeInfo;
 
     ParticleAccessor() = default;
