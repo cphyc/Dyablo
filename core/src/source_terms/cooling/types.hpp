@@ -1,7 +1,10 @@
 #pragma once
 #include <Kokkos_Core.hpp>
-// Create shorthand for double kokkos views
+
 #define MAX_ELEMENTS 27
+#define MAX_N_GROUPS 2
+#define N_INTEGRATION_POINTS 10000
+
 using Array2D = std::array<std::array<double, MAX_ELEMENTS>, MAX_ELEMENTS>;
 
 typedef struct
@@ -15,20 +18,33 @@ typedef struct
     double depletion;
 } Element;
 
+typedef struct {
+    Kokkos::View<double[MAX_ELEMENTS][MAX_ELEMENTS]> E_th;
+    Kokkos::View<double[MAX_ELEMENTS][MAX_ELEMENTS]> E_max;
+    Kokkos::View<double[MAX_ELEMENTS][MAX_ELEMENTS]> E_0;
+    Kokkos::View<double[MAX_ELEMENTS][MAX_ELEMENTS]> sig_0;
+    Kokkos::View<double[MAX_ELEMENTS][MAX_ELEMENTS]> y_a;
+    Kokkos::View<double[MAX_ELEMENTS][MAX_ELEMENTS]> P;
+    Kokkos::View<double[MAX_ELEMENTS][MAX_ELEMENTS]> y_w;
+    Kokkos::View<double[MAX_ELEMENTS][MAX_ELEMENTS]> y_0;
+    Kokkos::View<double[MAX_ELEMENTS][MAX_ELEMENTS]> y_1;
+} CrossSection;
+
+
 typedef struct
 {
-    Kokkos::View<double[27][27][2]> HM12_UVB_z {"HM12_UVB_z"};
-    Kokkos::View<double[27]> G0_heating_rates {"G0_heating_rates"};
-    Kokkos::View<double[27][27]> cosmic_ray_ionization_rates {"cosmic_ray_ionization_rates"};
-    Kokkos::View<double[27]> cosmic_ray_ionization_rates_induced_UV {"cosmic_ray_ionization_rates_induced_UV"};
-    Kokkos::View<double[27]> cosmic_ray_ionization_rates_induced_UV_heat {"cosmic_ray_ionization_rates_induced_UV_heat"};
-    Kokkos::View<double[27][7]> dust_rec_coefs {"dust_rec_coefs"};
+    Kokkos::View<double[MAX_ELEMENTS][MAX_ELEMENTS][2]> HM12_UVB_z {"HM12_UVB_z"};
+    Kokkos::View<double[MAX_ELEMENTS]> G0_heating_rates {"G0_heating_rates"};
+    Kokkos::View<double[MAX_ELEMENTS][MAX_ELEMENTS]> cosmic_ray_ionization_rates {"cosmic_ray_ionization_rates"};
+    Kokkos::View<double[MAX_ELEMENTS]> cosmic_ray_ionization_rates_induced_UV {"cosmic_ray_ionization_rates_induced_UV"};
+    Kokkos::View<double[MAX_ELEMENTS]> cosmic_ray_ionization_rates_induced_UV_heat {"cosmic_ray_ionization_rates_induced_UV_heat"};
+    Kokkos::View<double[MAX_ELEMENTS][7]> dust_rec_coefs {"dust_rec_coefs"};
     Kokkos::View<double[7][3][31]> CTIon {"CTIon"};
     Kokkos::View<double[6][4][31]> CTRecomb {"CTRecomb"};
-    Kokkos::View<double[27][160][8]> fs_cool_tab {"fs_cool_tab"};
+    Kokkos::View<double[MAX_ELEMENTS][160][8]> fs_cool_tab {"fs_cool_tab"};
 
-    Kokkos::View<double[121][27][27]> high_t_cooling_rates {"high_t_cooling_rates"};
-    Kokkos::View<bool[27][27]> high_t_cooling_rates_tflag {"high_t_cooling_rates_tflag"};
+    Kokkos::View<double[121][MAX_ELEMENTS][MAX_ELEMENTS]> high_t_cooling_rates {"high_t_cooling_rates"};
+    Kokkos::View<bool[MAX_ELEMENTS][MAX_ELEMENTS]> high_t_cooling_rates_tflag {"high_t_cooling_rates_tflag"};
 
     Kokkos::View<double[7][6]> RR_rates_carbon {"RR_rates_carbon"};
     Kokkos::View<double[7][9]> DR_rates_c_carbon {"DR_rates_c_carbon"};
@@ -106,5 +122,12 @@ typedef struct
     Kokkos::View<double[26]> X_iron {"X_iron"};
     Kokkos::View<double[26]> K_iron {"K_iron"};
     Kokkos::View<double[26]> P_iron {"P_iron"};
+
+    Kokkos::View<double[MAX_ELEMENTS][MAX_ELEMENTS][MAX_N_GROUPS][3]> cs_ph {"cs_ph"};
+
+    CrossSection verner_cross_sections;
+
+    Kokkos::View<double*> group_E_min;
+    Kokkos::View<double*> group_E_max;
 
 } TabulatedData;

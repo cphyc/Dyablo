@@ -9,6 +9,7 @@
 #include "dust_recombination.hpp"
 #include "molecules.hpp"
 #include "cooling.hpp"
+#include "cross_sections.hpp"
 #include <Kokkos_Core.hpp>
 
 #define MAX_ELEMENTS 27

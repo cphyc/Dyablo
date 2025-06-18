@@ -88,6 +88,15 @@ public:
     // Initialize rates
     init_recombination_rates(tabData);
     init_collisional_ionization(tabData);
+
+    // Initialize cross sections
+    // TODO: this should be queried from the config file
+    tabData.group_E_min = Kokkos::View<double*>("group_E_min", 1);
+    tabData.group_E_max = Kokkos::View<double*>("group_E_max", 1);
+    tabData.group_E_min(0) =  13.6; // eV
+    tabData.group_E_max(0) = 500.0; // eV
+    initialize_cross_sections(tabData);
+    update_cross_sections(1e5, tabData);
   }
 
   ~CoolingUpdate_PRISM() {}
