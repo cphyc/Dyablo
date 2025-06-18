@@ -84,9 +84,9 @@ public:
         fields.delete_field(name);
     }
 
-    void delete_intermediate_field( const std::string& name )
+    void erase_intermediate_field()
     {
-        fields.delete_intermediate_field(name);
+        fields.erase_intermediate_field();
     }
 
     void exchange_loadbalance( const ViewCommunicator& ghost_comm )

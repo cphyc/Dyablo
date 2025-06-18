@@ -221,9 +221,10 @@ public:
         field_index.erase( name );
     }
 
-    void delete_intermediate_field( const std::string& name )
+    void erase_intermediate_field()
     {
-        field_index_intermediate.erase( name );
+        this->fields_intermediate = FieldView_t(); // Reset intermediate fields
+        this->field_index_intermediate.clear(); // Clear the index
     }
 
     /// Get the number of active fields in UserData_fields

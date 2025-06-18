@@ -71,6 +71,15 @@ public:
         DYABLO_ASSERT_HOST_RELEASE(false, "getStorageIntermediate() cannot be used without AMRmesh_hashmap_new");
     }
 
+    void deleteStorage() 
+    {
+        DYABLO_ASSERT_HOST_RELEASE(false, "deleteStorage() cannot be used without AMRmesh_hashmap_new");
+    }
+    void deleteIntermediateStorage() 
+    {
+        DYABLO_ASSERT_HOST_RELEASE(false, "deleteIntermediateStorage() cannot be used without AMRmesh_hashmap_new");
+    }
+
     std::array<bool, 6> getPeriodic() const
     {
         return {periodic[0],periodic[0],periodic[1],periodic[1],periodic[2],periodic[2]};

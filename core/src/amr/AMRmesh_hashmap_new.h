@@ -53,6 +53,15 @@ public:
     return storage_intermediate;
   }
 
+  void deleteStorage() 
+  {
+    this->storage = Storage_t();
+  }
+  void deleteIntermediateStorage() 
+  {
+    this->storage_intermediate = Storage_t();
+  }
+
   oct_index_t getNumOctants() const
   { return storage.getNumOctants(); }
   oct_index_t getNumGhosts() const

@@ -64,8 +64,8 @@ public:
 
     template < typename AMRmesh_t >
     LightOctree_hashmap( const AMRmesh_t* pmesh, uint8_t level_min, uint8_t level_max )
-    : storage( *pmesh ),
-      oct_map(pmesh->getNumOctants()+pmesh->getNumGhosts()),
+    : storage( *pmesh ), storage_intermediate(),
+      oct_map(pmesh->getNumOctants()+pmesh->getNumGhosts()), oct_map_intermediate(),
       min_level(level_min), max_level(level_max),
       is_periodic( {pmesh->getPeriodic(2*IX), pmesh->getPeriodic(2*IY), pmesh->getPeriodic(2*IZ)} ),
       morton_intervals( "morton_intervals", pmesh->getMpiComm().MPI_Comm_size()+1 )
@@ -136,7 +136,8 @@ public:
         const uint32_t nbIntermediateGhosts = storage_intermediate.getNumGhosts();
         const uint32_t numIntermediates_tot = nbIntermediates + nbIntermediateGhosts;
         // Put octants into hashmap on device
-        if (nbIntermediates){ // storage_intermediate is already provided
+        if (nbIntermediates) // storage_intermediate is already provided, compute oct_maps
+        {
             oct_map_intermediate.rehash(numIntermediates_tot);
             Kokkos::parallel_for( "LightOctree_hashmap::hash",
                             Kokkos::RangePolicy<>(0, numOctants_tot),
@@ -149,7 +150,7 @@ public:
                 key.level = level;
                 key.i = logical_coords[IX];
                 key.j = logical_coords[IY];
-                key.k = logical_coords[IZ];           
+                key.k = logical_coords[IZ];     
 
                 [[maybe_unused]] oct_map_t::insert_result inserted = oct_map.insert( key, iOct );
                 DYABLO_ASSERT_KOKKOS_DEBUG(inserted.success(), "oct_map::insert() failed");
@@ -166,12 +167,14 @@ public:
                 key.level = level;
                 key.i = logical_coords[IX];
                 key.j = logical_coords[IY];
-                key.k = logical_coords[IZ];     
+                key.k = logical_coords[IZ];
                       
                 [[maybe_unused]] oct_map_t::insert_result inserted = oct_map_intermediate.insert( key, iOct );
                 DYABLO_ASSERT_KOKKOS_DEBUG(inserted.success(), "oct_map_intermediate::insert() failed");
             });
-        } else { // create storage_intermediate
+        } 
+        else // create storage_intermediate 
+        {
             // Count how many intermediates I need
             const uint32_t nbIntermediates_nonMPI = ((1U << (3*first_mpi_multigrid_level)) - 1) / 7; // (8^level - 1 )/ 7, without std::pow
             Kokkos::parallel_reduce( "Count number of octs per level", 
@@ -206,7 +209,7 @@ public:
                     key.j = j;
                     key.k = k;
                     [[maybe_unused]] auto inserted = oct_map_intermediate.insert(key, OctantIndex{0, false, true});
-                    DYABLO_ASSERT_KOKKOS_DEBUG(inserted.success(), "oct_map::insert() failed");
+                    DYABLO_ASSERT_KOKKOS_DEBUG(inserted.success(), "oct_map_intermediate::insert() failed");
                 });
             }          
             // Fill oct_map_intermediate MPI levels
@@ -221,7 +224,7 @@ public:
                 key.level = level;
                 key.i = logical_coords[IX];
                 key.j = logical_coords[IY];
-                key.k = logical_coords[IZ];           
+                key.k = logical_coords[IZ];
 
                 [[maybe_unused]] oct_map_t::insert_result inserted = oct_map.insert( key, iOct );
                 DYABLO_ASSERT_KOKKOS_DEBUG(inserted.success(), "oct_map::insert() failed");
@@ -232,7 +235,7 @@ public:
                     key.j /= 2;
                     key.k /= 2;
                     [[maybe_unused]] oct_map_t::insert_result inserted = oct_map_intermediate.insert( key, OctantIndex{0, false, true} );
-                    DYABLO_ASSERT_KOKKOS_DEBUG(inserted.success(), "oct_map::insert() failed");
+                    DYABLO_ASSERT_KOKKOS_DEBUG(inserted.success(), "oct_map_intermediate::insert() failed");
                 }
             });
             Kokkos::parallel_scan("LightOctree_hashmap::intermediate_numbering", oct_map_intermediate.capacity(), 
@@ -318,6 +321,17 @@ public:
     KOKKOS_INLINE_FUNCTION
     uint32_t get_level_max()  const
     {return this->max_level;}
+
+    void deleteLeaves() 
+    {
+        this->storage = Storage_t();
+        this->oct_map.clear();
+    }
+    void deleteIntermediates() 
+    {
+        this->storage_intermediate = Storage_t();
+        this->oct_map_intermediate.clear();
+    }
 
     const Storage_t& getStorage() const 
     {

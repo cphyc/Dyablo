@@ -99,6 +99,8 @@ void AMRmesh_impl<Impl_t>::updateLightOctreeWithIntermediates(const uint8_t firs
                             this->getMesh().getPeriodic(2*IZ) },
                             morton_intervals
   );
+  DYABLO_ASSERT_HOST_RELEASE( lmesh->getNumOctants() == this->getNumOctants(), "LightOctree::getLightOctree() is outdated pmesh " << this->getNumOctants() << "octs vs lmesh " << lmesh->getNumOctants() << "octs" );
+  DYABLO_ASSERT_HOST_RELEASE( lmesh->getNumGhosts() == this->getNumGhosts(), "LightOctree::getLightOctree() is outdated pmesh " << this->getNumGhosts() << "ghosts vs lmesh " << lmesh->getNumGhosts() << "ghosts" );
 }
 
 template<typename Impl_t>
@@ -115,7 +117,8 @@ template<typename Impl_t>
 void AMRmesh_impl<Impl_t>::deleteIntermediates() 
 { 
   // Update LightOctree if needed
-  DYABLO_ASSERT_HOST_RELEASE(false, "deleteIntermediates() is not implemented yet");
+  this->getMesh().deleteIntermediateStorage();
+  lmesh->deleteIntermediates();
 
   DYABLO_ASSERT_HOST_RELEASE( this->getNumIntermediateOctants() == 0, "AMRmesh is outdated pmesh " << this->getNumIntermediateOctants() << " should be zero" );
   DYABLO_ASSERT_HOST_RELEASE( this->getNumIntermediateGhosts() == 0, "AMRmesh is outdated pmesh " << this->getNumIntermediateGhosts() << " should be zero" );

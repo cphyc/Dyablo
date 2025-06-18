@@ -75,6 +75,7 @@ public:
 
   // Mesh
   bool check_parents();
+  bool check_neighbors();
   void compute_mask(UserData& U_, const level_t level_min, const level_t level_max, const GhostCommunicator& ghost_comm_minimal, const GhostCommunicator& ghost_comm_blockwide);
   template<size_t N> KOKKOS_INLINE_FUNCTION static void accumulate_up_tree(const UserData_fields::FieldAccessor& U, ForeachCell::CellIndex& iCell, const Shape_t& iter_space, const level_t level_stop, const level_t level_start, const Kokkos::Array<real_t, N>& factor_init, const real_t factor_decay, const Kokkos::Array<int, N>& iFields);
   template< typename Array_t > KOKKOS_INLINE_FUNCTION static real_t average_8bigger_neighbors(const Array_t& U, const Array_t& Uintermediate, const ForeachCell::CellIndex& iCell, const Shape_t& iter_space, ForeachCell::CellIndex::offset_t offset);
