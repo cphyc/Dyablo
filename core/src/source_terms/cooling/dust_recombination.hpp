@@ -3,6 +3,8 @@
 
 #include <Kokkos_Core.hpp>
 
+namespace PRISM {
+
 using _drc_t = std::array<std::array<double, 7>, 27>;
 inline _drc_t get_dust_rec_coefs() {
     _drc_t dust_rec_coefs = { {
@@ -97,3 +99,5 @@ double dust_recombination_rates(int ion, int nelem, double T, double G, double n
 
     return dust_rec_rate;
 }
+
+} // namespace PRISM

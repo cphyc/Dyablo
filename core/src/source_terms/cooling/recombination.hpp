@@ -5,21 +5,7 @@
 
 #include "types.hpp"
 
-
-template<int N, int M>
-void copy2D (double src[N][M], Kokkos::View<double[N][M]> &data_d) {
-    data_d = Kokkos::View<double[N][M]>("data_d", N, M);
-    auto data_h = Kokkos::create_mirror_view(data_d);
-    for (int i = 0; i < N; i++)
-    {
-        for (int j = 0; j < M; j++)
-        {
-            data_h(i, j) = src[i][j];
-        }
-    }
-    Kokkos::deep_copy(data_d, data_h);
-}
-
+namespace PRISM {
 
 inline void init_recombination_rates(TabulatedData &tabData) {
     // ###
@@ -35,7 +21,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 2.0440e-10, 6.7420e-01, 2.6470e+02, 2.7730e+07, 0.0000e+00, 0.0000e+00  },
         { 5.3370e-10, 7.4850e-01, 9.5020e+01, 2.5170e+07, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(RR_rates_carbon, tabData.RR_rates_carbon);
+    copy_data_2D(RR_rates_carbon, tabData.RR_rates_carbon);
 
     double DR_rates_c_carbon[7][9] = {
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
@@ -46,7 +32,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 1.4260e-03, 3.0460e-02, 8.3730e-04, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(DR_rates_c_carbon, tabData.DR_rates_c_carbon);
+    copy_data_2D(DR_rates_c_carbon, tabData.DR_rates_c_carbon);
 
     double DR_rates_e_carbon[7][9] = {
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
@@ -57,7 +43,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 3.1160e+06, 4.0750e+06, 5.7490e+06, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(DR_rates_e_carbon, tabData.DR_rates_e_carbon);
+    copy_data_2D(DR_rates_e_carbon, tabData.DR_rates_e_carbon);
 
     // ###
     // ### Nitrogen
@@ -73,7 +59,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 2.3880e-10, 6.7320e-01, 3.9600e+02, 3.5830e+07, 0.0000e+00, 0.0000e+00  },
         { 6.1700e-10, 7.4810e-01, 1.3160e+02, 3.4270e+07, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(RR_rates_nitrogen, tabData.RR_rates_nitrogen);
+    copy_data_2D(RR_rates_nitrogen, tabData.RR_rates_nitrogen);
 
     //TODO(check if negative value is correct)
     double DR_rates_c_nitrogen[8][9] = {
@@ -86,7 +72,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 2.8010e-03, 4.3620e-02, 1.1170e-03, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(DR_rates_c_nitrogen, tabData.DR_rates_c_nitrogen);
+    copy_data_2D(DR_rates_c_nitrogen, tabData.DR_rates_c_nitrogen);
 
     double DR_rates_e_nitrogen[8][9] = {
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
@@ -98,7 +84,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 4.1980e+06, 5.5160e+06, 8.0500e+06, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(DR_rates_e_nitrogen, tabData.DR_rates_e_nitrogen);
+    copy_data_2D(DR_rates_e_nitrogen, tabData.DR_rates_e_nitrogen);
 
     // ###
     // ### Oxygen
@@ -115,7 +101,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 2.6520e-10, 6.7050e-01, 5.8420e+02, 4.5590e+07, 0.0000e+00, 0.0000e+00  },
         { 6.5520e-10, 7.4700e-01, 1.9510e+02, 4.4830e+07, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(RR_rates_oxygen, tabData.RR_rates_oxygen);
+    copy_data_2D(RR_rates_oxygen, tabData.RR_rates_oxygen);
 
     // ###Dielectronic recombination rates
     double DR_rates_c_oxygen[9][9] = {
@@ -129,7 +115,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
     { 4.9250e-03, 5.8370e-02, 1.3590e-03, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
     { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(DR_rates_c_oxygen, tabData.DR_rates_c_oxygen);
+    copy_data_2D(DR_rates_c_oxygen, tabData.DR_rates_c_oxygen);
 
     double DR_rates_e_oxygen[9][9] = {
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
@@ -142,7 +128,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 5.4400e+06, 7.1700e+06, 1.1520e+07, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(DR_rates_e_oxygen, tabData.DR_rates_e_oxygen);
+    copy_data_2D(DR_rates_e_oxygen, tabData.DR_rates_e_oxygen);
 
     // ###
     // ### Neon
@@ -161,7 +147,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 3.4150e-10, 6.7060e-01, 9.5520e+02, 6.7780e+07, 0.0000e+00, 0.0000e+00  },
         { 8.2780e-10, 7.4700e-01, 2.9910e+02, 7.0060e+07, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(RR_rates_neon, tabData.RR_rates_neon);
+    copy_data_2D(RR_rates_neon, tabData.RR_rates_neon);
 
     double DR_rates_c_neon[11][9] = {
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
@@ -176,7 +162,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 1.1830e-02, 9.0110e-02, 1.8280e-03, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(DR_rates_c_neon, tabData.DR_rates_c_neon);
+    copy_data_2D(DR_rates_c_neon, tabData.DR_rates_c_neon);
 
     double DR_rates_e_neon[11][9] = {
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
@@ -191,7 +177,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 8.4050e+06, 1.1110e+07, 1.8120e+07, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(DR_rates_e_neon, tabData.DR_rates_e_neon);
+    copy_data_2D(DR_rates_e_neon, tabData.DR_rates_e_neon);
 
     // ###
     // ### Magnesium
@@ -212,7 +198,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 4.2140e-10, 6.7130e-01, 1.3960e+03, 9.4330e+07, 0.0000e+00, 0.0000e+00  },
         { 1.0220e-09, 7.4760e-01, 4.0980e+02, 1.0110e+08, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(RR_rates_magnesium, tabData.RR_rates_magnesium);
+    copy_data_2D(RR_rates_magnesium, tabData.RR_rates_magnesium);
 
     double DR_rates_c_magnesium[13][9] = {
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
@@ -229,7 +215,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 2.2620e-02, 1.2160e-01, 2.5310e-03, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(DR_rates_c_magnesium, tabData.DR_rates_c_magnesium);
+    copy_data_2D(DR_rates_c_magnesium, tabData.DR_rates_c_magnesium);
 
     double DR_rates_e_magnesium[13][9] = {
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
@@ -246,7 +232,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 1.2010e+07, 1.5880e+07, 2.4730e+07, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(DR_rates_e_magnesium, tabData.DR_rates_e_magnesium);
+    copy_data_2D(DR_rates_e_magnesium, tabData.DR_rates_e_magnesium);
 
     // ###
     // ### Silicon
@@ -269,7 +255,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 4.8700e-10, 6.6970e-01, 2.0260e+03, 1.2650e+08, 0.0000e+00, 0.0000e+00  },
         { 1.2610e-09, 7.4880e-01, 5.0680e+02, 1.3650e+08, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(RR_rates_silicon, tabData.RR_rates_silicon);
+    copy_data_2D(RR_rates_silicon, tabData.RR_rates_silicon);
 
     double DR_rates_c_silicon[15][9] = {
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
@@ -288,7 +274,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 3.8460e-02, 1.4910e-01, 2.7790e-03, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(DR_rates_c_silicon, tabData.DR_rates_c_silicon);
+    copy_data_2D(DR_rates_c_silicon, tabData.DR_rates_c_silicon);
 
     double DR_rates_e_silicon[15][9] = {
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
@@ -307,7 +293,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 1.6270e+07, 2.1540e+07, 3.8270e+07, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(DR_rates_e_silicon, tabData.DR_rates_e_silicon);
+    copy_data_2D(DR_rates_e_silicon, tabData.DR_rates_e_silicon);
 
     // ###
     // ### Sulfur
@@ -332,7 +318,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 5.5460e-10, 6.6920e-01, 2.7540e+03, 1.6330e+08, 0.0000e+00, 0.0000e+00  },
         { 1.4320e-09, 7.4850e-01, 6.6880e+02, 1.7930e+08, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(RR_rates_sulfur, tabData.RR_rates_sulfur);
+    copy_data_2D(RR_rates_sulfur, tabData.RR_rates_sulfur);
 
     double DR_rates_c_sulfur[17][9] = {
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
@@ -353,7 +339,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 6.6590e-02, 1.7620e-01, -6.5220e-03, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(DR_rates_c_sulfur, tabData.DR_rates_c_sulfur);
+    copy_data_2D(DR_rates_c_sulfur, tabData.DR_rates_c_sulfur);
 
     double DR_rates_e_sulfur[17][9] = {
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
@@ -374,7 +360,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 2.1220e+07, 2.8970e+07, 5.7860e+07, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(DR_rates_e_sulfur, tabData.DR_rates_e_sulfur);
+    copy_data_2D(DR_rates_e_sulfur, tabData.DR_rates_e_sulfur);
 
     double RR_rates_alt_sulfur[17][2] = {
         { 0.0000e+00, 0.0000e+00  },
@@ -395,7 +381,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 4.3000e-10, 8.0700e-01  },
         { 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(RR_rates_alt_sulfur, tabData.RR_rates_alt_sulfur);
+    copy_data_2D(RR_rates_alt_sulfur, tabData.RR_rates_alt_sulfur);
 
     double DR_rates_alt_sulfur[17][4] = {
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
@@ -416,7 +402,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 1.4500e-01, 2.8100e-01, 2.5400e+07, 5.3000e+06  },
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(DR_rates_alt_sulfur, tabData.DR_rates_alt_sulfur);
+    copy_data_2D(DR_rates_alt_sulfur, tabData.DR_rates_alt_sulfur);
 
     // ###
     // ### Iron
@@ -451,7 +437,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 9.9830e-10, 6.7540e-01, 6.6510e+03, 4.0170e+08, 0.0000e+00, 0.0000e+00  },
         { 2.2750e-09, 7.4810e-01, 1.8360e+03, 4.7360e+08, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(RR_rates_iron, tabData.RR_rates_iron);
+    copy_data_2D(RR_rates_iron, tabData.RR_rates_iron);
 
     double DR_rates_c_iron[27][9] = {
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
@@ -482,7 +468,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 1.9840e-01, 2.6760e-01, -2.2930e-03, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(DR_rates_c_iron, tabData.DR_rates_c_iron);
+    copy_data_2D(DR_rates_c_iron, tabData.DR_rates_c_iron);
 
     double DR_rates_e_iron[27][9] = {
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
@@ -513,7 +499,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 5.5520e+07, 7.4750e+07, 1.2360e+08, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(DR_rates_e_iron, tabData.DR_rates_e_iron);
+    copy_data_2D(DR_rates_e_iron, tabData.DR_rates_e_iron);
 
     double RR_rates_alt_iron[27][2] = {
         { 0.0000e+00, 0.0000e+00  },
@@ -544,7 +530,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 1.4000e-09, 7.8700e-01  },
         { 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(RR_rates_alt_iron, tabData.RR_rates_alt_iron);
+    copy_data_2D(RR_rates_alt_iron, tabData.RR_rates_alt_iron);
 
     double DR_rates_alt_iron[27][8] = {
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
@@ -575,7 +561,7 @@ inline void init_recombination_rates(TabulatedData &tabData) {
         { 5.3000e+03, 0.0000e+00, 0.0000e+00, 0.0000e+00, 4.3000e-01, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
         { 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00, 0.0000e+00  },
     };
-    copy2D(DR_rates_alt_iron, tabData.DR_rates_alt_iron);
+    copy_data_2D(DR_rates_alt_iron, tabData.DR_rates_alt_iron);
 }
 
 template <int N, int M>
@@ -734,3 +720,5 @@ double recombination(double T, int ion, int element_idx, const TabulatedData& ta
     }
     return rec;
 }
+
+} // namespace PRISM

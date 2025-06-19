@@ -1,8 +1,9 @@
 // photoionization_UVB.h
 #pragma once
 
-
 const int N_UVB_POINTS = 60;
+
+namespace PRISM {
 
 // Array that holds the UVB for each ion at a given redshift
 // double HM12_UVB_z[27][27][2];
@@ -372,3 +373,5 @@ inline UVB_table_t update_UVB(const double redshift, const struct UVB_data& HM12
 
     return HM12_UVB_z;
 }
+
+} // namespace PRISM

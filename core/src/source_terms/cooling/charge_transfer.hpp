@@ -5,6 +5,8 @@
 
 #include "types.hpp"
 
+namespace PRISM {
+
 
 // double CTRecomb[6][4][31];
 // double CTIon[7][3][31];
@@ -281,3 +283,5 @@ double charge_transfer_ionization(int ion, int nelem, double T, const TabulatedD
 
     return ct_ion;
 }
+
+} // namespace PRISM

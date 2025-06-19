@@ -2,6 +2,8 @@
 #pragma once
 #include <Kokkos_Core.hpp>
 
+namespace PRISM {
+
 KOKKOS_INLINE_FUNCTION
 double alpha_H2_prim(double T, double xe, double H2_cosmic_ray_ionization_rate, double G0, double xHI, double xHII){
     // H- channel for H2 formation
@@ -193,3 +195,5 @@ double beta_CO(double G0, double xi_cr_H2){
 
     return destruction_rate;
 }
+
+} // namespace PRISM

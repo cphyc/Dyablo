@@ -25,46 +25,6 @@ const real_t X_PCT_RULE_metal = 1E-2;  // Value required for convergence
 const real_t T_MIN = 2.725;
 const real_t T_MAX = 1E9;
 
-template<typename T, typename T2>
-void copy_data_3D(T& src, Kokkos::View<T2> &dst) {
-    typename Kokkos::View<T2>::HostMirror dst_h = Kokkos::create_mirror_view(dst);
-    for (uint i = 0; i < dst.extent(0); i++)
-    {
-        for (uint j = 0; j < dst.extent(1); j++)
-        {
-            for (uint k = 0; k < dst.extent(2); k++)
-            {
-                dst_h(i, j, k) = src[i][j][k];
-            }
-        }
-    }
-    Kokkos::deep_copy(dst, dst_h);
-};
-
-template<typename T, typename T2>
-void copy_data_2D(T& src, Kokkos::View<T2> &dst) {
-    typename Kokkos::View<T2>::HostMirror dst_h = Kokkos::create_mirror_view(dst);
-    for (uint i = 0; i < dst.extent(0); i++)
-    {
-        for (uint j = 0; j < dst.extent(1); j++)
-        {
-            dst_h(i, j) = src[i][j];
-        }
-    }
-    Kokkos::deep_copy(dst, dst_h);
-};
-
-template<typename T, typename T2>
-void copy_data_1D(T& src, Kokkos::View<T2> &dst) {
-    typename Kokkos::View<T2>::HostMirror dst_h = Kokkos::create_mirror_view(dst);
-    for (uint i = 0; i < dst.extent(0); i++)
-    {
-        dst_h(i) = src[i];
-    }
-    Kokkos::deep_copy(dst, dst_h);
-};
-
-
 // Structs for element properties
 template<bool include_H2, bool include_CO>
 KOKKOS_INLINE_FUNCTION

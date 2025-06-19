@@ -40,8 +40,9 @@ public:
     high_temperature_metal_cooling_path(configMap.getValue<std::string>("cooling", "high_temperature_metal_cooling_tables")),
     fine_structure_path(configMap.getValue<std::string>("cooling", "fine_structure_tables")),
     n_passive_scalars( configMap.getValue<int>("run", "n_passive_scalars", 0) ),
-    HM12_UVB_data(load_UVB_data(UVB_table_path)),
+    HM12_UVB_data(PRISM::load_UVB_data(UVB_table_path)),
     ions( configMap.getValue<std::vector<std::string>>("cooling", "ions" ) ),
+    T_blackbody( configMap.getValue<real_t>("cooling", "T_blackbody", 1e4) ),
     unit_time( configMap.getValue<real_t>("units", "time", 1.0) ),
     unit_density( configMap.getValue<real_t>("units", "density", 1.0) ),
     unit_length( configMap.getValue<real_t>("units", "length", 1.0) )
@@ -50,23 +51,38 @@ public:
     PRISM::parseIonInputs(ions, this->nions, this->elems2passive, this->ions2passive, this->ion_counts);
 
     // Initialize cosmic ray rates
-    const auto& [cosmic_ray_ionization_rates, cosmic_ray_ionization_rates_induced_UV, cosmic_ray_ionization_rates_induced_UV_heat] = initialize_cr_rates();
+    const auto& [cosmic_ray_ionization_rates, cosmic_ray_ionization_rates_induced_UV, cosmic_ray_ionization_rates_induced_UV_heat] = PRISM::initialize_cr_rates();
 
     // Initialize the charge transfer rates
-    const auto& [CTRecomb, CTIon] = load_ct_rates(ct_rates_path);
+    const auto& [CTRecomb, CTIon] = PRISM::load_ct_rates(ct_rates_path);
 
     // Initialize high temperature cooling tables
-    const auto& [high_t_cooling_rates, high_t_cooling_rates_tflag] = initialize_high_temperature_metal_cooling(high_temperature_metal_cooling_path);
+    const auto& [high_t_cooling_rates, high_t_cooling_rates_tflag] = PRISM::initialize_high_temperature_metal_cooling(high_temperature_metal_cooling_path);
 
     // Initialize the low temperature cooling tables
-    const auto& fs_cool_tab = init_fine_structure_tables(fine_structure_path);
+    const auto& fs_cool_tab = PRISM::init_fine_structure_tables(fine_structure_path);
 
     // Get hard-coded rates
-    const auto& dust_rec_coefs = get_dust_rec_coefs();
-    const auto& G0_heating_rates = get_G0_heating_rates();
+    const auto& dust_rec_coefs = PRISM::get_dust_rec_coefs();
+    const auto& G0_heating_rates = PRISM::get_G0_heating_rates();
 
     // HM-related data
     PRISM::copy_data_1D(G0_heating_rates, tabData.G0_heating_rates);
+
+    // Initialize rates
+    init_recombination_rates(tabData);
+    init_collisional_ionization(tabData);
+
+    // Initialize photon groups
+    std::array<double, MAX_N_GROUPS> group_E_min = {};
+    std::array<double, MAX_N_GROUPS> group_E_max = {};
+    group_E_min[0] = 13.6; // eV
+    group_E_max[0] = 500.0; // eV
+
+    // Initialize cross sections
+    // TODO: this should be queried from the config file
+    const auto& cross_sections = PRISM::initialize_cross_sections();
+    const auto& cs_ph = PRISM::update_cross_sections(T_blackbody, cross_sections, group_E_min, group_E_max);
 
     // Cosmic ray and dust-related data
     PRISM::copy_data_2D(cosmic_ray_ionization_rates, tabData.cosmic_ray_ionization_rates);
@@ -85,18 +101,8 @@ public:
     PRISM::copy_data_3D(high_t_cooling_rates, tabData.high_t_cooling_rates);
     PRISM::copy_data_2D(high_t_cooling_rates_tflag, tabData.high_t_cooling_rates_tflag);
 
-    // Initialize rates
-    init_recombination_rates(tabData);
-    init_collisional_ionization(tabData);
-
-    // Initialize cross sections
-    // TODO: this should be queried from the config file
-    tabData.group_E_min = Kokkos::View<double*>("group_E_min", 1);
-    tabData.group_E_max = Kokkos::View<double*>("group_E_max", 1);
-    tabData.group_E_min(0) =  13.6; // eV
-    tabData.group_E_max(0) = 500.0; // eV
-    initialize_cross_sections(tabData);
-    update_cross_sections(1e5, tabData);
+    // Photo-heating cross sections
+    PRISM::copy_data_4D(cs_ph, tabData.cs_ph);
   }
 
   ~CoolingUpdate_PRISM() {}
@@ -171,7 +177,7 @@ public:
         const real_t Tmu = q.p / q.rho * (gamma0 - 1) * unit_T;
 
         // Extract ion data
-        Element elements_loc[MAX_ELEMENTS];
+        PRISM::Element elements_loc[MAX_ELEMENTS];
         PRISM::ParticleIonData n_and_ion_fracs_loc[MAX_ELEMENTS];
         // Reset values
         for (auto i = 0; i < MAX_ELEMENTS; ++i) {
@@ -223,7 +229,7 @@ public:
         for (auto i = 1; i < MAX_ELEMENTS; ++i) {
           if (elements_loc[i].atomic_number < 0) continue;
           for (auto j = 0; j < elements_loc[i].n_ions + elements_loc[i].n_mol; ++j) {
-              n_and_ion_fracs_loc[i].ion_fracs[j] = 
+              n_and_ion_fracs_loc[i].ion_fracs[j] =
               Uout.at(iCell, dyablo::ConsHydroState::Irho_vz + 1 + ions2passive[i] + j) = n_and_ion_fracs_loc[i].ion_fracs_new[j];
           }
         }
@@ -239,7 +245,7 @@ public:
 
   }
 
-  TabulatedData tabData;
+  PRISM::TabulatedData tabData;
   bool cosmo_run;
 
   std::string UVB_table_path;
@@ -250,8 +256,8 @@ public:
   int n_passive_scalars;
 
   // UV background data
-  UVB_table_t HM12_UVB;
-  struct UVB_data HM12_UVB_data;
+  PRISM::UVB_table_t HM12_UVB;
+  struct PRISM::UVB_data HM12_UVB_data;
 
   // Information about network
   std::vector<std::string> ions;
@@ -259,6 +265,9 @@ public:
   std::array<int, MAX_ELEMENTS> nions;
   std::array<int, MAX_ELEMENTS> elems2passive;
   std::array<int, MAX_ELEMENTS> ions2passive;
+
+  // Blackbody temperature
+  real_t T_blackbody;
 
   // Units
   real_t unit_time;

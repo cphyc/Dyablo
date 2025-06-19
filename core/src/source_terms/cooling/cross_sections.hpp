@@ -5,20 +5,13 @@
 #include <math.h>
 #include "constants.hpp"
 
-// Initialize the cross sections structure and set to zero
-// cross_sections verner_cross_sections = {0}; // Initialize all elements to 0
-
-// Array that holds cross section and photoheating information
-// const int N_GROUPS = 1;
-// double cs_ph[27][27][N_GROUPS][3];
-// double group_E_min[N_GROUPS] = { 5.0, 11.2, 13.6, 15.2, 24.59, 54.42 };
-// double group_E_max[N_GROUPS] = { 11.2, 13.6, 15.2, 24.59, 54.42, 500.0 };
-// double group_E_min[N_GROUPS] = { 13.6 };
-// double group_E_max[N_GROUPS] = { 500.0 };
+namespace PRISM {
 
 // Number of points for the cross section and energy integrals
 
-inline void initialize_cross_sections(TabulatedData& tabData){
+inline PRISM::CrossSection_C initialize_cross_sections(){
+
+    PRISM::CrossSection_C out;
 
     // Initialize cross sections from Verner 1996
     printf("Initializing cross section data\n");
@@ -36,15 +29,15 @@ inline void initialize_cross_sections(TabulatedData& tabData){
 
     // Copy the data into the module
     for (int j = 0; j < 1; j++) {
-        tabData.verner_cross_sections.E_th(1, j) = hydrogen_E_th[j];
-        tabData.verner_cross_sections.E_max(1, j) = hydrogen_E_max[j];
-        tabData.verner_cross_sections.E_0(1, j) = hydrogen_E_0[j];
-        tabData.verner_cross_sections.sig_0(1, j) = hydrogen_sig_0[j];
-        tabData.verner_cross_sections.y_a(1, j) = hydrogen_y_a[j];
-        tabData.verner_cross_sections.P(1, j) = hydrogen_P[j];
-        tabData.verner_cross_sections.y_w(1, j) = hydrogen_y_w[j];
-        tabData.verner_cross_sections.y_0(1, j) = hydrogen_y_0[j];
-        tabData.verner_cross_sections.y_1(1, j) = hydrogen_y_1[j];
+        out.E_th[1][j] = hydrogen_E_th[j];
+        out.E_max[1][j] = hydrogen_E_max[j];
+        out.E_0[1][j] = hydrogen_E_0[j];
+        out.sig_0[1][j] = hydrogen_sig_0[j];
+        out.y_a[1][j] = hydrogen_y_a[j];
+        out.P[1][j] = hydrogen_P[j];
+        out.y_w[1][j] = hydrogen_y_w[j];
+        out.y_0[1][j] = hydrogen_y_0[j];
+        out.y_1[1][j] = hydrogen_y_1[j];
     }
 
     // Helium
@@ -60,15 +53,15 @@ inline void initialize_cross_sections(TabulatedData& tabData){
 
     // Copy the data into the module
     for (int j = 0; j < 2; j++) {
-        tabData.verner_cross_sections.E_th(2, j) = helium_E_th[j];
-        tabData.verner_cross_sections.E_max(2, j) = helium_E_max[j];
-        tabData.verner_cross_sections.E_0(2, j) = helium_E_0[j];
-        tabData.verner_cross_sections.sig_0(2, j) = helium_sig_0[j];
-        tabData.verner_cross_sections.y_a(2, j) = helium_y_a[j];
-        tabData.verner_cross_sections.P(2, j) = helium_P[j];
-        tabData.verner_cross_sections.y_w(2, j) = helium_y_w[j];
-        tabData.verner_cross_sections.y_0(2, j) = helium_y_0[j];
-        tabData.verner_cross_sections.y_1(2, j) = helium_y_1[j];
+        out.E_th[2][j] = helium_E_th[j];
+        out.E_max[2][j] = helium_E_max[j];
+        out.E_0[2][j] = helium_E_0[j];
+        out.sig_0[2][j] = helium_sig_0[j];
+        out.y_a[2][j] = helium_y_a[j];
+        out.P[2][j] = helium_P[j];
+        out.y_w[2][j] = helium_y_w[j];
+        out.y_0[2][j] = helium_y_0[j];
+        out.y_1[2][j] = helium_y_1[j];
     }
 
     // Carbon
@@ -84,15 +77,15 @@ inline void initialize_cross_sections(TabulatedData& tabData){
 
     // Copy the data into the module
     for (int j = 0; j < 6; j++) {
-        tabData.verner_cross_sections.E_th(6, j) = carbon_E_th[j];
-        tabData.verner_cross_sections.E_max(6, j) = carbon_E_max[j];
-        tabData.verner_cross_sections.E_0(6, j) = carbon_E_0[j];
-        tabData.verner_cross_sections.sig_0(6, j) = carbon_sig_0[j];
-        tabData.verner_cross_sections.y_a(6, j) = carbon_y_a[j];
-        tabData.verner_cross_sections.P(6, j) = carbon_P[j];
-        tabData.verner_cross_sections.y_w(6, j) = carbon_y_w[j];
-        tabData.verner_cross_sections.y_0(6, j) = carbon_y_0[j];
-        tabData.verner_cross_sections.y_1(6, j) = carbon_y_1[j];
+        out.E_th[6][j] = carbon_E_th[j];
+        out.E_max[6][j] = carbon_E_max[j];
+        out.E_0[6][j] = carbon_E_0[j];
+        out.sig_0[6][j] = carbon_sig_0[j];
+        out.y_a[6][j] = carbon_y_a[j];
+        out.P[6][j] = carbon_P[j];
+        out.y_w[6][j] = carbon_y_w[j];
+        out.y_0[6][j] = carbon_y_0[j];
+        out.y_1[6][j] = carbon_y_1[j];
     }
 
     // Nitrogen
@@ -108,15 +101,15 @@ inline void initialize_cross_sections(TabulatedData& tabData){
 
     // Copy the data into the module
     for (int j = 0; j < 7; j++) {
-        tabData.verner_cross_sections.E_th(7, j) = nitrogen_E_th[j];
-        tabData.verner_cross_sections.E_max(7, j) = nitrogen_E_max[j];
-        tabData.verner_cross_sections.E_0(7, j) = nitrogen_E_0[j];
-        tabData.verner_cross_sections.sig_0(7, j) = nitrogen_sig_0[j];
-        tabData.verner_cross_sections.y_a(7, j) = nitrogen_y_a[j];
-        tabData.verner_cross_sections.P(7, j) = nitrogen_P[j];
-        tabData.verner_cross_sections.y_w(7, j) = nitrogen_y_w[j];
-        tabData.verner_cross_sections.y_0(7, j) = nitrogen_y_0[j];
-        tabData.verner_cross_sections.y_1(7, j) = nitrogen_y_1[j];
+        out.E_th[7][j] = nitrogen_E_th[j];
+        out.E_max[7][j] = nitrogen_E_max[j];
+        out.E_0[7][j] = nitrogen_E_0[j];
+        out.sig_0[7][j] = nitrogen_sig_0[j];
+        out.y_a[7][j] = nitrogen_y_a[j];
+        out.P[7][j] = nitrogen_P[j];
+        out.y_w[7][j] = nitrogen_y_w[j];
+        out.y_0[7][j] = nitrogen_y_0[j];
+        out.y_1[7][j] = nitrogen_y_1[j];
     }
 
     // Oxygen
@@ -132,15 +125,15 @@ inline void initialize_cross_sections(TabulatedData& tabData){
 
     // Copy the data into the module
     for (int j = 0; j < 8; j++) {
-        tabData.verner_cross_sections.E_th(8, j) = oxygen_E_th[j];
-        tabData.verner_cross_sections.E_max(8, j) = oxygen_E_max[j];
-        tabData.verner_cross_sections.E_0(8, j) = oxygen_E_0[j];
-        tabData.verner_cross_sections.sig_0(8, j) = oxygen_sig_0[j];
-        tabData.verner_cross_sections.y_a(8, j) = oxygen_y_a[j];
-        tabData.verner_cross_sections.P(8, j) = oxygen_P[j];
-        tabData.verner_cross_sections.y_w(8, j) = oxygen_y_w[j];
-        tabData.verner_cross_sections.y_0(8, j) = oxygen_y_0[j];
-        tabData.verner_cross_sections.y_1(8, j) = oxygen_y_1[j];
+        out.E_th[8][j] = oxygen_E_th[j];
+        out.E_max[8][j] = oxygen_E_max[j];
+        out.E_0[8][j] = oxygen_E_0[j];
+        out.sig_0[8][j] = oxygen_sig_0[j];
+        out.y_a[8][j] = oxygen_y_a[j];
+        out.P[8][j] = oxygen_P[j];
+        out.y_w[8][j] = oxygen_y_w[j];
+        out.y_0[8][j] = oxygen_y_0[j];
+        out.y_1[8][j] = oxygen_y_1[j];
     }
 
     // Neon
@@ -156,15 +149,15 @@ inline void initialize_cross_sections(TabulatedData& tabData){
 
     // Copy the data into the module
     for (int j = 0; j < 10; j++) {
-        tabData.verner_cross_sections.E_th(10, j) = neon_E_th[j];
-        tabData.verner_cross_sections.E_max(10, j) = neon_E_max[j];
-        tabData.verner_cross_sections.E_0(10, j) = neon_E_0[j];
-        tabData.verner_cross_sections.sig_0(10, j) = neon_sig_0[j];
-        tabData.verner_cross_sections.y_a(10, j) = neon_y_a[j];
-        tabData.verner_cross_sections.P(10, j) = neon_P[j];
-        tabData.verner_cross_sections.y_w(10, j) = neon_y_w[j];
-        tabData.verner_cross_sections.y_0(10, j) = neon_y_0[j];
-        tabData.verner_cross_sections.y_1(10, j) = neon_y_1[j];
+        out.E_th[10][j] = neon_E_th[j];
+        out.E_max[10][j] = neon_E_max[j];
+        out.E_0[10][j] = neon_E_0[j];
+        out.sig_0[10][j] = neon_sig_0[j];
+        out.y_a[10][j] = neon_y_a[j];
+        out.P[10][j] = neon_P[j];
+        out.y_w[10][j] = neon_y_w[j];
+        out.y_0[10][j] = neon_y_0[j];
+        out.y_1[10][j] = neon_y_1[j];
     }
 
     // Magnesium
@@ -180,15 +173,15 @@ inline void initialize_cross_sections(TabulatedData& tabData){
 
     // Copy the data into the module
     for (int j = 0; j < 12; j++) {
-        tabData.verner_cross_sections.E_th(12, j) = magnesium_E_th[j];
-        tabData.verner_cross_sections.E_max(12, j) = magnesium_E_max[j];
-        tabData.verner_cross_sections.E_0(12, j) = magnesium_E_0[j];
-        tabData.verner_cross_sections.sig_0(12, j) = magnesium_sig_0[j];
-        tabData.verner_cross_sections.y_a(12, j) = magnesium_y_a[j];
-        tabData.verner_cross_sections.P(12, j) = magnesium_P[j];
-        tabData.verner_cross_sections.y_w(12, j) = magnesium_y_w[j];
-        tabData.verner_cross_sections.y_0(12, j) = magnesium_y_0[j];
-        tabData.verner_cross_sections.y_1(12, j) = magnesium_y_1[j];
+        out.E_th[12][j] = magnesium_E_th[j];
+        out.E_max[12][j] = magnesium_E_max[j];
+        out.E_0[12][j] = magnesium_E_0[j];
+        out.sig_0[12][j] = magnesium_sig_0[j];
+        out.y_a[12][j] = magnesium_y_a[j];
+        out.P[12][j] = magnesium_P[j];
+        out.y_w[12][j] = magnesium_y_w[j];
+        out.y_0[12][j] = magnesium_y_0[j];
+        out.y_1[12][j] = magnesium_y_1[j];
     }
 
     // Silicon
@@ -204,15 +197,15 @@ inline void initialize_cross_sections(TabulatedData& tabData){
 
     // Copy the data into the module
     for (int j = 0; j < 14; j++) {
-        tabData.verner_cross_sections.E_th(14, j) = silicon_E_th[j];
-        tabData.verner_cross_sections.E_max(14, j) = silicon_E_max[j];
-        tabData.verner_cross_sections.E_0(14, j) = silicon_E_0[j];
-        tabData.verner_cross_sections.sig_0(14, j) = silicon_sig_0[j];
-        tabData.verner_cross_sections.y_a(14, j) = silicon_y_a[j];
-        tabData.verner_cross_sections.P(14, j) = silicon_P[j];
-        tabData.verner_cross_sections.y_w(14, j) = silicon_y_w[j];
-        tabData.verner_cross_sections.y_0(14, j) = silicon_y_0[j];
-        tabData.verner_cross_sections.y_1(14, j) = silicon_y_1[j];
+        out.E_th[14][j] = silicon_E_th[j];
+        out.E_max[14][j] = silicon_E_max[j];
+        out.E_0[14][j] = silicon_E_0[j];
+        out.sig_0[14][j] = silicon_sig_0[j];
+        out.y_a[14][j] = silicon_y_a[j];
+        out.P[14][j] = silicon_P[j];
+        out.y_w[14][j] = silicon_y_w[j];
+        out.y_0[14][j] = silicon_y_0[j];
+        out.y_1[14][j] = silicon_y_1[j];
     }
 
     // Sulfur
@@ -228,15 +221,15 @@ inline void initialize_cross_sections(TabulatedData& tabData){
 
     // Copy the data into the module
     for (int j = 0; j < 16; j++) {
-        tabData.verner_cross_sections.E_th(16, j) = sulfur_E_th[j];
-        tabData.verner_cross_sections.E_max(16, j) = sulfur_E_max[j];
-        tabData.verner_cross_sections.E_0(16, j) = sulfur_E_0[j];
-        tabData.verner_cross_sections.sig_0(16, j) = sulfur_sig_0[j];
-        tabData.verner_cross_sections.y_a(16, j) = sulfur_y_a[j];
-        tabData.verner_cross_sections.P(16, j) = sulfur_P[j];
-        tabData.verner_cross_sections.y_w(16, j) = sulfur_y_w[j];
-        tabData.verner_cross_sections.y_0(16, j) = sulfur_y_0[j];
-        tabData.verner_cross_sections.y_1(16, j) = sulfur_y_1[j];
+        out.E_th[16][j] = sulfur_E_th[j];
+        out.E_max[16][j] = sulfur_E_max[j];
+        out.E_0[16][j] = sulfur_E_0[j];
+        out.sig_0[16][j] = sulfur_sig_0[j];
+        out.y_a[16][j] = sulfur_y_a[j];
+        out.P[16][j] = sulfur_P[j];
+        out.y_w[16][j] = sulfur_y_w[j];
+        out.y_0[16][j] = sulfur_y_0[j];
+        out.y_1[16][j] = sulfur_y_1[j];
     }
 
     // Iron
@@ -252,19 +245,21 @@ inline void initialize_cross_sections(TabulatedData& tabData){
 
     // Copy the data into the module
     for (int j = 0; j < 26; j++) {
-        tabData.verner_cross_sections.E_th(26, j) = iron_E_th[j];
-        tabData.verner_cross_sections.E_max(26, j) = iron_E_max[j];
-        tabData.verner_cross_sections.E_0(26, j) = iron_E_0[j];
-        tabData.verner_cross_sections.sig_0(26, j) = iron_sig_0[j];
-        tabData.verner_cross_sections.y_a(26, j) = iron_y_a[j];
-        tabData.verner_cross_sections.P(26, j) = iron_P[j];
-        tabData.verner_cross_sections.y_w(26, j) = iron_y_w[j];
-        tabData.verner_cross_sections.y_0(26, j) = iron_y_0[j];
-        tabData.verner_cross_sections.y_1(26, j) = iron_y_1[j];
+        out.E_th[26][j] = iron_E_th[j];
+        out.E_max[26][j] = iron_E_max[j];
+        out.E_0[26][j] = iron_E_0[j];
+        out.sig_0[26][j] = iron_sig_0[j];
+        out.y_a[26][j] = iron_y_a[j];
+        out.P[26][j] = iron_P[j];
+        out.y_w[26][j] = iron_y_w[j];
+        out.y_0[26][j] = iron_y_0[j];
+        out.y_1[26][j] = iron_y_1[j];
     }
+
+    return out;
 }
 
-inline double get_cross_section(double lambda, int element, int ion, const TabulatedData &tabData) {
+inline double get_cross_section(double lambda, int element, int ion, const PRISM::CrossSection_C &verner_cross_sections) {
 
     // Initialize cross section to 0
    double cross_sec = 0.0;
@@ -317,20 +312,20 @@ inline double get_cross_section(double lambda, int element, int ion, const Tabul
        return cross_sec;
    }
 
-   double x = (E / tabData.verner_cross_sections.E_0(element, ion)) - tabData.verner_cross_sections.y_0(element, ion);
-   double y = sqrt( (x*x) + pow(tabData.verner_cross_sections.y_1(element, ion),2.0) );
+   double x = (E / verner_cross_sections.E_0[element][ion]) - verner_cross_sections.y_0[element][ion];
+   double y = sqrt( (x*x) + pow(verner_cross_sections.y_1[element][ion],2.0) );
 
    double F = pow(x - 1.0,2.0);
-   F = F + pow(tabData.verner_cross_sections.y_w(element, ion),2.0);
-   F = F * pow(y,(0.5*tabData.verner_cross_sections.P(element, ion) - 5.5));
-   F = F * pow((1.0 + sqrt(y/tabData.verner_cross_sections.y_a(element, ion))),(-1.0*tabData.verner_cross_sections.P(element, ion)));
+   F = F + pow(verner_cross_sections.y_w[element][ion], 2.0);
+   F = F * pow(y,(0.5*verner_cross_sections.P[element][ion] - 5.5));
+   F = F * pow((1.0 + sqrt(y/verner_cross_sections.y_a[element][ion])), (-1.0*verner_cross_sections.P[element][ion]));
 
-   cross_sec = tabData.verner_cross_sections.sig_0(element, ion) * F * 1E-18;
-   if (E < tabData.verner_cross_sections.E_th(element, ion)){
+   cross_sec = verner_cross_sections.sig_0[element][ion] * F * 1E-18;
+   if (E < verner_cross_sections.E_th[element][ion]){
       cross_sec = 0.0;
    }
 
-   if (E > tabData.verner_cross_sections.E_max(element, ion)){
+   if (E > verner_cross_sections.E_max[element][ion]){
       cross_sec = 0.0;
    }
 
@@ -340,7 +335,7 @@ inline double get_cross_section(double lambda, int element, int ion, const Tabul
 inline double blackbody_nu(double T, double nu){
     // Blackbody function B_lam
     // T --> temeprature [K]
-    // ni --> frequency [Hz] 
+    // ni --> frequency [Hz]
 
     // now compute B_lam
     double B_nu = 2.0 * H_PLANCK * pow(nu,3.0) / pow(C_CGS,2.0);
@@ -352,7 +347,7 @@ inline double blackbody_nu(double T, double nu){
 inline double blackbody_lam(double T, double lambda){
     // Blackbody function B_lam
     // T --> temeprature [K]
-    // lambda --> wavelengths [A] 
+    // lambda --> wavelengths [A]
 
     // convert lambda in A to cm
     double lambda_cm = 1E-8 * lambda;
@@ -364,11 +359,11 @@ inline double blackbody_lam(double T, double lambda){
     return B_lam;
 }
 
-inline double sigma_N_num(double nu, double T, int element, int ion, const TabulatedData &tabData){
-    return get_cross_section((C_CGS / nu)*1e8, element, ion, tabData) * blackbody_nu(T, nu) / (H_PLANCK * nu);
+inline double sigma_N_num(double nu, double T, int element, int ion, const PRISM::CrossSection_C &verner_cross_sections){
+    return get_cross_section((C_CGS / nu)*1e8, element, ion, verner_cross_sections) * blackbody_nu(T, nu) / (H_PLANCK * nu);
 }
 
-inline double sigma_N_den(double nu, double T, int element, int ion, const TabulatedData &tabData){
+inline double sigma_N_den(double nu, double T, int element, int ion){
     return blackbody_nu(T, nu) / (H_PLANCK * nu);
 }
 
@@ -390,7 +385,7 @@ inline double simpson_rule(const T func, const double a, const double b) {
     return sum * h / 3.0;
 }
 
-inline double sigma_N(double E0, double E1, double T, int element, int ion, const TabulatedData &tabData){
+inline double sigma_N(double E0, double E1, double T, int element, int ion, const PRISM::CrossSection_C &verner_cross_sections){
     // Photon number-weighted cross section
     // E0 lower energy of the bin in eV
     // E1 upper energy of the bin in eV
@@ -399,22 +394,22 @@ inline double sigma_N(double E0, double E1, double T, int element, int ion, cons
     double b = (E1 * EV_2_ERG) / H_PLANCK;
 
     // Simpson's rule for sigma * B / hnu
-    double numerator = simpson_rule([&](double x) { return sigma_N_num(x, T, element, ion, tabData); }, a, b);
+    double numerator = simpson_rule([&](double x) { return sigma_N_num(x, T, element, ion, verner_cross_sections); }, a, b);
     // Simpson's rule for B / hnu
-    double denominator = simpson_rule([&](double x) { return sigma_N_den(x, T, element, ion, tabData); }, a, b);
+    double denominator = simpson_rule([&](double x) { return sigma_N_den(x, T, element, ion); }, a, b);
 
     return numerator / denominator;
 }
 
-inline double sigma_E_num(double nu, double T, int element, int ion, const TabulatedData &tabData){
-    return get_cross_section((C_CGS / nu)*1e8, element, ion, tabData) * blackbody_nu(T, nu);
+inline double sigma_E_num(double nu, double T, int element, int ion, const CrossSection_C &verner_cross_sections){
+    return get_cross_section((C_CGS / nu)*1e8, element, ion, verner_cross_sections) * blackbody_nu(T, nu);
 }
 
-inline double sigma_E_den(double nu, double T, int element, int ion, const TabulatedData &tabData){
+inline double sigma_E_den(double nu, double T, int element, int ion){
     return blackbody_nu(T, nu) / (H_PLANCK * nu);
 }
 
-inline double sigma_E(double E0, double E1, double T, int element, int ion, const TabulatedData &tabData){
+inline double sigma_E(double E0, double E1, double T, int element, int ion, const CrossSection_C &verner_cross_sections){
     // Photon energy-weighted cross section
     // E0 lower energy of the bin in eV
     // E1 upper energy of the bin in eV
@@ -423,10 +418,10 @@ inline double sigma_E(double E0, double E1, double T, int element, int ion, cons
     double b = (E1 * EV_2_ERG) / H_PLANCK;
 
     // Simpson's rule for sigma * B / hnu
-    double numerator = simpson_rule([&](double x) { return sigma_E_num(x, T, element, ion, tabData); }, a, b);
+    double numerator = simpson_rule([&](double x) { return sigma_E_num(x, T, element, ion, verner_cross_sections); }, a, b);
 
     // Simpson's rule for B / hnu
-    double denominator = simpson_rule([&](double x) { return sigma_E_den(x, T, element, ion, tabData); }, a, b);
+    double denominator = simpson_rule([&](double x) { return sigma_E_den(x, T, element, ion); }, a, b);
 
     return numerator / denominator;
 }
@@ -455,50 +450,63 @@ inline double e_bar(double E0, double E1, double T){
     return (numerator / denominator) / EV_2_ERG;
 }
 
-inline void update_cross_sections(double T, TabulatedData &tabData){
+using _cs_t = std::array<std::array<std::array<std::array<double, 3>, MAX_N_GROUPS>, MAX_ELEMENTS>, MAX_ELEMENTS>;
+
+inline _cs_t update_cross_sections(
+        const double T,
+        const CrossSection_C& verner_cross_sections,
+        const std::array<double, MAX_N_GROUPS> &group_E_min,
+        const std::array<double, MAX_N_GROUPS> &group_E_max
+) {
     // Updates the cross sections for each element and group
     // TODO(code): update C_CGS with the reduced speed of light if needed
+    _cs_t cs_ph = {};
 
     printf("Updating cross sections to a %e K blackbody\n",T);
 
     double group_energy;
 
-    const int N_groups = tabData.group_E_min.size(); // Number of photon groups
+    const int N_groups = group_E_min.size(); // Number of photon groups
 
     for (int i = 0; i < N_groups; i++){ // Loop over photon groups
 
         // First get the group energy in eV
-        group_energy = e_bar(tabData.group_E_min(i), tabData.group_E_max(i), T);
+        group_energy = e_bar(group_E_min[i], group_E_max[i], T);
 
         for (int j = 0; j < MAX_ELEMENTS; j++){ // Loop over elements
             // Initialize everything to 0 first
             for (int k = 0; k < MAX_ELEMENTS; k++){
-                tabData.cs_ph(j, k, i, 0) = 0.0;
-                tabData.cs_ph(j, k, i, 1) = 0.0;
-                tabData.cs_ph(j, k, i, 2) = 0.0;
+                cs_ph[j][k][i][0] = 0.0;
+                cs_ph[j][k][i][1] = 0.0;
+                cs_ph[j][k][i][2] = 0.0;
             }
 
             // Now calculate cross sections
             for (int k = 0; k < j; k++){ // Loop over ions
 
                 // Update number-weighted cross section
-                tabData.cs_ph(j, k, i, 0) = sigma_N(tabData.group_E_min(i), tabData.group_E_max(i), T, j, k, tabData); // cm^3 / s
+                cs_ph[j][k][i][0] = sigma_N(group_E_min[i], group_E_max[i], T, j, k, verner_cross_sections); // cm^3 / s
 
                 // Update energy-weighted cross section
-                tabData.cs_ph(j, k, i, 1) = sigma_E(tabData.group_E_min(i), tabData.group_E_max(i), T, j, k, tabData); // cm^3 / s
+                cs_ph[j][k][i][1] = sigma_E(group_E_min[i], group_E_max[i], T, j, k, verner_cross_sections); // cm^3 / s
 
                 // Update photoheating rates
-                tabData.cs_ph(j, k, i, 2) = (tabData.cs_ph(j, k, i, 1) * group_energy) - (tabData.cs_ph(j, k, i, 0) * tabData.verner_cross_sections.E_th(j, k));
-                tabData.cs_ph(j, k, i, 2) = fmax(tabData.cs_ph(j, k, i, 2),0.0); // Don't let photoheating go below 0.0
+                cs_ph[j][k][i][2] = (cs_ph[j][k][i][1] * group_energy) - (cs_ph[j][k][i][0] * verner_cross_sections.E_th[j][k]);
+                cs_ph[j][k][i][2] = fmax(cs_ph[j][k][i][2],0.0); // Don't let photoheating go below 0.0
 
             }
         } // End loop over elements
 
         // Deal with H2 separately
-        tabData.cs_ph(1, 2, i, 0) = sigma_N(tabData.group_E_min(i), tabData.group_E_max(i), T, 1, 2, tabData); // cm^3 / s
-        tabData.cs_ph(1, 2, i, 1) = sigma_E(tabData.group_E_min(i), tabData.group_E_max(i), T, 1, 2, tabData); // cm^3 / s
-        tabData.cs_ph(1, 2, i, 2) = (tabData.cs_ph(1, 2, i, 1) * group_energy) - (tabData.cs_ph(1, 2, i, 0) * tabData.verner_cross_sections.E_th(1, 2));
-        tabData.cs_ph(1, 2, i, 2) = fmax(tabData.cs_ph(1, 2, i, 2),0.0); // Don't let photoheating go below 0.0
+        cs_ph[1][2][i][0] = sigma_N(group_E_min[i], group_E_max[i], T, 1, 2, verner_cross_sections); // cm^3 / s
+        cs_ph[1][2][i][1] = sigma_E(group_E_min[i], group_E_max[i], T, 1, 2, verner_cross_sections); // cm^3 / s
+        cs_ph[1][2][i][2] = (cs_ph[1][2][i][1] * group_energy) - (cs_ph[1][2][i][0] * verner_cross_sections.E_th[1][2]);
+        cs_ph[1][2][i][2] = fmax(cs_ph[1][2][i][2],0.0); // Don't let photoheating go below 0.0
+
 
     } // End loop over photon groups
+
+    return cs_ph;
 }
+
+} // namespace PRISM

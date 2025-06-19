@@ -5,6 +5,10 @@
 #define MAX_N_GROUPS 2
 #define N_INTEGRATION_POINTS 10000
 
+namespace PRISM {
+
+using namespace PRISM;
+
 using Array2D = std::array<std::array<double, MAX_ELEMENTS>, MAX_ELEMENTS>;
 
 typedef struct
@@ -29,6 +33,18 @@ typedef struct {
     Kokkos::View<double[MAX_ELEMENTS][MAX_ELEMENTS]> y_0;
     Kokkos::View<double[MAX_ELEMENTS][MAX_ELEMENTS]> y_1;
 } CrossSection;
+
+typedef struct {
+    Array2D E_th;
+    Array2D E_max;
+    Array2D E_0;
+    Array2D sig_0;
+    Array2D y_a;
+    Array2D P;
+    Array2D y_w;
+    Array2D y_0;
+    Array2D y_1;
+} CrossSection_C;
 
 
 typedef struct
@@ -131,3 +147,64 @@ typedef struct
     Kokkos::View<double*> group_E_max;
 
 } TabulatedData;
+
+
+template<typename T, typename T2>
+inline void copy_data_4D(T& src, Kokkos::View<T2> &dst) {
+    typename Kokkos::View<T2>::HostMirror dst_h = Kokkos::create_mirror_view(dst);
+    for (uint i = 0; i < dst.extent(0); i++)
+    {
+        for (uint j = 0; j < dst.extent(1); j++)
+        {
+            for (uint k = 0; k < dst.extent(2); k++)
+            {
+                for (uint l = 0; l < dst.extent(3); l++)
+                {
+                    dst_h(i, j, k, l) = src[i][j][k][l];
+                }
+            }
+        }
+    }
+    Kokkos::deep_copy(dst, dst_h);
+};
+
+template<typename T, typename T2>
+inline void copy_data_3D(T& src, Kokkos::View<T2> &dst) {
+    typename Kokkos::View<T2>::HostMirror dst_h = Kokkos::create_mirror_view(dst);
+    for (uint i = 0; i < dst.extent(0); i++)
+    {
+        for (uint j = 0; j < dst.extent(1); j++)
+        {
+            for (uint k = 0; k < dst.extent(2); k++)
+            {
+                dst_h(i, j, k) = src[i][j][k];
+            }
+        }
+    }
+    Kokkos::deep_copy(dst, dst_h);
+};
+
+template<typename T, typename T2>
+inline void copy_data_2D(T& src, Kokkos::View<T2> &dst) {
+    typename Kokkos::View<T2>::HostMirror dst_h = Kokkos::create_mirror_view(dst);
+    for (uint i = 0; i < dst.extent(0); i++)
+    {
+        for (uint j = 0; j < dst.extent(1); j++)
+        {
+            dst_h(i, j) = src[i][j];
+        }
+    }
+    Kokkos::deep_copy(dst, dst_h);
+};
+
+template<typename T, typename T2>
+inline void copy_data_1D(T& src, Kokkos::View<T2> &dst) {
+    typename Kokkos::View<T2>::HostMirror dst_h = Kokkos::create_mirror_view(dst);
+    for (uint i = 0; i < dst.extent(0); i++)
+    {
+        dst_h(i) = src[i];
+    }
+    Kokkos::deep_copy(dst, dst_h);
+};
+
+} // namespace PRISM

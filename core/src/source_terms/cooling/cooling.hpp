@@ -17,6 +17,7 @@ const int N_HIGH_T_COOLING_TEMP = 121;
 // bool high_t_cooling_rates_tflag[27][27];
 // double fs_cool_tab[27][160][8];  // Array for fine structure cooling rates
 
+namespace PRISM {
 
 inline std::array<double, 27> get_G0_heating_rates() {
     return {
@@ -1678,3 +1679,5 @@ double all_cooling(double T, double ne, double aexp, double *element_number_dens
 
     return total_heating - total_cooling;
 }
+
+} // namespace PRISM

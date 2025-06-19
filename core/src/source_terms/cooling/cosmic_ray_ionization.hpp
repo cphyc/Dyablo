@@ -8,6 +8,8 @@
 // double cosmic_ray_ionization_rates_induced_UV[27];
 // double cosmic_ray_ionization_rates_induced_UV_heat[27];
 
+namespace PRISM {
+
 
 using _crir_t = std::array<std::array<double, 27>, 27>;
 using _criu_t = std::array<double, 27>;
@@ -105,6 +107,4 @@ double secondary_cr_rates(double xe){
     return phi_s;
 }
 
-
-
-
+} // namespace PRISM
