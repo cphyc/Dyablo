@@ -290,8 +290,8 @@ public:
           Uout_rad.at(iCell, VarIndex_rad::Ifz_rad) = F_phot[igrp][2];
         }
 
-        printf("T = %e, rho = %e, xHI = %e, xHII = %e, iterations = %d\n",
-               Tout, q.rho, Uout_passive.at(iCell, ions2passive[1]), Uout_passive.at(iCell, ions2passive[1] + 1), total_iterations);
+        // printf("T = %e, rho = %e, xHI = %e, xHII = %e, iterations = %d\n",
+        //        Tout, q.rho, Uout_passive.at(iCell, ions2passive[1]), Uout_passive.at(iCell, ions2passive[1] + 1), total_iterations);
 
         Nstep_tot += total_iterations;
         Ncell++;
