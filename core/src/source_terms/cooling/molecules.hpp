@@ -15,9 +15,9 @@ double alpha_H2_prim(double T, double xe, double H2_cosmic_ray_ionization_rate, 
 
     // ! Creation and destruction channels of H- included with updated rates from Glover et al. 2010
     // ! H + e- -> H- + gamma
-    double k1 = pow(10.0,-17.845 + 0.762*logT + 0.1523*pow(logT,2.)-0.03274*pow(logT,3.));
+    double k1 = pow(10.0,-17.845 + 0.762*logT + 0.1523*pow(logT, 2)-0.03274*pow(logT, 3));
     if (T >= 6000.0) {
-        k1 = pow(10.0,-16.420 + 0.1998*pow(logT,2.)-5.447E-3*pow(logT,4.)+4.0415E-5*pow(logT,6.));
+        k1 = pow(10.0,-16.420 + 0.1998*pow(logT, 2)-5.447E-3*pow(logT, 4)+4.0415E-5*pow(logT, 6));
     }
 
     // ! H- + H -> H2 + e

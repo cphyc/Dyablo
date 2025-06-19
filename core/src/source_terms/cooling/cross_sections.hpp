@@ -306,18 +306,18 @@ inline double get_cross_section(double lambda, int element, int ion, const PRISM
            cross_sec = 10.10E-18;
        }
        if (E>18.10){
-           cross_sec = 10.10E-18 * pow(18.10/E,3.0);
+           cross_sec = 10.10E-18 * pow(18.10/E, 3);
        }
 
        return cross_sec;
    }
 
    double x = (E / verner_cross_sections.E_0[element][ion]) - verner_cross_sections.y_0[element][ion];
-   double y = sqrt( (x*x) + pow(verner_cross_sections.y_1[element][ion],2.0) );
+   double y = sqrt( (x*x) + pow(verner_cross_sections.y_1[element][ion], 2) );
 
-   double F = pow(x - 1.0,2.0);
-   F = F + pow(verner_cross_sections.y_w[element][ion], 2.0);
-   F = F * pow(y,(0.5*verner_cross_sections.P[element][ion] - 5.5));
+   double F = pow(x - 1.0, 2);
+   F = F + pow(verner_cross_sections.y_w[element][ion], 2);
+   F = F * pow(y, (0.5*verner_cross_sections.P[element][ion] - 5.5));
    F = F * pow((1.0 + sqrt(y/verner_cross_sections.y_a[element][ion])), (-1.0*verner_cross_sections.P[element][ion]));
 
    cross_sec = verner_cross_sections.sig_0[element][ion] * F * 1E-18;
@@ -339,7 +339,7 @@ inline double blackbody_nu(double T, double nu){
     // ni --> frequency [Hz] 
 
     // now compute B_lam
-    double B_nu = 2.0 * H_PLANCK * pow(nu,3.0) / pow(C_CGS,2.0);
+    double B_nu = 2.0 * H_PLANCK * pow(nu, 3) / pow(C_CGS, 2);
     B_nu = B_nu * (1.0 / (exp(H_PLANCK * nu / (KB * T)) - 1.0));
 
     return B_nu;
