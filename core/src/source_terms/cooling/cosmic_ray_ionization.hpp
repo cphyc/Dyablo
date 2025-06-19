@@ -71,7 +71,7 @@ inline std::tuple<
         cosmic_ray_ionization_rates_induced_UV[i] = 0.0;
     }
 
-    cosmic_ray_ionization_rates_induced_UV[1]  = 4.08e-16; // Hydrogen
+    cosmic_ray_ionization_rates_induced_UV[1]  = 0.00E+00; // Hydrogen
     cosmic_ray_ionization_rates_induced_UV[2]  = 0.00E+00; // Helium  --> ground state too high
     cosmic_ray_ionization_rates_induced_UV[6]  = 2.60E-14; // Carbon
     cosmic_ray_ionization_rates_induced_UV[7]  = 7.34E-17; // Nitrogen

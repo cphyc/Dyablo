@@ -332,31 +332,17 @@ inline double get_cross_section(double lambda, int element, int ion, const PRISM
    return cross_sec;
 }
 
+
 inline double blackbody_nu(double T, double nu){
     // Blackbody function B_lam
     // T --> temeprature [K]
-    // ni --> frequency [Hz]
+    // ni --> frequency [Hz] 
 
     // now compute B_lam
     double B_nu = 2.0 * H_PLANCK * pow(nu,3.0) / pow(C_CGS,2.0);
     B_nu = B_nu * (1.0 / (exp(H_PLANCK * nu / (KB * T)) - 1.0));
 
     return B_nu;
-}
-
-inline double blackbody_lam(double T, double lambda){
-    // Blackbody function B_lam
-    // T --> temeprature [K]
-    // lambda --> wavelengths [A]
-
-    // convert lambda in A to cm
-    double lambda_cm = 1E-8 * lambda;
-
-    // now compute B_lam
-    double B_lam = 2.0 * H_PLANCK * C_CGS * C_CGS / pow(lambda_cm,5.0);
-    B_lam = B_lam * (1.0 / (exp(H_PLANCK * C_CGS / (lambda_cm * KB * T)) - 1.0));
-
-    return B_lam;
 }
 
 inline double sigma_N_num(double nu, double T, int element, int ion, const PRISM::CrossSection_C &verner_cross_sections){
@@ -483,17 +469,15 @@ inline _cs_t update_cross_sections(
 
             // Now calculate cross sections
             for (int k = 0; k < j; k++){ // Loop over ions
-
                 // Update number-weighted cross section
-                cs_ph[j][k][i][0] = sigma_N(group_E_min[i], group_E_max[i], T, j, k, verner_cross_sections); // cm^3 / s
+                cs_ph[j][k][i][0] = sigma_N(group_E_min[i], group_E_max[i], T, j, k, verner_cross_sections) * C_CGS; // cm^3 / s
 
                 // Update energy-weighted cross section
-                cs_ph[j][k][i][1] = sigma_E(group_E_min[i], group_E_max[i], T, j, k, verner_cross_sections); // cm^3 / s
+                cs_ph[j][k][i][1] = sigma_E(group_E_min[i], group_E_max[i], T, j, k, verner_cross_sections) * C_CGS; // cm^3 / s
 
                 // Update photoheating rates
                 cs_ph[j][k][i][2] = (cs_ph[j][k][i][1] * group_energy) - (cs_ph[j][k][i][0] * verner_cross_sections.E_th[j][k]);
-                cs_ph[j][k][i][2] = fmax(cs_ph[j][k][i][2],0.0); // Don't let photoheating go below 0.0
-
+                cs_ph[j][k][i][2] = fmax(cs_ph[j][k][i][2],0.0) * EV_2_ERG; // Don't let photoheating go below 0.0
             }
         } // End loop over elements
 
@@ -501,7 +485,7 @@ inline _cs_t update_cross_sections(
         cs_ph[1][2][i][0] = sigma_N(group_E_min[i], group_E_max[i], T, 1, 2, verner_cross_sections); // cm^3 / s
         cs_ph[1][2][i][1] = sigma_E(group_E_min[i], group_E_max[i], T, 1, 2, verner_cross_sections); // cm^3 / s
         cs_ph[1][2][i][2] = (cs_ph[1][2][i][1] * group_energy) - (cs_ph[1][2][i][0] * verner_cross_sections.E_th[1][2]);
-        cs_ph[1][2][i][2] = fmax(cs_ph[1][2][i][2],0.0); // Don't let photoheating go below 0.0
+        cs_ph[1][2][i][2] = fmax(cs_ph[1][2][i][2],0.0) * EV_2_ERG; // Don't let photoheating go below 0.0
 
 
     } // End loop over photon groups

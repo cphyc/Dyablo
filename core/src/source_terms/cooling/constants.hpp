@@ -1,6 +1,5 @@
 // constants.h
-#ifndef CONSTANTS_H
-#define CONSTANTS_H
+#pragma once
 
 // Boltzmann constant (erg/K)
 const double KB = 1.380649E-16; // erg/K
@@ -13,5 +12,3 @@ const double H_PLANCK = 6.626196E-27; // erg * s
 
 // Conversion from eV to erg
 const double EV_2_ERG = 1.602E-12;
-
-#endif // CONSTANTS_H

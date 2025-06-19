@@ -10,10 +10,10 @@ inline void init_collisional_ionization(TabulatedData& tabData) {
     // Define the collisional ionization data
     // "carbon"
     double dE_carbon[] = { 11.3e0, 24.4e0, 47.9e0, 64.5e0, 392.1e0, 490.0e0 };
-    double A_carbon[]  = { 0.685e-7, 0.186e-7, 0.635e-8, 0.150e-8, 0.299e-9, 0.123e-9 };
-    double X_carbon[]  = { 0.193e0, 0.286e0, 0.427e0, 0.416e0, 0.666e0, 0.620e0 };
-    double K_carbon[]  = { 0.25e0, 0.24e0, 0.21e0, 0.13e0, 0.02e0, 0.16e0 };
-    double P_carbon[]  = { 0., 1., 1., 1., 1., 1. };
+    double A_carbon[] = { 0.685e-7, 0.186e-7, 0.635e-8, 0.150e-8, 0.299e-9, 0.123e-9 };
+    double X_carbon[] = { 0.193e0, 0.286e0, 0.427e0, 0.416e0, 0.666e0, 0.620e0 };
+    double K_carbon[] = { 0.25e0, 0.24e0, 0.21e0, 0.13e0, 0.02e0, 0.16e0 };
+    double P_carbon[] = { 0., 1., 1., 1., 1., 1. };
     copy_data_1D(dE_carbon, tabData.dE_carbon);
     copy_data_1D(A_carbon, tabData.A_carbon);
     copy_data_1D(X_carbon, tabData.X_carbon);

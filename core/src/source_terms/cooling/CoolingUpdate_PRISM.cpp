@@ -57,7 +57,7 @@ public:
     const auto& [CTRecomb, CTIon] = PRISM::load_ct_rates(ct_rates_path);
 
     // Initialize high temperature cooling tables
-    const auto& [high_t_cooling_rates, high_t_cooling_rates_tflag] = PRISM::initialize_high_temperature_metal_cooling(high_temperature_metal_cooling_path);
+    const auto& [high_t_cooling_temp, high_t_cooling_rates, high_t_cooling_rates_tflag] = PRISM::initialize_high_temperature_metal_cooling(high_temperature_metal_cooling_path);
 
     // Initialize the low temperature cooling tables
     const auto& fs_cool_tab = PRISM::init_fine_structure_tables(fine_structure_path);
@@ -94,6 +94,7 @@ public:
     PRISM::copy_data_3D(fs_cool_tab, tabData.fs_cool_tab);
 
     // High-T cooling rates
+    PRISM::copy_data_1D(high_t_cooling_temp, tabData.high_t_cooling_temp);
     PRISM::copy_data_3D(high_t_cooling_rates, tabData.high_t_cooling_rates);
     PRISM::copy_data_2D(high_t_cooling_rates_tflag, tabData.high_t_cooling_rates_tflag);
   }
@@ -243,10 +244,16 @@ public:
         constexpr double UV_background_G0 = 1E-6;
         constexpr double generic_cosmic_ray_ionization_rate = 1E-25;
         constexpr double dust_to_gas_mass_ratio_over_mw = 0.04;
-        const auto& [total_iterations, Tout] = PRISM::get_chemical_eqm<
-          constant_temperature, ramses_rt_T_scheme, rosenbrock_T_scheme, include_H2, include_CO
+        real_t N_phot[MAX_N_GROUPS] = {0};
+        real_t F_phot[MAX_N_GROUPS][2] = {{0, 0}};
+
+        const auto& [total_iterations, Tout] = PRISM::subcycle_chemistry<
+          constant_temperature, ramses_rt_T_scheme, rosenbrock_T_scheme, include_H2, include_CO,
+          true
         >(elements_loc, n_and_ion_fracs_loc, Tmu, aexp, dt_s,
           UV_background_G0, generic_cosmic_ray_ionization_rate, dust_to_gas_mass_ratio_over_mw,
+          N_phot, F_phot, 1,
+          20000, 100000,
           tabData);
 
         // Store new temperature
@@ -258,9 +265,12 @@ public:
         for (auto i = 1; i < MAX_ELEMENTS; ++i) {
           if (elements_loc[i].atomic_number < 0) continue;
           for (auto j = 0; j < elements_loc[i].n_ions + elements_loc[i].n_mol; ++j) {
-              Uout.at(iCell, ions2passive[i] + j) = n_and_ion_fracs_loc[i].ion_fracs_new[j];
+              Uout_passive.at(iCell, ions2passive[i] + j) = n_and_ion_fracs_loc[i].ion_fracs_new[j];
           }
         }
+
+        printf("T = %e, rho = %e, xHI = %e, xHII = %e, iterations = %d\n",
+               Tout, q.rho, Uout_passive.at(iCell, ions2passive[1]), Uout_passive.at(iCell, ions2passive[1] + 1), total_iterations);
 
         Nstep_tot += total_iterations;
         Ncell++;

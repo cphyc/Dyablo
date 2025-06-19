@@ -9,7 +9,9 @@ namespace PRISM {
 
 using namespace PRISM;
 
-using Array2D = std::array<std::array<double, MAX_ELEMENTS>, MAX_ELEMENTS>;
+using Array1D = std::array<double, MAX_ELEMENTS>;
+using iArray1D = std::array<int, MAX_ELEMENTS>;
+using Array2D = std::array<Array1D, MAX_ELEMENTS>;
 
 typedef struct
 {
@@ -59,6 +61,7 @@ typedef struct
     Kokkos::View<double[6][4][31]> CTRecomb {"CTRecomb"};
     Kokkos::View<double[MAX_ELEMENTS][160][8]> fs_cool_tab {"fs_cool_tab"};
 
+    Kokkos::View<double[121]> high_t_cooling_temp {"high_t_cooling_temp"};
     Kokkos::View<double[121][MAX_ELEMENTS][MAX_ELEMENTS]> high_t_cooling_rates {"high_t_cooling_rates"};
     Kokkos::View<bool[MAX_ELEMENTS][MAX_ELEMENTS]> high_t_cooling_rates_tflag {"high_t_cooling_rates_tflag"};
 

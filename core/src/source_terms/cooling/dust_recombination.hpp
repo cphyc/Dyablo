@@ -46,28 +46,24 @@ double dust_recombination_rates(int ion, int nelem, double T, double G, double n
     double dust_rec_rate = 0.0;
     double dr_sf = 1.0;
 
-    // No dust recombombination except for the first ionization state.
+    double loc_T = T;
+
+    // No dust recombination except for the first ionization state.
     // Maybe this will change later...
     if (ion != 1)
     {
         return dust_rec_rate;
     }
 
-    if (T > 1E4)
-    {
+    if (T > 1E4) {
         // No dust recombination at high temperatures
         return dust_rec_rate;
-    } else if (T > 1E3)
-    {
+    } else if (T > 1E3) {
         // Scale down if gtr than 1.d3
         dr_sf = exp(-1.0 * T / 1E3) / exp(-1.0);
     }
 
-    if (T < 10.0)
-    {
-        // No dust recombination at very low temperatures
-        return dust_rec_rate;
-    }
+    loc_T = fmax(T,10.0);
 
     // First check to make sure that all elements are not zero
     double row_sum = 0.0;
@@ -76,16 +72,15 @@ double dust_recombination_rates(int ion, int nelem, double T, double G, double n
     } 
 
     // In this case there is nothing to compute
-    if (row_sum <= 0.0)
-    {
+    if (row_sum <= 0.0) {
         return dust_rec_rate;
     }
 
     // Extra fac on the denominator to avoid divide by zero
-    double phi = (G + 1E-8) * sqrt(T) / (ne + 1E-10); // units K^1/2 cm^3
+    double phi = (G + 1E-8) * sqrt(loc_T) / (ne + 1E-10); // units K^1/2 cm^3
 
     double a1 = dust_rec_coefs(nelem, 1) * pow(phi, dust_rec_coefs(nelem, 2));
-    double a2 = dust_rec_coefs(nelem, 3) * pow(T, dust_rec_coefs(nelem, 4));
+    double a2 = dust_rec_coefs(nelem, 3) * pow(loc_T, dust_rec_coefs(nelem, 4));
     double a3 = (-1.0 * dust_rec_coefs(nelem, 5)) - (dust_rec_coefs(nelem, 6) * log(T));
 
     dust_rec_rate = 1.E-14 * dust_rec_coefs(nelem, 0);
