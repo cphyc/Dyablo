@@ -375,7 +375,7 @@ std::tuple<int, real_t> subcycle_chemistry(
         const real_t primary_cosmic_ray_ionization_rate,
         const real_t dust_to_gas_mass_ratio_over_mw,
         real_t N_phot[MAX_N_GROUPS],
-        real_t F_phot[MAX_N_GROUPS][2],
+        real_t F_phot[MAX_N_GROUPS][3],
         const int N_groups,
         const int conv_its,
         const int max_its,
@@ -420,7 +420,7 @@ std::tuple<int, real_t> subcycle_chemistry(
     real_t Tmu_old = T2; // T/mu
     real_t Tmu_new = T2; // T/mu
     real_t N_phot_new[MAX_N_GROUPS]; // Holds the new photon states
-    real_t F_phot_new[MAX_N_GROUPS][2];
+    real_t F_phot_new[MAX_N_GROUPS][3];
 
     int n_ions; //Number of ions --> reset per element
 
@@ -518,8 +518,9 @@ std::tuple<int, real_t> subcycle_chemistry(
                 N_phot_new[k] = N_phot[k] / (1.0 + ddt * phAbs);
                 F_phot_new[k][0] = F_phot[k][0] / (1.0 + ddt * phAbs);
                 F_phot_new[k][1] = F_phot[k][1] / (1.0 + ddt * phAbs);
+                F_phot_new[k][2] = F_phot[k][2] / (1.0 + ddt * phAbs);
 
-                // Measure the redisual
+                // Measure the residual
                 residual = FABS((N_phot_new[k] - N_phot[k]) / (N_phot[k] + 1E-13));
                 max_residual_all = FMAX(max_residual_all, residual);
 
@@ -542,7 +543,7 @@ std::tuple<int, real_t> subcycle_chemistry(
         /////////////////////////
         //     Temperature     //
         /////////////////////////
-        if (compute_temperature & !constant_temperature){
+        if constexpr (!constant_temperature) if (compute_temperature){
             Array1D element_number_densities = {};
             iArray1D element_number_ions = {};
             Array2D element_ion_fractions = {};
@@ -904,7 +905,7 @@ std::tuple<int, real_t> subcycle_chemistry(
         max_residual_all /= (X_PCT_RULE);
         if (!x_percent_rule) {
             // If we broke the 10% rule, divide timestep by 2.0
-            ddt /= 2.0;
+            ddt /= 2;
         } else {
 
             // Update the total time
@@ -943,11 +944,13 @@ std::tuple<int, real_t> subcycle_chemistry(
                     N_phot[k] = FMAX(N_phot_new[k],1E-20);
                     F_phot[k][0] = F_phot_new[k][0];
                     F_phot[k][1] = F_phot_new[k][1];
+                    F_phot[k][2] = F_phot_new[k][2];
                     // Reduce the flux if needed
-                    real_t fred = sqrt(pow(F_phot[k][0],2.0) + pow(F_phot[k][1],2.0)) / (C_CGS * N_phot[k]);
+                    real_t fred = SQRT(SQR(F_phot[k][0]) + SQR(F_phot[k][1]) + SQR(F_phot[k][2])) / (C_CGS * N_phot[k]);
                     if (fred > 1.0) {
                         F_phot[k][0] /= fred;
                         F_phot[k][1] /= fred;
+                        F_phot[k][2] /= fred;
                     }
                 } // End loop over photon groups
             }

@@ -163,6 +163,12 @@ public:
         {"fy_rad", VarIndex_rad::Ify_rad},
         {"fz_rad", VarIndex_rad::Ifz_rad}
     });
+    const UserData::FieldAccessor Uout_rad = U.getAccessor({
+        {"e_rad_next", VarIndex_rad::Ie_rad},
+        {"fx_rad_next", VarIndex_rad::Ifx_rad},
+        {"fy_rad_next", VarIndex_rad::Ify_rad},
+        {"fz_rad_next", VarIndex_rad::Ifz_rad}
+    });
 
     // Ion abundances and ionization fractions accessors
     std::vector<UserData::FieldAccessor::FieldInfo> passive_in, passive_out;
@@ -243,30 +249,45 @@ public:
 
         constexpr double UV_background_G0 = 1E-6;
         constexpr double generic_cosmic_ray_ionization_rate = 1E-25;
-        constexpr double dust_to_gas_mass_ratio_over_mw = 0.04;
+        constexpr double dust_to_gas_mass_ratio_over_mw = 1;
+        constexpr int N_groups = 1;
         real_t N_phot[MAX_N_GROUPS] = {0};
-        real_t F_phot[MAX_N_GROUPS][2] = {{0, 0}};
+        real_t F_phot[MAX_N_GROUPS][3] = {};
+        for (auto igrp = 0; igrp < N_groups; ++igrp) {
+          N_phot[igrp] = Uin_rad.at(iCell, VarIndex_rad::Ie_rad);
+          F_phot[igrp][0] = Uin_rad.at(iCell, VarIndex_rad::Ifx_rad);
+          F_phot[igrp][1] = Uin_rad.at(iCell, VarIndex_rad::Ify_rad);
+          F_phot[igrp][2] = Uin_rad.at(iCell, VarIndex_rad::Ifz_rad);
+        }
 
         const auto& [total_iterations, Tout] = PRISM::subcycle_chemistry<
           constant_temperature, ramses_rt_T_scheme, rosenbrock_T_scheme, include_H2, include_CO,
           true
         >(elements_loc, n_and_ion_fracs_loc, Tmu, aexp, dt_s,
           UV_background_G0, generic_cosmic_ray_ionization_rate, dust_to_gas_mass_ratio_over_mw,
-          N_phot, F_phot, 1,
+          N_phot, F_phot, N_groups,
           20000, 100000,
           tabData);
 
         // Store new temperature
         q.p = q.rho * Tout / (gamma0 - 1) / unit_T;
-
         u = primToCons<3>(q, gamma0);
         Uout.at(iCell, dyablo::ConsHydroState::Ie_tot) = u.e_tot;
-        // Copy passive scalars
+
+        // Store new ionization fractions
         for (auto i = 1; i < MAX_ELEMENTS; ++i) {
           if (elements_loc[i].atomic_number < 0) continue;
           for (auto j = 0; j < elements_loc[i].n_ions + elements_loc[i].n_mol; ++j) {
               Uout_passive.at(iCell, ions2passive[i] + j) = n_and_ion_fracs_loc[i].ion_fracs_new[j];
           }
+        }
+
+        // Store new fluxes and photon numbers
+        for (auto igrp = 0; igrp < N_groups; ++igrp) {
+          Uout_rad.at(iCell, VarIndex_rad::Ie_rad) = N_phot[igrp];
+          Uout_rad.at(iCell, VarIndex_rad::Ifx_rad) = F_phot[igrp][0];
+          Uout_rad.at(iCell, VarIndex_rad::Ify_rad) = F_phot[igrp][1];
+          Uout_rad.at(iCell, VarIndex_rad::Ifz_rad) = F_phot[igrp][2];
         }
 
         printf("T = %e, rho = %e, xHI = %e, xHII = %e, iterations = %d\n",
