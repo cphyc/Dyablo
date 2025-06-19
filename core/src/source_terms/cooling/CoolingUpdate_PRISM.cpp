@@ -74,15 +74,11 @@ public:
     init_collisional_ionization(tabData);
 
     // Initialize photon groups
-    std::array<double, MAX_N_GROUPS> group_E_min = {};
-    std::array<double, MAX_N_GROUPS> group_E_max = {};
+    // TODO: This should be configurable
+    group_E_min = {};
+    group_E_max = {};
     group_E_min[0] = 13.6; // eV
     group_E_max[0] = 500.0; // eV
-
-    // Initialize cross sections
-    // TODO: this should be queried from the config file
-    const auto& cross_sections = PRISM::initialize_cross_sections();
-    const auto& cs_ph = PRISM::update_cross_sections(T_blackbody, cross_sections, group_E_min, group_E_max);
 
     // Cosmic ray and dust-related data
     PRISM::copy_data_2D(cosmic_ray_ionization_rates, tabData.cosmic_ray_ionization_rates);
@@ -100,9 +96,6 @@ public:
     // High-T cooling rates
     PRISM::copy_data_3D(high_t_cooling_rates, tabData.high_t_cooling_rates);
     PRISM::copy_data_2D(high_t_cooling_rates_tflag, tabData.high_t_cooling_rates_tflag);
-
-    // Photo-heating cross sections
-    PRISM::copy_data_4D(cs_ph, tabData.cs_ph);
   }
 
   ~CoolingUpdate_PRISM() {}
@@ -111,7 +104,12 @@ public:
                ScalarSimulationData& scalar_data
                )
   {
+    enum VarIndex_rad {
+      Ie_rad, Ifx_rad, Ify_rad, Ifz_rad,       // radiation field
+    };
     timers.get("Cooling PRISM").start();
+    // ---------------------------------------------------
+    // MODULE CONFIGURATOIN
     constexpr bool include_H2 = false;               // Whether to include molecular hydrogen
     constexpr bool include_CO = false;               // Whether to include CO
     constexpr bool ramses_rt_T_scheme = true;        // Whether to use the ramses-rt temperature update
@@ -119,42 +117,67 @@ public:
     constexpr bool constant_temperature = false;     // Whether to compute at constant temperature
     // constexpr real_t metallicity = 0.1;              // Some assumed metallicity
 
+    // ---------------------------------------------------
+    // UPDATE TIME-DEPENDENT QUANTITIES
     const real_t aexp = cosmo_run ? scalar_data.get<real_t>("aexp") : 1;
     const real_t redshift = 1e0/aexp - 1e0;
 
     const real_t dt = scalar_data.get<real_t>("dt");
 
     // Update UVB
-    const auto& HM12_UVB_z = update_UVB(redshift, this->HM12_UVB_data); // Interpolate to the correct redshift
+    const auto& HM12_UVB_z = PRISM::update_UVB(redshift, this->HM12_UVB_data); // Interpolate to the correct redshift
     PRISM::copy_data_3D(HM12_UVB_z, tabData.HM12_UVB_z);
 
-    std::vector<dyablo::UserData_fields::FieldAccessor_FieldInfo> in_fields = {
-        {"rho", dyablo::ConsHydroState::Irho},
-        {"e_tot", dyablo::ConsHydroState::Ie_tot},
-        {"rho_vx", dyablo::ConsHydroState::Irho_vx},
-        {"rho_vy", dyablo::ConsHydroState::Irho_vy},
-        {"rho_vz", dyablo::ConsHydroState::Irho_vz}
-    };
-    std::vector<dyablo::UserData_fields::FieldAccessor_FieldInfo> out_fields = {
-        {"rho_next", dyablo::ConsHydroState::Irho},
-        {"e_tot_next", dyablo::ConsHydroState::Ie_tot},
-        {"rho_vx_next", dyablo::ConsHydroState::Irho_vx},
-        {"rho_vy_next", dyablo::ConsHydroState::Irho_vy},
-        {"rho_vz_next", dyablo::ConsHydroState::Irho_vz},
-    };
-    // Push back the ion abundances + element mass fractions
+    // Update cross sections
+    // NB: for a blackbody, this could be done once at initialization.
+    //     But we keep it here for flexibility.
+    const auto& cross_sections = PRISM::initialize_cross_sections();
+    const auto& cs_ph = PRISM::update_cross_sections(T_blackbody, cross_sections, group_E_min, group_E_max);
+
+    // Photo-heating cross sections
+    PRISM::copy_data_4D(cs_ph, tabData.cs_ph);
+
+    // ---------------------------------------------------
+    // GET ACCESSORS
+    // Hydro fields accessors
+    const UserData::FieldAccessor Uin = U.getAccessor({
+        {"rho", ConsHydroState::VarIndex::Irho},
+        {"e_tot", ConsHydroState::VarIndex::Ie_tot},
+        {"rho_vx", ConsHydroState::VarIndex::Irho_vx},
+        {"rho_vy", ConsHydroState::VarIndex::Irho_vy},
+        {"rho_vz", ConsHydroState::VarIndex::Irho_vz}
+    });
+    UserData::FieldAccessor Uout = U.getAccessor({
+        {"rho_next", ConsHydroState::VarIndex::Irho},
+        {"e_tot_next", ConsHydroState::VarIndex::Ie_tot},
+        {"rho_vx_next", ConsHydroState::VarIndex::Irho_vx},
+        {"rho_vy_next", ConsHydroState::VarIndex::Irho_vy},
+        {"rho_vz_next", ConsHydroState::VarIndex::Irho_vz},
+    });
+
+    // RT fields accessors
+    const UserData::FieldAccessor Uin_rad = U.getAccessor({
+        {"e_rad", VarIndex_rad::Ie_rad},
+        {"fx_rad", VarIndex_rad::Ifx_rad},
+        {"fy_rad", VarIndex_rad::Ify_rad},
+        {"fz_rad", VarIndex_rad::Ifz_rad}
+    });
+
+    // Ion abundances and ionization fractions accessors
+    std::vector<UserData::FieldAccessor::FieldInfo> passive_in, passive_out;
     for (auto ipassive = 0; ipassive < int(ion_counts.size() + ions.size()); ++ipassive) {
         std::ostringstream oss;
         oss << "passive_scalar_" << ipassive;
-        in_fields.push_back({oss.str(), dyablo::ConsHydroState::Irho_vz + ipassive + 1});
+        passive_in.push_back({oss.str(), ipassive});
 
         oss << "_next";
-        out_fields.push_back({oss.str(), dyablo::ConsHydroState::Irho_vz + ipassive + 1});
+        passive_out.push_back({oss.str(), ipassive});
     }
+    const UserData::FieldAccessor Uin_passive = U.getAccessor( passive_in );
+    UserData::FieldAccessor Uout_passive = U.getAccessor( passive_out );
 
-    const UserData::FieldAccessor Uin = U.getAccessor( in_fields );
-    UserData::FieldAccessor Uout = U.getAccessor( out_fields );
-
+    // ---------------------------------------------------
+    // GET CONSTANTS
     const real_t unit_time = this->unit_time;  // code -> [s]
     const real_t unit_density = this->unit_density / (Units::PROTON_MASS * 1e6); // code -> [kg/m^3] -> [mp/cm^3]
     const real_t unit_T = SQR(this->unit_length / this->unit_time) * Units::PROTON_MASS / Units::KBOLTZ; // code -> [K]
@@ -166,6 +189,8 @@ public:
     const auto& ions2passive = this->ions2passive;
     const auto& tabData = this->tabData;
 
+    // ---------------------------------------------------
+    // THERMOCHEMISTRY STEP
     int Ncell = 0, Nstep_tot = 0;
     foreach_cell.reduce_cell( "Cooling::update", Uout.getShape(),
       KOKKOS_LAMBDA(const ForeachCell::CellIndex& iCell, int& Nstep_tot, int& Ncell) {
@@ -198,10 +223,7 @@ public:
         // Get other species abundances
         for (auto i = 2; i < MAX_ELEMENTS; ++i) {
           if (elements_loc[i].atomic_number < 0) continue;
-          n_and_ion_fracs_loc[i].n_element = (
-              nH
-              * Uin.at(iCell, dyablo::ConsHydroState::Irho_vz + 1 + elems2passive[i])
-          );
+          n_and_ion_fracs_loc[i].n_element = nH * Uin_passive.at(iCell, elems2passive[i]);
         }
 
         // Get ion fractions (incl. H)
@@ -209,7 +231,7 @@ public:
           if (elements_loc[i].atomic_number < 0) continue;
           real_t xtot = 0.0;
           for (auto j = 0; j < elements_loc[i].n_ions + elements_loc[i].n_mol; ++j) {
-              n_and_ion_fracs_loc[i].ion_fracs[j] = Uin.at_ivar(iCell, dyablo::ConsHydroState::Irho_vz + 1 + ions2passive[i] + j);
+              n_and_ion_fracs_loc[i].ion_fracs[j] = Uin_passive.at_ivar(iCell, ions2passive[i] + j);
               xtot += n_and_ion_fracs_loc[i].ion_fracs[j];
           }
           // Normalize ion fractions
@@ -218,7 +240,14 @@ public:
           }
         }
 
-        auto [total_iterations, Tout] = PRISM::get_chemical_eqm<constant_temperature, ramses_rt_T_scheme, rosenbrock_T_scheme, include_H2, include_CO>(elements_loc, n_and_ion_fracs_loc, Tmu, aexp, dt_s, 0.59, 1e-16, 0.04, tabData);
+        constexpr double UV_background_G0 = 1E-6;
+        constexpr double generic_cosmic_ray_ionization_rate = 1E-25;
+        constexpr double dust_to_gas_mass_ratio_over_mw = 0.04;
+        const auto& [total_iterations, Tout] = PRISM::get_chemical_eqm<
+          constant_temperature, ramses_rt_T_scheme, rosenbrock_T_scheme, include_H2, include_CO
+        >(elements_loc, n_and_ion_fracs_loc, Tmu, aexp, dt_s,
+          UV_background_G0, generic_cosmic_ray_ionization_rate, dust_to_gas_mass_ratio_over_mw,
+          tabData);
 
         // Store new temperature
         q.p = q.rho * Tout / (gamma0 - 1) / unit_T;
@@ -229,8 +258,7 @@ public:
         for (auto i = 1; i < MAX_ELEMENTS; ++i) {
           if (elements_loc[i].atomic_number < 0) continue;
           for (auto j = 0; j < elements_loc[i].n_ions + elements_loc[i].n_mol; ++j) {
-              n_and_ion_fracs_loc[i].ion_fracs[j] =
-              Uout.at(iCell, dyablo::ConsHydroState::Irho_vz + 1 + ions2passive[i] + j) = n_and_ion_fracs_loc[i].ion_fracs_new[j];
+              Uout.at(iCell, ions2passive[i] + j) = n_and_ion_fracs_loc[i].ion_fracs_new[j];
           }
         }
 
@@ -257,7 +285,7 @@ public:
 
   // UV background data
   PRISM::UVB_table_t HM12_UVB;
-  struct PRISM::UVB_data HM12_UVB_data;
+  PRISM::UVB_data HM12_UVB_data;
 
   // Information about network
   std::vector<std::string> ions;
@@ -265,6 +293,10 @@ public:
   std::array<int, MAX_ELEMENTS> nions;
   std::array<int, MAX_ELEMENTS> elems2passive;
   std::array<int, MAX_ELEMENTS> ions2passive;
+
+  // Photon groups
+  std::array<double, MAX_N_GROUPS> group_E_min;
+  std::array<double, MAX_N_GROUPS> group_E_max;
 
   // Blackbody temperature
   real_t T_blackbody;

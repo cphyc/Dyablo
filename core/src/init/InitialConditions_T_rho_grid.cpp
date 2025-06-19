@@ -7,7 +7,11 @@
 namespace dyablo{
 
 struct AnalyticalFormula_T_rho_grid : public AnalyticalFormula_base{
-     // blast problem parameters
+    using State = RadState;
+    using PrimState = typename State::PrimState;
+    using ConsState = typename State::ConsState;
+
+    // blast problem parameters
     const int ndim;
     const real_t Tmin;
     const real_t Tmax;
@@ -51,7 +55,7 @@ struct AnalyticalFormula_T_rho_grid : public AnalyticalFormula_base{
     }
 
     KOKKOS_INLINE_FUNCTION
-    ConsHydroState value( real_t x, real_t y, real_t z, real_t dx, real_t dy, real_t dz ) const
+    ConsState value( real_t x, real_t y, real_t z, real_t dx, real_t dy, real_t dz ) const
     {
         // Quadrant size
         real_t rho = rhomin * pow(rhomax / rhomin, 1-x);
@@ -61,9 +65,16 @@ struct AnalyticalFormula_T_rho_grid : public AnalyticalFormula_base{
 
         real_t P = T / (gamma0 - 1) / scale_T * rho;
 
-        PrimHydroState q;
+        PrimState q;
         q.rho = rho;
         q.p = P;
+        q.e_rad = 0;
+        q.fx_rad = 0;
+        q.fy_rad = 0;
+        q.fz_rad = 0;
+        q.xe = 0;
+        q.zre = 0;
+        q.temp = T;
 
         return dyablo::primToCons<3>(q, gamma0);
     } 
