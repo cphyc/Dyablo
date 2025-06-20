@@ -45,7 +45,8 @@ public:
     T_blackbody( configMap.getValue<real_t>("cooling", "T_blackbody", 1e4) ),
     unit_time( configMap.getValue<real_t>("units", "time", 1.0) ),
     unit_density( configMap.getValue<real_t>("units", "density", 1.0) ),
-    unit_length( configMap.getValue<real_t>("units", "length", 1.0) )
+    unit_length( configMap.getValue<real_t>("units", "length", 1.0) ),
+    unit_photon_number( configMap.getValue<real_t>("units", "photon_number", 1.0) )
   {
 
     PRISM::parseIonInputs(ions, this->nions, this->elems2passive, this->ions2passive, this->ion_counts);
@@ -97,6 +98,16 @@ public:
     PRISM::copy_data_1D(high_t_cooling_temp, tabData.high_t_cooling_temp);
     PRISM::copy_data_3D(high_t_cooling_rates, tabData.high_t_cooling_rates);
     PRISM::copy_data_2D(high_t_cooling_rates_tflag, tabData.high_t_cooling_rates_tflag);
+
+    // Update cross sections
+    // NB: for a blackbody, this could be done once at initialization.
+    //     But we keep it here for flexibility.
+    const auto& cross_sections = PRISM::initialize_cross_sections();
+    const auto& cs_ph = PRISM::update_cross_sections(T_blackbody, cross_sections, group_E_min, group_E_max);
+
+    // Photo-heating cross sections
+    PRISM::copy_data_4D(cs_ph, tabData.cs_ph);
+
   }
 
   ~CoolingUpdate_PRISM() {}
@@ -129,15 +140,6 @@ public:
     const auto& HM12_UVB_z = PRISM::update_UVB(redshift, this->HM12_UVB_data); // Interpolate to the correct redshift
     PRISM::copy_data_3D(HM12_UVB_z, tabData.HM12_UVB_z);
 
-    // Update cross sections
-    // NB: for a blackbody, this could be done once at initialization.
-    //     But we keep it here for flexibility.
-    const auto& cross_sections = PRISM::initialize_cross_sections();
-    const auto& cs_ph = PRISM::update_cross_sections(T_blackbody, cross_sections, group_E_min, group_E_max);
-
-    // Photo-heating cross sections
-    PRISM::copy_data_4D(cs_ph, tabData.cs_ph);
-
     // ---------------------------------------------------
     // GET ACCESSORS
     // Hydro fields accessors
@@ -157,12 +159,6 @@ public:
     });
 
     // RT fields accessors
-    const UserData::FieldAccessor Uin_rad = U.getAccessor({
-        {"e_rad", VarIndex_rad::Ie_rad},
-        {"fx_rad", VarIndex_rad::Ifx_rad},
-        {"fy_rad", VarIndex_rad::Ify_rad},
-        {"fz_rad", VarIndex_rad::Ifz_rad}
-    });
     const UserData::FieldAccessor Uout_rad = U.getAccessor({
         {"e_rad_next", VarIndex_rad::Ie_rad},
         {"fx_rad_next", VarIndex_rad::Ifx_rad},
@@ -182,12 +178,19 @@ public:
     }
     const UserData::FieldAccessor Uin_passive = U.getAccessor( passive_in );
     UserData::FieldAccessor Uout_passive = U.getAccessor( passive_out );
+    ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
+    uint32_t ndim = foreach_cell.getDim();
 
     // ---------------------------------------------------
     // GET CONSTANTS
-    const real_t unit_time = this->unit_time;  // code -> [s]
-    const real_t unit_density = this->unit_density / (Units::PROTON_MASS * 1e6); // code -> [kg/m^3] -> [mp/cm^3]
-    const real_t unit_T = SQR(this->unit_length / this->unit_time) * Units::PROTON_MASS / Units::KBOLTZ; // code -> [K]
+    // const real_t unit_length = this->unit_length; // code -> [m]
+    const real_t unit_time = this->unit_time;     // code -> [s]
+    const real_t unit_density = this->unit_density / (Units::PROTON_MASS * 1e6); 
+                                                  // code -> [kg/m^3] -> [mp/cm^3]
+    const real_t unit_T = SQR(this->unit_length / this->unit_time) * Units::PROTON_MASS / Units::KBOLTZ;
+                                                  // code -> [K]
+    
+    const real_t unit_photon_number = this->unit_photon_number;
 
     const real_t dt_s = dt * unit_time;
     const real_t gamma0 = this->gamma0;
@@ -204,6 +207,8 @@ public:
         dyablo::ConsHydroState u;
         getConservativeState<3>(Uin, iCell, u);
         dyablo::PrimHydroState q = consToPrim<3>(u, gamma0);
+
+        auto cell_size = cells.getCellSize(iCell);
 
         // Compute temperature
         const real_t Tmu = q.p / q.rho * (gamma0 - 1) * unit_T;
@@ -251,13 +256,14 @@ public:
         constexpr double generic_cosmic_ray_ionization_rate = 1E-25;
         constexpr double dust_to_gas_mass_ratio_over_mw = 1;
         constexpr int N_groups = 1;
+        const real_t vol = cell_size[IX] * cell_size[IY] * (ndim == 3 ? cell_size[IZ] : 1);
         real_t N_phot[MAX_N_GROUPS] = {0};
         real_t F_phot[MAX_N_GROUPS][3] = {};
         for (auto igrp = 0; igrp < N_groups; ++igrp) {
-          N_phot[igrp] = Uin_rad.at(iCell, VarIndex_rad::Ie_rad);
-          F_phot[igrp][0] = Uin_rad.at(iCell, VarIndex_rad::Ifx_rad);
-          F_phot[igrp][1] = Uin_rad.at(iCell, VarIndex_rad::Ify_rad);
-          F_phot[igrp][2] = Uin_rad.at(iCell, VarIndex_rad::Ifz_rad);
+          N_phot[igrp] = Uout_rad.at(iCell, VarIndex_rad::Ie_rad); // * unit_photon_number * vol;
+          F_phot[igrp][0] = Uout_rad.at(iCell, VarIndex_rad::Ifx_rad); // * unit_photon_number * vol; // TODO: C factors here
+          F_phot[igrp][1] = Uout_rad.at(iCell, VarIndex_rad::Ify_rad); // * unit_photon_number * vol; // TODO: C factors here
+          if (ndim == 3) F_phot[igrp][2] = Uout_rad.at(iCell, VarIndex_rad::Ifz_rad); // * unit_photon_number * vol; // TODO: C factors here
         }
 
         const auto& [total_iterations, Tout] = PRISM::subcycle_chemistry<
@@ -284,14 +290,17 @@ public:
 
         // Store new fluxes and photon numbers
         for (auto igrp = 0; igrp < N_groups; ++igrp) {
-          Uout_rad.at(iCell, VarIndex_rad::Ie_rad) = N_phot[igrp];
-          Uout_rad.at(iCell, VarIndex_rad::Ifx_rad) = F_phot[igrp][0];
-          Uout_rad.at(iCell, VarIndex_rad::Ify_rad) = F_phot[igrp][1];
-          Uout_rad.at(iCell, VarIndex_rad::Ifz_rad) = F_phot[igrp][2];
+          Uout_rad.at(iCell, VarIndex_rad::Ie_rad) = N_phot[igrp]; // / vol / unit_photon_number;
+          Uout_rad.at(iCell, VarIndex_rad::Ifx_rad) = F_phot[igrp][0]; // / vol / unit_photon_number;
+          Uout_rad.at(iCell, VarIndex_rad::Ify_rad) = F_phot[igrp][1]; // / vol / unit_photon_number;
+          if (ndim == 3) Uout_rad.at(iCell, VarIndex_rad::Ifz_rad) = F_phot[igrp][2]; // / vol / unit_photon_number;
         }
 
-        // printf("T = %e, rho = %e, xHI = %e, xHII = %e, iterations = %d\n",
-        //        Tout, q.rho, Uout_passive.at(iCell, ions2passive[1]), Uout_passive.at(iCell, ions2passive[1] + 1), total_iterations);
+        // printf("T = %e, rho = %e, N = %e, xHI = %e, xHII = %e, xHeI = %e, xHeII = %e, xHeIII = %e, iterations = %d\n",
+        //        Tout, q.rho, N_phot_old[0],
+        //        Uout_passive.at(iCell, ions2passive[1]), Uout_passive.at(iCell, ions2passive[1] + 1),
+        //        Uout_passive.at(iCell, ions2passive[2]), Uout_passive.at(iCell, ions2passive[2] + 1), Uout_passive.at(iCell, ions2passive[2] + 2),
+        //        total_iterations);
 
         Nstep_tot += total_iterations;
         Ncell++;
@@ -336,6 +345,7 @@ public:
   real_t unit_time;
   real_t unit_density;
   real_t unit_length;
+  real_t unit_photon_number;
 
 };
 

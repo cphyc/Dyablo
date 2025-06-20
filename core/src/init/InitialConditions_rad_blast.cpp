@@ -139,9 +139,9 @@ struct AnalyticalFormula_rad_blast : public AnalyticalFormula_base{
             res.rho_u = 0.0;
             res.rho_v = 0.0;
             res.rho_w = 0.0;
-            res.rho = 1e3 * PROTON_MASS / rhostar;
+            res.rho = 1; // 1e3 * PROTON_MASS / rhostar;
 
-            real_t p_0 = (gamma0 - 1.0) * 1.5 * 1e3 * KBOLTZ * temp / pstar;
+            real_t p_0 = 1.17e-20; // (gamma0 - 1.0) * 1.5 * 1e3 * KBOLTZ * temp / pstar;
             res.e_tot = p_0/(gamma0-1.0);
         }
 
