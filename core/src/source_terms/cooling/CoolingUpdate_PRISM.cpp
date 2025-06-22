@@ -143,14 +143,7 @@ public:
     // ---------------------------------------------------
     // GET ACCESSORS
     // Hydro fields accessors
-    const UserData::FieldAccessor Uin = U.getAccessor({
-        {"rho", ConsHydroState::VarIndex::Irho},
-        {"e_tot", ConsHydroState::VarIndex::Ie_tot},
-        {"rho_vx", ConsHydroState::VarIndex::Irho_vx},
-        {"rho_vy", ConsHydroState::VarIndex::Irho_vy},
-        {"rho_vz", ConsHydroState::VarIndex::Irho_vz}
-    });
-    UserData::FieldAccessor Uout = U.getAccessor({
+    UserData::FieldAccessor Uinout = U.getAccessor({
         {"rho_next", ConsHydroState::VarIndex::Irho},
         {"e_tot_next", ConsHydroState::VarIndex::Ie_tot},
         {"rho_vx_next", ConsHydroState::VarIndex::Irho_vx},
@@ -159,7 +152,7 @@ public:
     });
 
     // RT fields accessors
-    const UserData::FieldAccessor Uout_rad = U.getAccessor({
+    const UserData::FieldAccessor Uinout_rad = U.getAccessor({
         {"e_rad_next", VarIndex_rad::Ie_rad},
         {"fx_rad_next", VarIndex_rad::Ifx_rad},
         {"fy_rad_next", VarIndex_rad::Ify_rad},
@@ -167,17 +160,13 @@ public:
     });
 
     // Ion abundances and ionization fractions accessors
-    std::vector<UserData::FieldAccessor::FieldInfo> passive_in, passive_out;
+    std::vector<UserData::FieldAccessor::FieldInfo> passive_inout;
     for (auto ipassive = 0; ipassive < int(ion_counts.size() + ions.size()); ++ipassive) {
         std::ostringstream oss;
-        oss << "passive_scalar_" << ipassive;
-        passive_in.push_back({oss.str(), ipassive});
-
-        oss << "_next";
-        passive_out.push_back({oss.str(), ipassive});
+        oss << "passive_scalar_" << ipassive << "_next";
+        passive_inout.push_back({oss.str(), ipassive});
     }
-    const UserData::FieldAccessor Uin_passive = U.getAccessor( passive_in );
-    UserData::FieldAccessor Uout_passive = U.getAccessor( passive_out );
+    UserData::FieldAccessor Uinout_passive = U.getAccessor( passive_inout );
     ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
     uint32_t ndim = foreach_cell.getDim();
 
@@ -198,14 +187,15 @@ public:
     const auto& elems2passive = this->elems2passive;
     const auto& ions2passive = this->ions2passive;
     const auto& tabData = this->tabData;
+    const int N_groups = this->N_groups;
 
     // ---------------------------------------------------
     // THERMOCHEMISTRY STEP
     int Ncell = 0, Nstep_tot = 0;
-    foreach_cell.reduce_cell( "Cooling::update", Uout.getShape(),
+    foreach_cell.reduce_cell( "Cooling::update", Uinout.getShape(),
       KOKKOS_LAMBDA(const ForeachCell::CellIndex& iCell, int& Nstep_tot, int& Ncell) {
         dyablo::ConsHydroState u;
-        getConservativeState<3>(Uin, iCell, u);
+        getConservativeState<3>(Uinout, iCell, u);
         dyablo::PrimHydroState q = consToPrim<3>(u, gamma0);
 
         auto cell_size = cells.getCellSize(iCell);
@@ -235,7 +225,7 @@ public:
         // Get other species abundances
         for (auto i = 2; i < MAX_ELEMENTS; ++i) {
           if (elements_loc[i].atomic_number < 0) continue;
-          n_and_ion_fracs_loc[i].n_element = nH * Uin_passive.at(iCell, elems2passive[i]);
+          n_and_ion_fracs_loc[i].n_element = nH * Uinout_passive.at(iCell, elems2passive[i]);
         }
 
         // Get ion fractions (incl. H)
@@ -243,7 +233,7 @@ public:
           if (elements_loc[i].atomic_number < 0) continue;
           real_t xtot = 0.0;
           for (auto j = 0; j < elements_loc[i].n_ions + elements_loc[i].n_mol; ++j) {
-              n_and_ion_fracs_loc[i].ion_fracs[j] = Uin_passive.at_ivar(iCell, ions2passive[i] + j);
+              n_and_ion_fracs_loc[i].ion_fracs[j] = Uinout_passive.at_ivar(iCell, ions2passive[i] + j);
               xtot += n_and_ion_fracs_loc[i].ion_fracs[j];
           }
           // Normalize ion fractions
@@ -255,15 +245,14 @@ public:
         constexpr double UV_background_G0 = 1E-6;
         constexpr double generic_cosmic_ray_ionization_rate = 1E-25;
         constexpr double dust_to_gas_mass_ratio_over_mw = 1;
-        constexpr int N_groups = 1;
         const real_t vol = cell_size[IX] * cell_size[IY] * (ndim == 3 ? cell_size[IZ] : 1);
         real_t N_phot[MAX_N_GROUPS] = {0};
         real_t F_phot[MAX_N_GROUPS][3] = {};
         for (auto igrp = 0; igrp < N_groups; ++igrp) {
-          N_phot[igrp] = Uout_rad.at(iCell, VarIndex_rad::Ie_rad); // * unit_photon_number * vol;
-          F_phot[igrp][0] = Uout_rad.at(iCell, VarIndex_rad::Ifx_rad); // * unit_photon_number * vol; // TODO: C factors here
-          F_phot[igrp][1] = Uout_rad.at(iCell, VarIndex_rad::Ify_rad); // * unit_photon_number * vol; // TODO: C factors here
-          if (ndim == 3) F_phot[igrp][2] = Uout_rad.at(iCell, VarIndex_rad::Ifz_rad); // * unit_photon_number * vol; // TODO: C factors here
+          N_phot[igrp] = Uinout_rad.at(iCell, VarIndex_rad::Ie_rad); // * unit_photon_number * vol;
+          F_phot[igrp][0] = Uinout_rad.at(iCell, VarIndex_rad::Ifx_rad); // * unit_photon_number * vol; // TODO: C factors here
+          F_phot[igrp][1] = Uinout_rad.at(iCell, VarIndex_rad::Ify_rad); // * unit_photon_number * vol; // TODO: C factors here
+          if (ndim == 3) F_phot[igrp][2] = Uinout_rad.at(iCell, VarIndex_rad::Ifz_rad); // * unit_photon_number * vol; // TODO: C factors here
         }
 
         const auto& [total_iterations, Tout] = PRISM::subcycle_chemistry<
@@ -278,28 +267,28 @@ public:
         // Store new temperature
         q.p = q.rho * Tout / (gamma0 - 1) / unit_T;
         u = primToCons<3>(q, gamma0);
-        Uout.at(iCell, dyablo::ConsHydroState::Ie_tot) = u.e_tot;
+        Uinout.at(iCell, dyablo::ConsHydroState::Ie_tot) = u.e_tot;
 
         // Store new ionization fractions
         for (auto i = 1; i < MAX_ELEMENTS; ++i) {
           if (elements_loc[i].atomic_number < 0) continue;
           for (auto j = 0; j < elements_loc[i].n_ions + elements_loc[i].n_mol; ++j) {
-              Uout_passive.at(iCell, ions2passive[i] + j) = n_and_ion_fracs_loc[i].ion_fracs_new[j];
+              Uinout_passive.at(iCell, ions2passive[i] + j) = n_and_ion_fracs_loc[i].ion_fracs_new[j];
           }
         }
 
         // Store new fluxes and photon numbers
         for (auto igrp = 0; igrp < N_groups; ++igrp) {
-          Uout_rad.at(iCell, VarIndex_rad::Ie_rad) = N_phot[igrp]; // / vol / unit_photon_number;
-          Uout_rad.at(iCell, VarIndex_rad::Ifx_rad) = F_phot[igrp][0]; // / vol / unit_photon_number;
-          Uout_rad.at(iCell, VarIndex_rad::Ify_rad) = F_phot[igrp][1]; // / vol / unit_photon_number;
-          if (ndim == 3) Uout_rad.at(iCell, VarIndex_rad::Ifz_rad) = F_phot[igrp][2]; // / vol / unit_photon_number;
+          Uinout_rad.at(iCell, VarIndex_rad::Ie_rad) = N_phot[igrp]; // / vol / unit_photon_number;
+          Uinout_rad.at(iCell, VarIndex_rad::Ifx_rad) = F_phot[igrp][0]; // / vol / unit_photon_number;
+          Uinout_rad.at(iCell, VarIndex_rad::Ify_rad) = F_phot[igrp][1]; // / vol / unit_photon_number;
+          if (ndim == 3) Uinout_rad.at(iCell, VarIndex_rad::Ifz_rad) = F_phot[igrp][2]; // / vol / unit_photon_number;
         }
 
         // printf("T = %e, rho = %e, N = %e, xHI = %e, xHII = %e, xHeI = %e, xHeII = %e, xHeIII = %e, iterations = %d\n",
         //        Tout, q.rho, N_phot_old[0],
-        //        Uout_passive.at(iCell, ions2passive[1]), Uout_passive.at(iCell, ions2passive[1] + 1),
-        //        Uout_passive.at(iCell, ions2passive[2]), Uout_passive.at(iCell, ions2passive[2] + 1), Uout_passive.at(iCell, ions2passive[2] + 2),
+        //        Uinout_passive.at(iCell, ions2passive[1]), Uinout_passive.at(iCell, ions2passive[1] + 1),
+        //        Uinout_passive.at(iCell, ions2passive[2]), Uinout_passive.at(iCell, ions2passive[2] + 1), Uinout_passive.at(iCell, ions2passive[2] + 2),
         //        total_iterations);
 
         Nstep_tot += total_iterations;
