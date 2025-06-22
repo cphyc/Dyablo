@@ -402,7 +402,7 @@ inline double sigma_E_num(double nu, double T, int element, int ion, const Cross
 }
 
 inline double sigma_E_den(double nu, double T, int element, int ion){
-    return blackbody_nu(T, nu) / (H_PLANCK * nu);
+    return blackbody_nu(T, nu);
 }
 
 inline double sigma_E(double E0, double E1, double T, int element, int ion, const CrossSection_C &verner_cross_sections){
