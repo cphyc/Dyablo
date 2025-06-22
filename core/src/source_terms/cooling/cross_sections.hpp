@@ -11,7 +11,17 @@ namespace PRISM {
 
 inline PRISM::CrossSection_C initialize_cross_sections(){
 
-    PRISM::CrossSection_C out;
+    PRISM::CrossSection_C out {
+        .E_th = {},
+        .E_max = {},
+        .E_0 = {},
+        .sig_0 = {},
+        .y_a = {},
+        .P = {},
+        .y_w = {},
+        .y_0 = {},
+        .y_1 = {}
+    };
 
     // Initialize cross sections from Verner 1996
     printf("Initializing cross section data\n");
