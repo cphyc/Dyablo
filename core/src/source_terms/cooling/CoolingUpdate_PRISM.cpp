@@ -103,7 +103,7 @@ public:
     // NB: for a blackbody, this could be done once at initialization.
     //     But we keep it here for flexibility.
     const auto& cross_sections = PRISM::initialize_cross_sections();
-    const auto& cs_ph = PRISM::update_cross_sections(T_blackbody, cross_sections, group_E_min, group_E_max);
+    const auto& cs_ph = PRISM::update_cross_sections(T_blackbody, cross_sections, group_E_min, group_E_max, N_groups);
 
     // Photo-heating cross sections
     PRISM::copy_data_4D(cs_ph, tabData.cs_ph);
@@ -326,6 +326,7 @@ public:
   // Photon groups
   std::array<double, MAX_N_GROUPS> group_E_min;
   std::array<double, MAX_N_GROUPS> group_E_max;
+  int N_groups = 1; // Number of photon groups, can be set in the constructor
 
   // Blackbody temperature
   real_t T_blackbody;

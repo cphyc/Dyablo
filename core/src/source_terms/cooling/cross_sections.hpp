@@ -442,7 +442,8 @@ inline _cs_t update_cross_sections(
         const double T,
         const CrossSection_C& verner_cross_sections,
         const std::array<double, MAX_N_GROUPS> &group_E_min,
-        const std::array<double, MAX_N_GROUPS> &group_E_max
+        const std::array<double, MAX_N_GROUPS> &group_E_max,
+        const int N_groups
 ) {
     // Updates the cross sections for each element and group
     // TODO(code): update C_CGS with the reduced speed of light if needed
@@ -451,8 +452,6 @@ inline _cs_t update_cross_sections(
     printf("Updating cross sections to a %e K blackbody\n",T);
 
     double group_energy;
-
-    const int N_groups = group_E_min.size(); // Number of photon groups
 
     for (int i = 0; i < N_groups; i++){ // Loop over photon groups
 
