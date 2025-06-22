@@ -16,9 +16,7 @@ private:
 
   // Units
   real_t unit_time;
-  real_t unit_density;
   real_t unit_length;
-  real_t unit_photon_number;
 
 public:
   SourceUpdate_Ionization_Stromgren(
@@ -29,10 +27,8 @@ public:
      timers(timers),
      dN_photons(configMap.getValue<real_t>("source_terms", "dN_photons", 1e50)),
      unit_time( configMap.getValue<real_t>("units", "time", 1.0) ),
-     unit_density( configMap.getValue<real_t>("units", "density", 1.0) ),
-     unit_length( configMap.getValue<real_t>("units", "length", 1.0) ),
-     unit_photon_number( configMap.getValue<real_t>("units", "photon_number", 1.0) )
-  { }
+     unit_length( configMap.getValue<real_t>("units", "length", 1.0) )
+    { }
 
   void update( UserData &U,
                ScalarSimulationData& scalar_data)
@@ -56,7 +52,7 @@ public:
     ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
 
     const real_t dt = scalar_data.get<real_t>("dt"); 
-    const real_t dN_photons = 2.8e42;
+    const real_t dN_photons = this->dN_photons;
 
     foreach_cell.foreach_cell( "SourceUpdate_Ionization_Stromgren", Uout.getShape(),
       KOKKOS_LAMBDA(const ForeachCell::CellIndex& iCell_Uout)

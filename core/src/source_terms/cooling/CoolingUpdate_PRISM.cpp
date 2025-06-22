@@ -102,8 +102,10 @@ public:
     // Update cross sections
     // NB: for a blackbody, this could be done once at initialization.
     //     But we keep it here for flexibility.
+    timers.get("Cross sections").start();
     const auto& cross_sections = PRISM::initialize_cross_sections();
     const auto& cs_ph = PRISM::update_cross_sections(T_blackbody, cross_sections, group_E_min, group_E_max, N_groups);
+    timers.get("Cross sections").stop();
 
     // Photo-heating cross sections
     PRISM::copy_data_4D(cs_ph, tabData.cs_ph);
@@ -249,10 +251,10 @@ public:
         real_t N_phot[MAX_N_GROUPS] = {0};
         real_t F_phot[MAX_N_GROUPS][3] = {};
         for (auto igrp = 0; igrp < N_groups; ++igrp) {
-          N_phot[igrp] = Uinout_rad.at(iCell, VarIndex_rad::Ie_rad); // * unit_photon_number * vol;
-          F_phot[igrp][0] = Uinout_rad.at(iCell, VarIndex_rad::Ifx_rad); // * unit_photon_number * vol; // TODO: C factors here
-          F_phot[igrp][1] = Uinout_rad.at(iCell, VarIndex_rad::Ify_rad); // * unit_photon_number * vol; // TODO: C factors here
-          if (ndim == 3) F_phot[igrp][2] = Uinout_rad.at(iCell, VarIndex_rad::Ifz_rad); // * unit_photon_number * vol; // TODO: C factors here
+          N_phot[igrp] = Uinout_rad.at(iCell, VarIndex_rad::Ie_rad) * unit_photon_number;
+          F_phot[igrp][0] = Uinout_rad.at(iCell, VarIndex_rad::Ifx_rad) * unit_photon_number;
+          F_phot[igrp][1] = Uinout_rad.at(iCell, VarIndex_rad::Ify_rad) * unit_photon_number;
+          if (ndim == 3) F_phot[igrp][2] = Uinout_rad.at(iCell, VarIndex_rad::Ifz_rad) * unit_photon_number; 
         }
 
         const auto& [total_iterations, Tout] = PRISM::subcycle_chemistry<
@@ -279,10 +281,10 @@ public:
 
         // Store new fluxes and photon numbers
         for (auto igrp = 0; igrp < N_groups; ++igrp) {
-          Uinout_rad.at(iCell, VarIndex_rad::Ie_rad) = N_phot[igrp]; // / vol / unit_photon_number;
-          Uinout_rad.at(iCell, VarIndex_rad::Ifx_rad) = F_phot[igrp][0]; // / vol / unit_photon_number;
-          Uinout_rad.at(iCell, VarIndex_rad::Ify_rad) = F_phot[igrp][1]; // / vol / unit_photon_number;
-          if (ndim == 3) Uinout_rad.at(iCell, VarIndex_rad::Ifz_rad) = F_phot[igrp][2]; // / vol / unit_photon_number;
+          Uinout_rad.at(iCell, VarIndex_rad::Ie_rad) = N_phot[igrp] / unit_photon_number;
+          Uinout_rad.at(iCell, VarIndex_rad::Ifx_rad) = F_phot[igrp][0] / unit_photon_number;
+          Uinout_rad.at(iCell, VarIndex_rad::Ify_rad) = F_phot[igrp][1] / unit_photon_number;
+          if (ndim == 3) Uinout_rad.at(iCell, VarIndex_rad::Ifz_rad) = F_phot[igrp][2] / unit_photon_number;
         }
 
         // printf("T = %e, rho = %e, N = %e, xHI = %e, xHII = %e, xHeI = %e, xHeII = %e, xHeIII = %e, iterations = %d\n",

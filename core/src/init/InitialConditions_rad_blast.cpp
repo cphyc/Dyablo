@@ -150,7 +150,7 @@ struct AnalyticalFormula_rad_blast : public AnalyticalFormula_base{
             res.rho_w = 0.0;
             res.rho = 1e-3; // 1e3 * PROTON_MASS / rhostar;
 
-            real_t T0 = 1e3; // [K]
+            real_t T0 = this->temperature; // [K]
             real_t scale_T = Units::PROTON_MASS / Units::KBOLTZ * SQR(scale_v);
             real_t p_0 = T0 * (gamma0 - 1) / scale_T * res.rho;
 
