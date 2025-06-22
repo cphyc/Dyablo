@@ -20,9 +20,9 @@ inline std::tuple<
     _criu_t,
     _criu_heat_t
 > initialize_cr_rates(){
-    _crir_t cosmic_ray_ionization_rates;
-    _criu_t cosmic_ray_ionization_rates_induced_UV;
-    _criu_heat_t cosmic_ray_ionization_rates_induced_UV_heat;
+    _crir_t cosmic_ray_ionization_rates{};
+    _criu_t cosmic_ray_ionization_rates_induced_UV{};
+    _criu_heat_t cosmic_ray_ionization_rates_induced_UV_heat{};
     
     // Hydrogen
     constexpr double cosmic_ray_ionization_rates_hydrogen[27]  = { 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };

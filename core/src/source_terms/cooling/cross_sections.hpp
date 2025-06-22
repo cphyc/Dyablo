@@ -457,7 +457,7 @@ inline _cs_t update_cross_sections(
 ) {
     // Updates the cross sections for each element and group
     // TODO(code): update C_CGS with the reduced speed of light if needed
-    _cs_t cs_ph = {};
+    _cs_t cs_ph {};
 
     printf("Updating cross sections to a %e K blackbody\n",T);
 

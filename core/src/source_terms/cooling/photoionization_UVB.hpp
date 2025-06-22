@@ -302,7 +302,7 @@ inline UVB_table_t update_UVB(const double redshift, const struct UVB_data& HM12
     interpolates the UVB for all ions
     to a particular redshift
     */
-    UVB_table_t HM12_UVB_z;
+    UVB_table_t HM12_UVB_z{};
 
     double scale_low;
     double scale_high;

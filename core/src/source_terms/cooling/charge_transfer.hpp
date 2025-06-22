@@ -15,8 +15,8 @@ inline std::tuple<
     _CTRecomb_t,
     _CTIon_t
 > load_ct_rates(const std::string path){
-    _CTRecomb_t CTRecomb;
-    _CTIon_t CTIon;
+    _CTRecomb_t CTRecomb {};
+    _CTIon_t CTIon {};
     // Load the charge transfer ionization
     // and recombination rates from file
 

@@ -196,9 +196,9 @@ inline std::tuple<
     _crt_t
 >
 initialize_high_temperature_metal_cooling(const std::string path){
-    _cr_t high_t_cooling_rates;
-    _crt_t high_t_cooling_rates_tflag;
-    _ct_t high_t_cooling_temp;
+    _cr_t high_t_cooling_rates {};
+    _crt_t high_t_cooling_rates_tflag {};
+    _ct_t high_t_cooling_temp {};
 
     // Cloudy tables of metal line cooling
     // which are valid at high temperature
@@ -439,7 +439,7 @@ inline _fs_cool_tab_t init_fine_structure_tables(const std::string path){
     // Initialization for fine structure cooling tables
     printf("Initializing fine structure cooling tables\n");
 
-    _fs_cool_tab_t fs_cool_tab;
+    _fs_cool_tab_t fs_cool_tab{};
 
     const int N_LINES = 27;
     const std::string file_names[N_LINES] = {

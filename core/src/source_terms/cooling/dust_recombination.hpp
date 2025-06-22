@@ -7,7 +7,7 @@ namespace PRISM {
 
 using _drc_t = std::array<std::array<double, 7>, 27>;
 inline _drc_t get_dust_rec_coefs() {
-    _drc_t dust_rec_coefs = { {
+    _drc_t dust_rec_coefs { {
         { 0.000E0, 0.000E0,  0.000E0, 0.000E0, 0.000E0,  0.0000E0, 0.000E0 }, // NA
         { 12.25E0, 8.074E-6, 1.378E0, 5.087E2, 1.586E-2, 0.4723E0, 1.102E-5 }, // Hydrogen
         { 5.572E0, 3.185E-7, 1.512E0, 5.115E3, 3.903E-7, 0.4956E0, 5.494E-7 }, // Helium

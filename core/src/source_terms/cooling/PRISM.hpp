@@ -564,9 +564,9 @@ std::tuple<int, real_t> subcycle_chemistry(
         //     Temperature     //
         /////////////////////////
         if constexpr (!constant_temperature) if (compute_temperature){
-            Array1D element_number_densities = {};
-            iArray1D element_number_ions = {};
-            Array2D element_ion_fractions = {};
+            Array1D element_number_densities {};
+            iArray1D element_number_ions {};
+            Array2D element_ion_fractions {};
 
             // Loop over all elements
             for (int i = 1; i < MAX_ELEMENTS; i++) {
