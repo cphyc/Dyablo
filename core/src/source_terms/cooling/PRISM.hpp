@@ -39,96 +39,116 @@ void initialize_elements(Element *elements, const std::array<int, MAX_ELEMENTS> 
     }
 
     // Element 1: Hydrogen
-    elements[1].atomic_number = (nions[1] > 0) ? 1 : -1;
-    elements[1].atomic_mass = 1.008;
-    elements[1].z_solar = 1.0;
-    elements[1].G0_photo_rate = 0.0; // No subionizing PI
-    // elements[1].n_ions = elements[1].atomic_number + 1;
-    elements[1].n_ions = nions[1];
-    elements[1].n_mol = include_H2 ? 1 : 0;
-    elements[1].depletion = 1.0;
+    if (nions[1] > 0) {
+        elements[1].atomic_number = (nions[1] > 0) ? 1 : -1;
+        elements[1].atomic_mass = 1.008;
+        elements[1].z_solar = 1.0;
+        elements[1].G0_photo_rate = 0.0; // No subionizing PI
+        // elements[1].n_ions = elements[1].atomic_number + 1;
+        elements[1].n_ions = nions[1];
+        elements[1].n_mol = include_H2 ? 1 : 0;
+        elements[1].depletion = 1.0;
+    }
 
     // Element 2: Helium
-    elements[2].atomic_number = (nions[2] > 0) ? 2 : -1;
-    elements[2].atomic_mass = 4.0026;
-    elements[2].z_solar = 8.51E-02;
-    elements[2].G0_photo_rate = 0.0; // No subionizing PI
-    // // elements[2].n_ions = elements[2].atomic_number + 1;
-    elements[2].n_ions = nions[2];
-    elements[2].depletion = 1.0;
+    if (nions[2] > 0) {
+        elements[2].atomic_number = (nions[2] > 0) ? 2 : -1;
+        elements[2].atomic_mass = 4.0026;
+        elements[2].z_solar = 8.51E-02;
+        elements[2].G0_photo_rate = 0.0; // No subionizing PI
+        // // elements[2].n_ions = elements[2].atomic_number + 1;
+        elements[2].n_ions = nions[2];
+        elements[2].depletion = 1.0;
+    }
 
     // Element 6: Carbon
-    elements[6].atomic_number = (nions[6] > 0) ? 6 : -1;
-    elements[6].atomic_mass = 12.0107;
-    elements[6].z_solar = 2.69E-04;
-    elements[6].G0_photo_rate = 3.39E-10;
-    // elements[6].n_ions = elements[6].atomic_number + 1;
-    elements[6].n_ions = nions[6];
-    elements[6].n_mol = include_CO ? 1 : 0; // Include CO if requested
-    elements[6].depletion = 0.5;
+    if (nions[6] > 0) {
+        elements[6].atomic_number = (nions[6] > 0) ? 6 : -1;
+        elements[6].atomic_mass = 12.0107;
+        elements[6].z_solar = 2.69E-04;
+        elements[6].G0_photo_rate = 3.39E-10;
+        // elements[6].n_ions = elements[6].atomic_number + 1;
+        elements[6].n_ions = nions[6];
+        elements[6].n_mol = include_CO ? 1 : 0; // Include CO if requested
+        elements[6].depletion = 0.5;
+    }
 
     // Element 7: Nitrogen
-    elements[7].atomic_number = (nions[7] > 0) ? 7 : -1;
-    elements[7].atomic_mass = 14.0067;
-    elements[7].z_solar = 6.76E-05;
-    elements[7].G0_photo_rate = 0.0; // No subionizing PI
-    // elements[7].n_ions = elements[7].atomic_number + 1;
-    elements[7].n_ions = nions[7];
-    elements[7].depletion = 0.6;
+    if (nions[7] > 0) {
+        elements[7].atomic_number = (nions[7] > 0) ? 7 : -1;
+        elements[7].atomic_mass = 14.0067;
+        elements[7].z_solar = 6.76E-05;
+        elements[7].G0_photo_rate = 0.0; // No subionizing PI
+        // elements[7].n_ions = elements[7].atomic_number + 1;
+        elements[7].n_ions = nions[7];
+        elements[7].depletion = 0.6;
+    }
 
     // Element 8: Oxygen
-    elements[8].atomic_number = (nions[8] > 0) ? 8 : -1;
-    elements[8].atomic_mass = 15.9994;
-    elements[8].z_solar = 4.90E-04;
-    elements[8].G0_photo_rate = 0.0; // No subionizing PI
-    // elements[8].n_ions = elements[8].atomic_number + 1;
-    elements[8].n_ions = nions[8];
-    elements[8].depletion = 0.73;
+    if (nions[8] > 0) {
+        elements[8].atomic_number = (nions[8] > 0) ? 8 : -1;
+        elements[8].atomic_mass = 15.9994;
+        elements[8].z_solar = 4.90E-04;
+        elements[8].G0_photo_rate = 0.0; // No subionizing PI
+        // elements[8].n_ions = elements[8].atomic_number + 1;
+        elements[8].n_ions = nions[8];
+        elements[8].depletion = 0.73;
+    }
 
     // Element 10: Neon
-    elements[10].atomic_number = (nions[10] > 0) ? 10 : -1;
-    elements[10].atomic_mass = 20.1797;
-    elements[10].z_solar = 8.51E-05;
-    elements[10].G0_photo_rate = 0.0; // No subionizing PI
-    // elements[10].n_ions = elements[10].atomic_number + 1;
-    elements[10].n_ions = nions[10];
-    elements[10].depletion = 1.0;
+    if (nions[10] > 0) {
+        elements[10].atomic_number = (nions[10] > 0) ? 10 : -1;
+        elements[10].atomic_mass = 20.1797;
+        elements[10].z_solar = 8.51E-05;
+        elements[10].G0_photo_rate = 0.0; // No subionizing PI
+        // elements[10].n_ions = elements[10].atomic_number + 1;
+        elements[10].n_ions = nions[10];
+        elements[10].depletion = 1.0;
+    }
 
     // Element 12: Magnesium
-    elements[12].atomic_number = (nions[12] > 0) ? 12 : -1;
-    elements[12].atomic_mass = 24.305;
-    elements[12].z_solar = 3.98E-05;
-    elements[12].G0_photo_rate = 6.59E-11;
-    // elements[12].n_ions = elements[12].atomic_number + 1;
-    elements[12].n_ions = nions[12];
-    elements[12].depletion = 0.16;
+    if (nions[12] > 0) {
+        elements[12].atomic_number = (nions[12] > 0) ? 12 : -1;
+        elements[12].atomic_mass = 24.305;
+        elements[12].z_solar = 3.98E-05;
+        elements[12].G0_photo_rate = 6.59E-11;
+        // elements[12].n_ions = elements[12].atomic_number + 1;
+        elements[12].n_ions = nions[12];
+        elements[12].depletion = 0.16;
+    }
 
     // Element 14: Silicon
-    elements[14].atomic_number = (nions[14] > 0) ? 14 : -1;
-    elements[14].atomic_mass = 28.0855;
-    elements[14].z_solar = 3.24E-05;
-    elements[14].G0_photo_rate = 4.47E-09;
-    // elements[14].n_ions = elements[14].atomic_number + 1;
-    elements[14].n_ions = nions[14];
-    elements[14].depletion = 0.1;
+    if (nions[14] > 0) {
+        elements[14].atomic_number = (nions[14] > 0) ? 14 : -1;
+        elements[14].atomic_mass = 28.0855;
+        elements[14].z_solar = 3.24E-05;
+        elements[14].G0_photo_rate = 4.47E-09;
+        // elements[14].n_ions = elements[14].atomic_number + 1;
+        elements[14].n_ions = nions[14];
+        elements[14].depletion = 0.1;
+    }
 
     // Element 16: Sulfur
-    elements[16].atomic_number = (nions[16] > 0) ? 16 : -1;
-    elements[16].atomic_mass = 32.065;
-    elements[16].z_solar = 1.32E-05;
-    elements[16].G0_photo_rate = 1.13E-09;
-    // elements[16].n_ions = elements[16].atomic_number + 1;
-    elements[16].n_ions = nions[16];
-    elements[16].depletion = 1.0;
+    if (nions[16] > 0) {
+        elements[16].atomic_number = (nions[16] > 0) ? 16 : -1;
+        elements[16].atomic_mass = 32.065;
+        elements[16].z_solar = 1.32E-05;
+        elements[16].G0_photo_rate = 1.13E-09;
+        // elements[16].n_ions = elements[16].atomic_number + 1;
+        elements[16].n_ions = nions[16];
+        elements[16].depletion = 1.0;
+    }
 
     // Element 26: Iron
-    elements[26].atomic_number = (nions[26] > 0) ? 26 : -1;
-    elements[26].atomic_mass = 55.854;
-    elements[26].z_solar = 3.16E-05;
-    elements[26].G0_photo_rate = 4.71E-10;
-    // elements[26].n_ions = elements[26].atomic_number + 1;
-    elements[26].n_ions = nions[26];
-    elements[26].depletion = 0.01;
+    if (nions[26] > 0) {
+        elements[26].atomic_number = (nions[26] > 0) ? 26 : -1;
+        elements[26].atomic_mass = 55.854;
+        elements[26].z_solar = 3.16E-05;
+        elements[26].G0_photo_rate = 4.71E-10;
+        // elements[26].n_ions = elements[26].atomic_number + 1;
+        elements[26].n_ions = nions[26];
+        elements[26].depletion = 0.01;
+    }
 }
 
 typedef struct
