@@ -24,6 +24,11 @@ struct AnalyticalFormula_rad_blast : public AnalyticalFormula_base{
     RadType rad_type;
     const real_t box_size;
     const real_t temperature, temperature_bb, xe_start, zre_start;
+    const real_t scale_l;
+    const real_t scale_d;
+    const real_t scale_t;
+    const real_t scale_v;
+
     real_t rhostar, pstar; 
     
     AnalyticalFormula_rad_blast( ConfigMap& configMap ) :
@@ -44,7 +49,11 @@ struct AnalyticalFormula_rad_blast : public AnalyticalFormula_base{
         temperature(configMap.getValue<real_t>("rad", "temperature", 1e4)),
         temperature_bb(configMap.getValue<real_t>("ionization", "temp_black_body", 1e5)),
         xe_start(configMap.getValue<real_t>("rad", "xe_start", 1.2e-3)),
-        zre_start(configMap.getValue<real_t>("ionization", "zre_start", -1000.0))
+        zre_start(configMap.getValue<real_t>("ionization", "zre_start", -1000.0)),
+        scale_l( configMap.getValue<real_t>("units", "length") ),
+        scale_d( configMap.getValue<real_t>("units", "density") ),
+        scale_t( configMap.getValue<real_t>("units", "time") ),
+        scale_v( scale_l / scale_t)
     {
 
         using namespace Units;
@@ -139,9 +148,13 @@ struct AnalyticalFormula_rad_blast : public AnalyticalFormula_base{
             res.rho_u = 0.0;
             res.rho_v = 0.0;
             res.rho_w = 0.0;
-            res.rho = 1; // 1e3 * PROTON_MASS / rhostar;
+            res.rho = 1e-3; // 1e3 * PROTON_MASS / rhostar;
 
-            real_t p_0 = 1.17e-20; // (gamma0 - 1.0) * 1.5 * 1e3 * KBOLTZ * temp / pstar;
+            real_t T0 = 1e3; // [K]
+            real_t scale_T = Units::PROTON_MASS / Units::KBOLTZ * SQR(scale_v);
+            real_t p_0 = T0 * (gamma0 - 1) / scale_T * res.rho;
+
+            // real_t p_0 = 1.17e-16; // (gamma0 - 1.0) * 1.5 * 1e3 * KBOLTZ * temp / pstar;
             res.e_tot = p_0/(gamma0-1.0);
         }
 
