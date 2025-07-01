@@ -116,6 +116,16 @@ public:
         particles.new_ParticleAttribute(array_name, attribute_name);
     }
 
+    /**
+     * Merge particle arrays id_dest <- [id_dest,id_to_merge]
+     * Particles are only merged if attribute id_to_merge/mask_field is not 0
+     * Particle id_to_merge should have all attributes from id_dest, other attributes are ignored
+     **/
+    void merge_particles_if( const std::string& id_dest, const std::string& id_to_merge, const std::string& mask_field )
+    {
+        particles.merge_particles_if(id_dest, id_to_merge, mask_field);
+    }
+
     /// Check if UserData contains a ParticleArray with this name
     bool has_ParticleArray(const std::string& name) const
     {
