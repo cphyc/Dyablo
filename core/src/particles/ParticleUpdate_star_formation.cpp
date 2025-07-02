@@ -135,7 +135,7 @@ public:
       auto u = policy.getConsState( Uin, iCell );
       auto q = policy.consToPrim( u );
 
-      bool starForming = isStarFormingCell(q.rho, q.p) ? 1 : 0;
+      bool starForming = isStarFormingCell(q.rho, q.p);
       count += starForming ? 1 : 0;
     }, n_star_forming_cells);
 
@@ -149,7 +149,7 @@ public:
       auto u = policy.getConsState( Uin, iCell );
       auto q = policy.consToPrim( u );
 
-      bool starForming = isStarFormingCell(q.rho, q.p) ? 1 : 0;
+      bool starForming = isStarFormingCell(q.rho, q.p);
       
       if( starForming )
       {
