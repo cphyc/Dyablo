@@ -47,6 +47,14 @@ public:
         return fields.getShape();
     }
 
+    void update_lightOctree( const LightOctree& lmesh )
+    {
+        using CellArray_global = AMRBlockForeachCell_CellArray_impl::CellArray_global;
+        using CellArray_global_ghosted = AMRBlockForeachCell_CellArray_impl::CellArray_global_ghosted;
+        auto fields_new = CellArray_global_ghosted(CellArray_global{fields.U, fields.bx, fields.by, fields.bz, fields.fm}, fields.Ughost, lmesh);;
+        fields = fields_new;
+    }
+
     void extend_fields( )
     {
         int nbOcts = this->foreach_cell.get_amr_mesh().getNumOctants();

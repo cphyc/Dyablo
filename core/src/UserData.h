@@ -38,6 +38,10 @@ public:
         return fields.getShape();
     }
 
+    void update_lightOctree( const LightOctree& lmesh )
+    {
+        fields.update_lightOctree(lmesh);
+    }
     /**
      * Add new fields with unique identifiers 
      * names should not be already present

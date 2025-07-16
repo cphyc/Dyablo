@@ -19,8 +19,8 @@ public:
     struct OctantIndex
     {
         uint32_t iOct; //! PABLO's Octant index
-        bool isGhost; //! Is this a MPI ghost octant?
-        bool isIntermediate; //! Is this an intermediate level octant (not a leaf)?
+        bool isGhost = false; //! Is this a MPI ghost octant?
+        bool isIntermediate = false; //! Is this an intermediate level octant (not a leaf)?
 
         KOKKOS_INLINE_FUNCTION static uint32_t OctantIndex_to_iOctLocal(const OctantIndex& oct, uint32_t numOctants)
         {
