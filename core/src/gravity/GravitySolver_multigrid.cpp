@@ -197,8 +197,11 @@ void GravitySolver_multigrid::compute_coarse_fine_transition(level_t level)
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   constexpr Kokkos::Array< VarIndex, 3 > IG = {Igx, Igy, Igz};
-  const auto octs = get_subview_octs(level);
-  foreach_cell.foreach_cell_in_octants("Gravity_mg::compute_coarse_fine_transition", iter_space, octs,
+  constexpr bool nonGhosts = false;
+  constexpr bool Leaves = false;
+
+  const auto octs = get_subview_octs<Target::LEAVES>(level);
+  foreach_cell.foreach_cell_in_octants<nonGhosts, Leaves>("Gravity_mg::compute_coarse_fine_transition", iter_space, octs,
     KOKKOS_LAMBDA(const CellIndex& iCell)
   { 
     for (ComponentIndex3D dir: {IX, IY, IZ})
@@ -279,15 +282,19 @@ real_t GravitySolver_multigrid::residual_norm(const level_t level)
   const auto iter_space = Uintermediate.getShape();
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   real_t residual_sqr_leaves(0.), residual_sqr_intermediate(0.);
-  const auto octs = get_subview_octs(level);
-  foreach_cell.reduce_cell_in_octants("Compute residual norm", iter_space, octs,
+  constexpr bool nonGhosts = false;
+  constexpr bool Leaves = false;
+  constexpr bool Intermediates = true;
+
+  const auto octs = get_subview_octs<Target::LEAVES>(level);
+  foreach_cell.reduce_cell_in_octants<nonGhosts, Leaves>("Compute residual norm", iter_space, octs,
     KOKKOS_LAMBDA(const CellIndex & iCell, real_t & update_residual_sqr)
   {
     const real_t residual_tmp = U.at(iCell, Iresidual);
     update_residual_sqr += residual_tmp * residual_tmp;
   }, Kokkos::Sum<real_t>(residual_sqr_leaves));
-  const auto octs_intermediate = get_subview_octs_intermediate(level);
-  foreach_cell.reduce_intermediate_cell_in_octants("Compute residual norm", iter_space, octs_intermediate,
+  const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(level);
+  foreach_cell.reduce_cell_in_octants<nonGhosts, Intermediates>("Compute residual norm", iter_space, octs_intermediate,
     KOKKOS_LAMBDA(const CellIndex & iCell, real_t & update_residual_sqr)
   {
     const real_t residual_tmp = Uintermediate.at(iCell, Iresidual);
@@ -317,8 +324,10 @@ real_t GravitySolver_multigrid::truncation_norm(const level_t level)
   const auto& Uintermediate = pdata->Uintermediate;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   real_t truncation_sqr(0.);
-  const auto octs_intermediate = get_subview_octs_intermediate(level);
-  foreach_cell.reduce_intermediate_cell_in_octants("Compute residual norm", Uintermediate.getShape(), octs_intermediate,
+  constexpr bool nonGhosts = false;
+  constexpr bool Intermediates = true;
+  const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(level);
+  foreach_cell.reduce_cell_in_octants<nonGhosts, Intermediates>("Compute residual norm", Uintermediate.getShape(), octs_intermediate,
     KOKKOS_LAMBDA(const CellIndex & iCell, real_t & update_residual_sqr)
   {
     const real_t truncation_tmp = Uintermediate.at(iCell, Irhs) - Uintermediate.at(iCell, Iresidual);
@@ -354,13 +363,18 @@ void GravitySolver_multigrid::initialise_lhs_from_rhs(const level_t level)
         1./(nocts1d * iter_space.by), 
         1./(nocts1d * iter_space.bz)
   };
+  constexpr bool nonGhosts = false;
+  constexpr bool Ghosts = true;
+  constexpr bool Leaves = false;
+  constexpr bool Intermediates = true;
+  
 
   const real_t factor = - 1.0 / (2.0 / (size[IX]*size[IX]) + 2.0 / (size[IY]*size[IY]) + 2.0 / (size[IZ]*size[IZ]));
 
   if constexpr (target == Target::LEAVES || target == Target::BOTH || target == Target::ALL_LEAVES || target == Target::ALL) 
   {
-    const auto octs = get_subview_octs(level);
-    foreach_cell.foreach_cell_in_octants("Initialise potential", iter_space, octs,
+    const auto octs = get_subview_octs<Target::LEAVES>(level);
+    foreach_cell.foreach_cell_in_octants<nonGhosts, Leaves>("Initialise potential", iter_space, octs,
       KOKKOS_LAMBDA(const CellIndex & iCell)
     {
       U.at(iCell, Isolution) = U.at(iCell, Irhs) * factor;
@@ -369,8 +383,8 @@ void GravitySolver_multigrid::initialise_lhs_from_rhs(const level_t level)
 
   if constexpr (target == Target::INTERMEDIATES || target == Target::BOTH || target == Target::ALL_INTERMEDIATES || target == Target::ALL) 
   {
-    const auto octs_intermediate = get_subview_octs_intermediate(level);
-    foreach_cell.foreach_intermediate_cell_in_octants("Initialise potential", iter_space, octs_intermediate,
+    const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(level);
+    foreach_cell.foreach_cell_in_octants<nonGhosts, Intermediates>("Initialise potential", iter_space, octs_intermediate,
       KOKKOS_LAMBDA(const CellIndex & iCell)
     {
       Uintermediate.at(iCell, Isolution) = Uintermediate.at(iCell, Irhs) * factor;
@@ -379,8 +393,8 @@ void GravitySolver_multigrid::initialise_lhs_from_rhs(const level_t level)
 
   if constexpr (target == Target::GHOST_LEAVES || target == Target::BOTH_GHOSTS || target == Target::ALL_LEAVES || target == Target::ALL) 
   {
-    const auto octs_ghost = get_subview_ghosts(level);
-    foreach_cell.foreach_ghost_cell_in_octants("Initialise potential", iter_space, octs_ghost,
+    const auto octs_ghost = get_subview_octs<Target::GHOST_LEAVES>(level);
+    foreach_cell.foreach_cell_in_octants<Ghosts, Leaves>("Initialise potential", iter_space, octs_ghost,
       KOKKOS_LAMBDA(const CellIndex & iCell)
     {
       U.at(iCell, Isolution) = U.at(iCell, Irhs) * factor;
@@ -389,8 +403,8 @@ void GravitySolver_multigrid::initialise_lhs_from_rhs(const level_t level)
 
   if constexpr (target == Target::GHOST_INTERMEDIATES || target == Target::BOTH_GHOSTS || target == Target::ALL_INTERMEDIATES || target == Target::ALL) 
   {
-    const auto octs_intermediate_ghost = get_subview_ghosts_intermediate(level);
-    foreach_cell.foreach_intermediate_ghost_cell_in_octants("Initialise potential", iter_space, octs_intermediate_ghost,
+    const auto octs_intermediate_ghost = get_subview_octs<Target::GHOST_INTERMEDIATES>(level);
+    foreach_cell.foreach_cell_in_octants<Ghosts, Intermediates>("Initialise potential", iter_space, octs_intermediate_ghost,
       KOKKOS_LAMBDA(const CellIndex & iCell)
     {
       Uintermediate.at(iCell, Isolution) = Uintermediate.at(iCell, Irhs) * factor;
@@ -420,11 +434,15 @@ void GravitySolver_multigrid::copy_multigrid_fields(const level_t level_min, con
   auto& Uintermediate = pdata->Uintermediate;
   const auto iter_space = Uintermediate.getShape();
   const ForeachCell& foreach_cell = pdata->foreach_cell;
+  constexpr bool nonGhosts = false;
+  constexpr bool Ghosts = true;
+  constexpr bool Leaves = false;
+  constexpr bool Intermediates = true;
 
   if constexpr (target == Target::LEAVES || target == Target::BOTH || target == Target::ALL_LEAVES || target == Target::ALL) 
   {
-    const auto octs = get_subview_octs(level_min, level_max);
-    foreach_cell.foreach_cell_in_octants("Fill leaves", iter_space, octs,
+    const auto octs = get_subview_octs<Target::LEAVES>(level_min, level_max);
+    foreach_cell.foreach_cell_in_octants<nonGhosts, Leaves>("Fill leaves", iter_space, octs,
       KOKKOS_LAMBDA(const CellIndex & iCell)
     {
       for (size_t i(0ul); i < N; i++)
@@ -434,8 +452,8 @@ void GravitySolver_multigrid::copy_multigrid_fields(const level_t level_min, con
   
   if constexpr (target == Target::INTERMEDIATES || target == Target::BOTH || target == Target::ALL_INTERMEDIATES || target == Target::ALL) 
   {
-    const auto octs_intermediate = get_subview_octs_intermediate(level_min, level_max);
-    foreach_cell.foreach_intermediate_cell_in_octants("Fill intermediates", iter_space, octs_intermediate,
+    const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(level_min, level_max);
+    foreach_cell.foreach_cell_in_octants<nonGhosts, Intermediates>("Fill intermediates", iter_space, octs_intermediate,
       KOKKOS_LAMBDA(const CellIndex & iCell)
     {
       for (size_t i(0ul); i < N; i++)
@@ -445,8 +463,8 @@ void GravitySolver_multigrid::copy_multigrid_fields(const level_t level_min, con
 
   if constexpr (target == Target::GHOST_LEAVES || target == Target::BOTH_GHOSTS || target == Target::ALL_LEAVES || target == Target::ALL) 
   {
-    const auto octs = get_subview_ghosts(level_min, level_max);
-    foreach_cell.foreach_ghost_cell_in_octants("Fill ghost leaves", iter_space, octs,
+    const auto octs = get_subview_octs<Target::GHOST_LEAVES>(level_min, level_max);
+    foreach_cell.foreach_cell_in_octants<Ghosts, Leaves>("Fill ghost leaves", iter_space, octs,
       KOKKOS_LAMBDA(const CellIndex & iCell)
     {
       for (size_t i(0ul); i < N; i++)
@@ -456,8 +474,8 @@ void GravitySolver_multigrid::copy_multigrid_fields(const level_t level_min, con
 
   if constexpr (target == Target::GHOST_INTERMEDIATES || target == Target::BOTH_GHOSTS || target == Target::ALL_INTERMEDIATES || target == Target::ALL) 
   {
-    const auto octs_intermediate = get_subview_ghosts_intermediate(level_min, level_max);
-    foreach_cell.foreach_intermediate_ghost_cell_in_octants("Fill ghost intermediates", iter_space, octs_intermediate,
+    const auto octs_intermediate = get_subview_octs<Target::GHOST_INTERMEDIATES>(level_min, level_max);
+    foreach_cell.foreach_cell_in_octants<Ghosts, Intermediates>("Fill ghost intermediates", iter_space, octs_intermediate,
       KOKKOS_LAMBDA(const CellIndex & iCell)
     {
       for (size_t i(0ul); i < N; i++)
@@ -546,11 +564,14 @@ void GravitySolver_multigrid::restriction_from_children(const level_t level_stop
   const auto iter_space = Uintermediate.getShape();
   ForeachCell& foreach_cell = pdata->foreach_cell;
   constexpr real_t inv_ns = 1./8.; 
+  constexpr bool nonGhosts = false;
+  constexpr bool Leaves = false;
+  constexpr bool Intermediates = true;
 
   if constexpr (target == Target::LEAVES || target == Target::BOTH)
   {
-    const auto octs = get_subview_octs(level_start);
-    foreach_cell.foreach_cell_in_octants( "Restrict", iter_space, octs,
+    const auto octs = get_subview_octs<Target::LEAVES>(level_start);
+    foreach_cell.foreach_cell_in_octants<nonGhosts, Leaves>( "Restrict", iter_space, octs,
       KOKKOS_LAMBDA( CellIndex& iCell)
     {
       Kokkos::Array<real_t, N> factor_init;
@@ -562,8 +583,8 @@ void GravitySolver_multigrid::restriction_from_children(const level_t level_stop
   }
   if constexpr (target == Target::INTERMEDIATES || target == Target::BOTH) 
   {
-    const auto octs_intermediate = get_subview_octs_intermediate(level_start);
-    foreach_cell.foreach_intermediate_cell_in_octants( "Restrict", iter_space, octs_intermediate,
+    const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(level_start);
+    foreach_cell.foreach_cell_in_octants<nonGhosts, Intermediates>( "Restrict", iter_space, octs_intermediate,
       KOKKOS_LAMBDA( CellIndex& iCell)
     {
       Kokkos::Array<real_t, N> factor_init;
@@ -658,11 +679,14 @@ void GravitySolver_multigrid::prolongation_from_children(const level_t level)
   auto& Uintermediate = pdata->Uintermediate;
   const auto iter_space = Uintermediate.getShape();
   const ForeachCell& foreach_cell = pdata->foreach_cell;
+  constexpr bool nonGhosts = false;
+  constexpr bool Leaves = false;
+  constexpr bool Intermediates = true;
 
   if constexpr (target == Target::LEAVES || target == Target::BOTH || target == Target::ALL_LEAVES || target == Target::ALL) 
   {
-    const auto octs = get_subview_octs(level);
-    foreach_cell.foreach_cell_in_octants( "Prolongation", iter_space, octs,
+    const auto octs = get_subview_octs<Target::LEAVES>(level);
+    foreach_cell.foreach_cell_in_octants<nonGhosts, Leaves>( "Prolongation", iter_space, octs,
       KOKKOS_LAMBDA( const CellIndex& iCell)
     {
       const real_t result = prolongation_from_children_kernel(U, Uintermediate, level, iCell, iter_space);
@@ -672,8 +696,8 @@ void GravitySolver_multigrid::prolongation_from_children(const level_t level)
 
   if constexpr (target == Target::INTERMEDIATES || target == Target::BOTH || target == Target::ALL_INTERMEDIATES || target == Target::ALL) 
   {
-    const auto octs_intermediate = get_subview_octs_intermediate(level);
-    foreach_cell.foreach_intermediate_cell_in_octants( "Prolongation", iter_space, octs_intermediate,
+    const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(level);
+    foreach_cell.foreach_cell_in_octants<nonGhosts, Intermediates>( "Prolongation", iter_space, octs_intermediate,
       KOKKOS_LAMBDA( const CellIndex& iCell)
     {
       const real_t result = prolongation_from_children_kernel(U, Uintermediate, level, iCell, iter_space);
@@ -732,10 +756,14 @@ bool GravitySolver_multigrid::check_parents()
   const LightOctree& lmesh = foreach_cell.get_amr_mesh().getLightOctree();
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   const level_t level_max = lmesh.get_level_max();
+  constexpr bool nonGhosts = false;
+  constexpr bool Leaves = false;
+  constexpr bool Intermediates = true;
+
   for (level_t ilevel(1); ilevel <= level_max; ilevel++)
   {
-    const auto octs = get_subview_octs(ilevel);
-    foreach_cell.foreach_cell_in_octants("Set solution to zero", iter_space, octs,
+    const auto octs = get_subview_octs<Target::LEAVES>(ilevel);
+    foreach_cell.foreach_cell_in_octants<nonGhosts, Leaves>("Set solution to zero", iter_space, octs,
       KOKKOS_LAMBDA(const CellIndex & iCell)
     {
       const auto lc = lmesh.get_logical_coords(iCell.iOct);
@@ -744,8 +772,8 @@ bool GravitySolver_multigrid::check_parents()
       [[maybe_unused]] const bool cond = ( (lc[IX] >> 1u) == lcp[IX] && (lc[IY] >> 1u) == lcp[IY] && (lc[IZ] >> 1u) == lcp[IZ] );
       DYABLO_ASSERT_KOKKOS_DEBUG( cond, "Inconsistency in Child/Parent logical coords" );
     });
-    const auto octs_intermediate = get_subview_octs_intermediate(ilevel);
-    foreach_cell.foreach_intermediate_cell_in_octants("Set solution to zero", iter_space, octs_intermediate,
+    const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(ilevel);
+    foreach_cell.foreach_cell_in_octants<nonGhosts, Intermediates>("Set solution to zero", iter_space, octs_intermediate,
       KOKKOS_LAMBDA(const CellIndex & iCell)
     {
       const auto lc = lmesh.get_logical_coords(iCell.iOct);
@@ -786,6 +814,9 @@ void GravitySolver_multigrid::compute_mask(UserData& U_, const level_t level_min
   const bool has_non_mpi_levels = (level_min < first_mpi_multigrid_level);
   const level_t level_min_mpi = has_non_mpi_levels ? first_mpi_multigrid_level: level_min;
   constexpr real_t inv_ns(1./8.); 
+  constexpr bool nonGhosts = false;
+  constexpr bool Leaves = false;
+  constexpr bool Intermediates = true;
 
   // Initialise mask
   fill_multigrid_fields<Target::ALL>(level_max, level_max, kokkos_array<int>(Imask), kokkos_array<real_t>(1));
@@ -802,15 +833,15 @@ void GravitySolver_multigrid::compute_mask(UserData& U_, const level_t level_min
   }
 
   // Compute mask on leaves
-  const auto octs = get_subview_octs(level_max);
-  foreach_cell.foreach_cell_in_octants( "Mask on domain", iter_space, octs,
+  const auto octs = get_subview_octs<Target::LEAVES>(level_max);
+  foreach_cell.foreach_cell_in_octants<nonGhosts, Leaves>( "Mask on domain", iter_space, octs,
     KOKKOS_LAMBDA( CellIndex& iCell)
   {
    accumulate_up_tree(Uintermediate, iCell, iter_space, level_min_mpi - 1, level_max, kokkos_array<real_t>(2.0 * inv_ns), inv_ns, kokkos_array<int>(Imask));
   });
   // Compute mask on intermediate cells
-  const auto octs_intermediate = get_subview_octs_intermediate(level_max);
-  foreach_cell.foreach_intermediate_cell_in_octants( "Mask on domain", iter_space, octs_intermediate,
+  const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(level_max);
+  foreach_cell.foreach_cell_in_octants<nonGhosts, Intermediates>( "Mask on domain", iter_space, octs_intermediate,
     KOKKOS_LAMBDA( CellIndex& iCell)
   {
     accumulate_up_tree(Uintermediate, iCell, iter_space, level_min_mpi - 1, level_max, kokkos_array<real_t>(2.0 * inv_ns), inv_ns, kokkos_array<int>(Imask));
@@ -822,8 +853,8 @@ void GravitySolver_multigrid::compute_mask(UserData& U_, const level_t level_min
     reduce_nonMPI_levels(first_mpi_multigrid_level - 1, kokkos_array<int>(Imask));
     if (level_min + 1 < first_mpi_multigrid_level)
     {
-      const auto octs_intermediate = get_subview_octs_intermediate(first_mpi_multigrid_level - 1);
-      foreach_cell.foreach_intermediate_cell_in_octants( "Mask on domain", iter_space, octs_intermediate,
+      const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(first_mpi_multigrid_level - 1);
+      foreach_cell.foreach_cell_in_octants<nonGhosts, Intermediates>( "Mask on domain", iter_space, octs_intermediate,
         KOKKOS_LAMBDA( CellIndex& iCell)
       {
         accumulate_up_tree(Uintermediate, iCell, iter_space, level_min, first_mpi_multigrid_level - 1, kokkos_array<real_t>(Uintermediate.at(iCell, Imask) * inv_ns), inv_ns, kokkos_array<int>(Imask));
@@ -877,11 +908,15 @@ void GravitySolver_multigrid::fill_multigrid_fields(const level_t min_level, con
   const auto iter_space = Uintermediate.getShape();
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
+  constexpr bool nonGhosts = false;
+  constexpr bool Ghosts = true;
+  constexpr bool Leaves = false;
+  constexpr bool Intermediates = true;
 
   if constexpr (target == Target::LEAVES || target == Target::BOTH || target == Target::ALL_LEAVES || target == Target::ALL) 
   {
-    const auto octs = get_subview_octs(min_level, max_level);
-    foreach_cell.foreach_cell_in_octants("Fill leaves", iter_space, octs,
+    const auto octs = get_subview_octs<Target::LEAVES>(min_level, max_level);
+    foreach_cell.foreach_cell_in_octants<nonGhosts, Leaves>("Fill leaves", iter_space, octs,
       KOKKOS_LAMBDA(const CellIndex & iCell)
     {
       for (size_t i(0ul); i < N; i++)
@@ -891,8 +926,8 @@ void GravitySolver_multigrid::fill_multigrid_fields(const level_t min_level, con
   
   if constexpr (target == Target::INTERMEDIATES || target == Target::BOTH || target == Target::ALL_INTERMEDIATES || target == Target::ALL) 
   {
-    const auto octs_intermediate = get_subview_octs_intermediate(min_level, max_level);
-    foreach_cell.foreach_intermediate_cell_in_octants("Fill intermediates", iter_space, octs_intermediate,
+    const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(min_level, max_level);
+    foreach_cell.foreach_cell_in_octants<nonGhosts, Intermediates>("Fill intermediates", iter_space, octs_intermediate,
       KOKKOS_LAMBDA(const CellIndex & iCell)
     {
       for (size_t i(0ul); i < N; i++)
@@ -902,8 +937,8 @@ void GravitySolver_multigrid::fill_multigrid_fields(const level_t min_level, con
 
   if constexpr (target == Target::GHOST_LEAVES || target == Target::BOTH_GHOSTS || target == Target::ALL_LEAVES || target == Target::ALL) 
   {
-    const auto octs = get_subview_ghosts(min_level, max_level);
-    foreach_cell.foreach_ghost_cell_in_octants("Fill ghost leaves", iter_space, octs,
+    const auto octs = get_subview_octs<Target::GHOST_LEAVES>(min_level, max_level);
+    foreach_cell.foreach_cell_in_octants<Ghosts, Leaves>("Fill ghost leaves", iter_space, octs,
       KOKKOS_LAMBDA(const CellIndex & iCell)
     {
       for (size_t i(0ul); i < N; i++)
@@ -913,8 +948,8 @@ void GravitySolver_multigrid::fill_multigrid_fields(const level_t min_level, con
 
   if constexpr (target == Target::GHOST_INTERMEDIATES || target == Target::BOTH_GHOSTS || target == Target::ALL_INTERMEDIATES || target == Target::ALL) 
   {
-    const auto octs_intermediate = get_subview_ghosts_intermediate(min_level, max_level);
-    foreach_cell.foreach_intermediate_ghost_cell_in_octants("Fill ghost intermediates", iter_space, octs_intermediate,
+    const auto octs_intermediate = get_subview_octs<Target::GHOST_INTERMEDIATES>(min_level, max_level);
+    foreach_cell.foreach_cell_in_octants<Ghosts, Intermediates>("Fill ghost intermediates", iter_space, octs_intermediate,
       KOKKOS_LAMBDA(const CellIndex & iCell)
     {
       for (size_t i(0ul); i < N; i++)
@@ -953,9 +988,12 @@ void GravitySolver_multigrid::operator_uniform(const level_t level)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
   const real_t factor = 2.0/(size[IX]*size[IX]) + 2.0/(size[IY]*size[IY]) + 2.0/(size[IZ]*size[IZ]);
+  constexpr bool nonGhosts = false;
+  constexpr bool Leaves = false;
+  constexpr bool Intermediates = true;
 
-  const auto octs = get_subview_octs(level);
-  foreach_cell.foreach_cell_in_octants("Operator", iter_space, octs,
+  const auto octs = get_subview_octs<Target::LEAVES>(level);
+  foreach_cell.foreach_cell_in_octants<nonGhosts, Leaves>("Operator", iter_space, octs,
     KOKKOS_LAMBDA(const CellIndex & iCell)
   {
     real_t neighbors(0.);
@@ -969,8 +1007,8 @@ void GravitySolver_multigrid::operator_uniform(const level_t level)
     const real_t laplacian_solution = neighbors - U.at(iCell, Isolution) * factor;
     U.at(iCell, Iresidual) = laplacian_solution;
   });
-  const auto octs_intermediate = get_subview_octs_intermediate(level);
-  foreach_cell.foreach_intermediate_cell_in_octants("Operator", iter_space, octs_intermediate,
+  const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(level);
+  foreach_cell.foreach_cell_in_octants<nonGhosts, Intermediates>("Operator", iter_space, octs_intermediate,
     KOKKOS_LAMBDA(const CellIndex & iCell)
   {
     real_t neighbors(0.);
@@ -1048,12 +1086,15 @@ void GravitySolver_multigrid::residual_uniform(const level_t level)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
   const real_t factor = 2.0/(size[IX]*size[IX]) + 2.0/(size[IY]*size[IY]) + 2.0/(size[IZ]*size[IZ]);
+  constexpr bool nonGhosts = false;
+  constexpr bool Leaves = false;
+  constexpr bool Intermediates = true;
 
 
   if constexpr (target == Target::LEAVES || target == Target::BOTH) 
   {
-    const auto octs = get_subview_octs(level);
-    foreach_cell.foreach_cell_in_octants("Residual", iter_space,  octs,
+    const auto octs = get_subview_octs<Target::LEAVES>(level);
+    foreach_cell.foreach_cell_in_octants<nonGhosts, Leaves>("Residual", iter_space,  octs,
       KOKKOS_LAMBDA(const CellIndex & iCell)
     {
       real_t neighbors(0.);
@@ -1070,8 +1111,8 @@ void GravitySolver_multigrid::residual_uniform(const level_t level)
   }
   if constexpr (target == Target::INTERMEDIATES || target == Target::BOTH) 
   {
-    const auto octs_intermediate = get_subview_octs_intermediate(level);
-    foreach_cell.foreach_intermediate_cell_in_octants("Residual", iter_space, octs_intermediate,
+    const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(level);
+    foreach_cell.foreach_cell_in_octants<nonGhosts, Intermediates>("Residual", iter_space, octs_intermediate,
       KOKKOS_LAMBDA(const CellIndex & iCell)
     {
       real_t neighbors(0.);
@@ -1149,9 +1190,11 @@ void GravitySolver_multigrid::operator_intermediate_amr_correction(const level_t
         1./(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
+  constexpr bool nonGhosts = false;
+  constexpr bool Intermediates = true;
 
-  const auto octs_intermediate = get_subview_octs_intermediate(level);
-  foreach_cell.foreach_intermediate_cell_in_octants("Residual", iter_space, octs_intermediate,
+  const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(level);
+  foreach_cell.foreach_cell_in_octants<nonGhosts, Intermediates>("Residual", iter_space, octs_intermediate,
     KOKKOS_LAMBDA(const CellIndex & iCell)
   {
     const real_t mask = Uintermediate.at(iCell, Imask);
@@ -1192,9 +1235,11 @@ void GravitySolver_multigrid::residual_intermediate_amr_correction(const level_t
         1./(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
+  constexpr bool nonGhosts = false;
+  constexpr bool Intermediates = true;
 
-  const auto octs_intermediate = get_subview_octs_intermediate(level);
-  foreach_cell.foreach_intermediate_cell_in_octants("Residual", iter_space, octs_intermediate,
+  const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(level);
+  foreach_cell.foreach_cell_in_octants<nonGhosts, Intermediates>("Residual", iter_space, octs_intermediate,
     KOKKOS_LAMBDA(const CellIndex & iCell)
   {
     const real_t mask = Uintermediate.at(iCell, Imask);
@@ -1283,8 +1328,12 @@ void GravitySolver_multigrid::operator_amr_finest(const level_t level)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
   const real_t factor = 2.0/(size[IX]*size[IX]) + 2.0/(size[IY]*size[IY]) + 2.0/(size[IZ]*size[IZ]);
-  const auto octs = get_subview_octs(level);
-  foreach_cell.foreach_cell_in_octants("Residual", iter_space, octs,
+  constexpr bool nonGhosts = false;
+  constexpr bool Leaves = false;
+  constexpr bool Intermediates = true;
+
+  const auto octs = get_subview_octs<Target::LEAVES>(level);
+  foreach_cell.foreach_cell_in_octants<nonGhosts, Leaves>("Residual", iter_space, octs,
     KOKKOS_LAMBDA(const CellIndex & iCell)
   {
     real_t laplacian_solution(0.);
@@ -1301,8 +1350,8 @@ void GravitySolver_multigrid::operator_amr_finest(const level_t level)
     }
     U.at(iCell, Iresidual) = laplacian_solution;
   });
-  const auto octs_intermediate = get_subview_octs_intermediate(level);
-  foreach_cell.foreach_intermediate_cell_in_octants("Residual", iter_space, octs_intermediate,
+  const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(level);
+  foreach_cell.foreach_cell_in_octants<nonGhosts, Intermediates>("Residual", iter_space, octs_intermediate,
     KOKKOS_LAMBDA(const CellIndex & iCell)
   {
     real_t neighbors(0.);
@@ -1339,8 +1388,12 @@ void GravitySolver_multigrid::residual_amr_finest(const level_t level)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
   const real_t factor = 2.0/(size[IX]*size[IX]) + 2.0/(size[IY]*size[IY]) + 2.0/(size[IZ]*size[IZ]);
-  const auto octs = get_subview_octs(level);
-  foreach_cell.foreach_cell_in_octants("Residual", iter_space, octs,
+  constexpr bool nonGhosts = false;
+  constexpr bool Leaves = false;
+  constexpr bool Intermediates = true;
+
+  const auto octs = get_subview_octs<Target::LEAVES>(level);
+  foreach_cell.foreach_cell_in_octants<nonGhosts, Leaves>("Residual", iter_space, octs,
     KOKKOS_LAMBDA(const CellIndex & iCell)
   {
     real_t laplacian_solution(0.);
@@ -1357,8 +1410,8 @@ void GravitySolver_multigrid::residual_amr_finest(const level_t level)
     }
     U.at(iCell, Iresidual) = U.at(iCell, Irhs) - laplacian_solution;
   });
-  const auto octs_intermediate = get_subview_octs_intermediate(level);
-  foreach_cell.foreach_intermediate_cell_in_octants("Residual", iter_space, octs_intermediate,
+  const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(level);
+  foreach_cell.foreach_cell_in_octants<nonGhosts, Intermediates>("Residual", iter_space, octs_intermediate,
     KOKKOS_LAMBDA(const CellIndex & iCell)
   {
     real_t neighbors(0.);
@@ -1570,17 +1623,16 @@ void GravitySolver_multigrid::gauss_seidel_intermediate_amr_correction_rb(const 
         1./(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
-  const auto octs_intermediate = get_subview_octs_intermediate(level);
-
+  constexpr bool nonGhosts = false;
+  constexpr bool Intermediates = true;
+  
   auto apply_gauss_seidel = KOKKOS_LAMBDA(const CellIndex& iCell) 
   {
     gauss_seidel_intermediate_amr_correction(Uintermediate, level, iCell, size, boundarycondition);
   };
 
-  if constexpr (is_red) 
-    foreach_cell.foreach_intermediate_red_cell_in_octants("Gauss-Seidel", iter_space, octs_intermediate, apply_gauss_seidel);
-  else 
-    foreach_cell.foreach_intermediate_black_cell_in_octants("Gauss-Seidel", iter_space, octs_intermediate, apply_gauss_seidel);
+  const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(level);
+  foreach_cell.foreach_gauss_seidel_cell_in_octants<is_red, nonGhosts, Intermediates>("Gauss-Seidel", iter_space, octs_intermediate, apply_gauss_seidel);
 }
 
 /**
@@ -1608,17 +1660,16 @@ void GravitySolver_multigrid::gauss_seidel_leaves_amr_finest_rb(const level_t le
         1./(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
-  const auto octs = get_subview_octs(level);
+  constexpr bool nonGhost = false;
+  constexpr bool Leaves = false;
 
   auto apply_gauss_seidel = KOKKOS_LAMBDA(const CellIndex& iCell) 
   {
     gauss_seidel_leaves_amr_finest(U, Uintermediate, level, iCell, size, boundarycondition);
   };
 
-  if constexpr (is_red) 
-    foreach_cell.foreach_red_cell_in_octants("Gauss-Seidel", iter_space, octs, apply_gauss_seidel);
-  else 
-    foreach_cell.foreach_black_cell_in_octants("Gauss-Seidel", iter_space, octs, apply_gauss_seidel);
+  const auto octs = get_subview_octs<Target::LEAVES>(level);
+  foreach_cell.foreach_gauss_seidel_cell_in_octants<is_red, nonGhost, Leaves>("Gauss-Seidel", iter_space, octs, apply_gauss_seidel);
 }
 
 /**
@@ -1646,17 +1697,16 @@ void GravitySolver_multigrid::gauss_seidel_leaves_uniform_rb(const level_t level
         1./(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
-  const auto octs = get_subview_octs(level);
+  constexpr bool nonGhosts = false;
+  constexpr bool Leaves = false;
 
   auto apply_gauss_seidel = KOKKOS_LAMBDA(const CellIndex& iCell) 
   {
     gauss_seidel_leaves_uniform(U, Uintermediate, level, iCell, size, boundarycondition);
   };
 
-  if constexpr (is_red) 
-    foreach_cell.foreach_red_cell_in_octants("Gauss-Seidel", iter_space, octs, apply_gauss_seidel);
-  else 
-    foreach_cell.foreach_black_cell_in_octants("Gauss-Seidel", iter_space, octs, apply_gauss_seidel);
+  const auto octs = get_subview_octs<Target::LEAVES>(level);
+  foreach_cell.foreach_gauss_seidel_cell_in_octants<is_red, nonGhosts, Leaves>("Gauss-Seidel", iter_space, octs, apply_gauss_seidel);
 }
 
 /**
@@ -1684,17 +1734,16 @@ void GravitySolver_multigrid::gauss_seidel_intermediate_rb(const level_t level)
         1./(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
-  const auto octs_intermediate = get_subview_octs_intermediate(level);
+  constexpr bool nonGhosts = false;
+  constexpr bool Intermediates = true;
 
   auto apply_gauss_seidel = KOKKOS_LAMBDA(const CellIndex& iCell) 
   {
     gauss_seidel_intermediate(U, Uintermediate, level, iCell, size, boundarycondition);
   };
 
-  if constexpr (is_red) 
-    foreach_cell.foreach_intermediate_red_cell_in_octants("Gauss-Seidel", iter_space, octs_intermediate, apply_gauss_seidel);
-  else 
-    foreach_cell.foreach_intermediate_black_cell_in_octants("Gauss-Seidel", iter_space, octs_intermediate, apply_gauss_seidel);
+  const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(level);
+  foreach_cell.foreach_gauss_seidel_cell_in_octants<is_red, nonGhosts, Intermediates>("Gauss-Seidel", iter_space, octs_intermediate, apply_gauss_seidel);
 }
 
 /**
@@ -2320,38 +2369,40 @@ void GravitySolver_multigrid::count_octants_per_level(const LightOctree& lmesh)
   } */
 }
 
+template <Target target> 
 const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_octs(const level_t level) const
-{return get_subview_octs(level, level);}
-const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_octs_intermediate(const level_t level) const
-{return get_subview_octs_intermediate(level, level);}
-const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_ghosts(const level_t level) const
-{return get_subview_ghosts(level, level);}
-const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_ghosts_intermediate(const level_t level) const
-{return get_subview_ghosts_intermediate(level, level);}
+{return get_subview_octs<target>(level, level);}
 
+template <Target target> 
 const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_octs(const level_t level_min, const level_t level_max) const
 {
-  DYABLO_ASSERT_KOKKOS_DEBUG( level_min < pdata->octs_per_level_count.size(), "Level out of bounds in octs_per_level_count" );
-  const auto octs_per_level_count_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), pdata->octs_per_level_count);
-  return Kokkos::subview(pdata->octs_per_level, std::make_pair(octs_per_level_count_host(level_min), octs_per_level_count_host(level_max + 1)));
-}
-const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_octs_intermediate(const level_t level_min, const level_t level_max) const
-{
-  DYABLO_ASSERT_KOKKOS_DEBUG( level_max < pdata->octs_intermediate_per_level_count.size(), "Level out of bounds in octs_intermediate_per_level_count" );
-  const auto octs_intermediate_per_level_count_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), pdata->octs_intermediate_per_level_count);
-  return Kokkos::subview(pdata->octs_intermediate_per_level, std::make_pair(octs_intermediate_per_level_count_host(level_min), octs_intermediate_per_level_count_host(level_max + 1)));
-}
-const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_ghosts(const level_t level_min, const level_t level_max) const
-{
-  DYABLO_ASSERT_KOKKOS_DEBUG( level_max < pdata->ghosts_per_level_count.size(), "Level out of bounds in ghosts_per_level_count" );
-  const auto ghosts_per_level_count_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), pdata->ghosts_per_level_count);
-  return Kokkos::subview(pdata->ghosts_per_level, std::make_pair(ghosts_per_level_count_host(level_min), ghosts_per_level_count_host(level_max + 1)));
-}
-const Kokkos::View<uint32_t*> GravitySolver_multigrid::get_subview_ghosts_intermediate(const level_t level_min, const level_t level_max) const
-{
-  DYABLO_ASSERT_KOKKOS_DEBUG( level_max < pdata->ghosts_intermediate_per_level_count.size(), "Level out of bounds in ghosts_intermediate_per_level_count" );
-  const auto ghosts_intermediate_per_level_count_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), pdata->ghosts_intermediate_per_level_count);
-  return Kokkos::subview(pdata->ghosts_intermediate_per_level, std::make_pair(ghosts_intermediate_per_level_count_host(level_min), ghosts_intermediate_per_level_count_host(level_max + 1)));
+  if constexpr (target == Target::BOTH || target == Target::BOTH_GHOSTS || target == Target::ALL || target == Target::ALL_LEAVES || target == Target::ALL_INTERMEDIATES)
+  {
+    static_assert(target < Target::BOTH, "Can only select a subiew of one specific target.");
+  }
+
+  const auto make_subview = [](const auto& view, const auto& count, const level_t level_min, const level_t level_max) {
+    DYABLO_ASSERT_KOKKOS_DEBUG( level_min < count.size(), "Level out of bounds in octs_per_level_count" );
+    const auto count_host = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), count);
+    return Kokkos::subview(view, std::make_pair(count_host(level_min), count_host(level_max + 1)));
+  };
+
+  if constexpr (target == Target::LEAVES)
+  {
+    return make_subview(pdata->octs_per_level, pdata->octs_per_level_count, level_min, level_max);
+  }
+  if constexpr (target == Target::INTERMEDIATES)
+  {
+    return make_subview(pdata->octs_intermediate_per_level, pdata->octs_intermediate_per_level_count, level_min, level_max);
+  }
+  if constexpr (target == Target::GHOST_LEAVES)
+  {
+    return make_subview(pdata->ghosts_per_level, pdata->ghosts_per_level_count, level_min, level_max);
+  }
+  if constexpr (target == Target::GHOST_INTERMEDIATES)
+  {
+    return make_subview(pdata->ghosts_intermediate_per_level, pdata->ghosts_intermediate_per_level_count, level_min, level_max);
+  }
 }
 
 //} // namespace
@@ -2405,6 +2456,8 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
 
   pdata->timers.get("GravitySolver_multigrid").start();
 
+  constexpr bool nonGhosts = false;
+  constexpr bool Intermediates = true;
   ForeachCell& foreach_cell = pdata->foreach_cell;
   const MpiComm& mpi_comm = foreach_cell.get_amr_mesh().getMpiComm();
   const int mpi_rank = mpi_comm.MPI_Comm_rank();
@@ -2531,8 +2584,8 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   {
     U.at(iCell, Irhs) = (cosmo_run) ? b_cosmo(U, iCell, rho_mean, aexp) : b(U, iCell, rho_mean, four_Pi_G);
   });
-  const auto octs_intermediate = get_subview_octs_intermediate(level_coarse, global_level_max_found);
-  foreach_cell.foreach_intermediate_cell_in_octants( "Set RHS of Laplacian, based on rho", iter_space, octs_intermediate,
+  const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(level_coarse, global_level_max_found);
+  foreach_cell.foreach_cell_in_octants<nonGhosts, Intermediates>( "Set RHS of Laplacian, based on rho", iter_space, octs_intermediate,
     KOKKOS_LAMBDA(const CellIndex& iCell)
   {
     Uintermediate.at( iCell, Irhs ) = (cosmo_run) ? b_cosmo(Uintermediate, iCell, rho_mean, aexp) : b(Uintermediate, iCell, rho_mean, four_Pi_G);
@@ -2549,7 +2602,7 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   } 
   catch (const std::runtime_error& e) 
   {
-    std::cerr << "Warning: Could not retrieve 'iter' from scalar_data.\n";
+    if (mpi_rank == 0) std::cerr << "Warning: Could not retrieve 'iter' from scalar_data.\n";
   }
 
   if (step == 0)

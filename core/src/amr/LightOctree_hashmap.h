@@ -236,7 +236,7 @@ public:
             {
                 const OctantIndex iOct = oct_map.value_at(i);
                 if (!iOct.isIntermediate) return; // skip non-intermediate octants
-                const uint32_t ioct_local = OctantIndex::OctantIndex_to_iOctLocal(iOct, nbIntermediates);
+                const uint32_t ioct_local = storage_intermediate.get_ioct_local(iOct);
                 const key_t key = oct_map.key_at(i);
                 oct_data_intermediate( ioct_local, oct_data_field_t::ICORNERX ) = key.i;
                 oct_data_intermediate( ioct_local, oct_data_field_t::ICORNERY ) = key.j;
@@ -474,8 +474,8 @@ public:
         auto it = oct_map.find(logical_coords);
         if( oct_map.valid_at(it) )
             return oct_map.value_at(it);
-        else // Is bigger
-            return OctantIndex{std::numeric_limits<uint32_t>::max(), false, false}; // Not found, return invalid octant
+        // Is bigger
+        return OctantIndex{std::numeric_limits<uint32_t>::max(), false, false}; // Not found, return invalid octant
     }
     
     KOKKOS_INLINE_FUNCTION

@@ -60,14 +60,8 @@ public:
   // Octants per level
   void count_octants_per_level(const LightOctree& lmesh);
   void sort_octants_per_level(const LightOctree& lmesh);
-  const Kokkos::View<uint32_t*> get_subview_octs(const level_t level) const;
-  const Kokkos::View<uint32_t*> get_subview_octs(const level_t level_min, const level_t level_max) const;
-  const Kokkos::View<uint32_t*> get_subview_octs_intermediate(const level_t level) const;
-  const Kokkos::View<uint32_t*> get_subview_octs_intermediate(const level_t level_min, const level_t level_max) const;
-  const Kokkos::View<uint32_t*> get_subview_ghosts(const level_t level) const;
-  const Kokkos::View<uint32_t*> get_subview_ghosts(const level_t level_min, const level_t level_max) const;
-  const Kokkos::View<uint32_t*> get_subview_ghosts_intermediate(const level_t level) const;
-  const Kokkos::View<uint32_t*> get_subview_ghosts_intermediate(const level_t level_min, const level_t level_max) const;
+  template <Target target> const Kokkos::View<uint32_t*> get_subview_octs(const level_t level) const;
+  template <Target target> const Kokkos::View<uint32_t*> get_subview_octs(const level_t level_min, const level_t level_max) const;
 
   // RHS
   KOKKOS_INLINE_FUNCTION static real_t b(const UserData::FieldAccessor& Uin, const ForeachCell::CellIndex& iCell_Uin, real_t rho_mean, real_t four_Pi_G);
