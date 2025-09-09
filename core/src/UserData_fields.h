@@ -51,7 +51,7 @@ public:
     {
         using CellArray_global = AMRBlockForeachCell_CellArray_impl::CellArray_global;
         using CellArray_global_ghosted = AMRBlockForeachCell_CellArray_impl::CellArray_global_ghosted;
-        auto fields_new = CellArray_global_ghosted(CellArray_global{fields.U, fields.bx, fields.by, fields.bz, fields.fm}, fields.Ughost, lmesh);;
+        auto fields_new = CellArray_global_ghosted(CellArray_global{fields.U, fields.bx, fields.by, fields.bz, fields.nbOcts, fields.fm}, fields.Ughost, lmesh);
         fields = fields_new;
     }
 

@@ -115,7 +115,7 @@ public:
 
     // Do not initialize View to improve first-touch behavior
     DataArrayBlock data(Kokkos::ViewAllocateWithoutInitializing(name), bx*by*bz, nvars, nbOctsPerGroup);
-    return CellArray_patch({ data, bx, by, bz, fm });
+    return CellArray_patch({ data, bx, by, bz, (uint32_t)data.extent(2), fm });
   }  
   
   template <typename Function>

@@ -264,6 +264,7 @@ public:
 
   View_t U;    
   uint32_t bx,by,bz;
+  uint32_t nbOcts;
   id2index_t fm;
 
   KOKKOS_INLINE_FUNCTION

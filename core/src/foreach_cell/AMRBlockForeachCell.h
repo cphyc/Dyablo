@@ -289,7 +289,7 @@ public:
 
     const LightOctree& lmesh = pmesh.getLightOctree();
 
-    return CellArray_global_ghosted(CellArray_global{U, bx, by, bz, fm}, Ughost, lmesh);
+    return CellArray_global_ghosted(CellArray_global{U, bx, by, bz, (uint32_t)U.extent(2), fm}, Ughost, lmesh);
   }
   /**
    * Reserve a new temporary ghosted cell array local to each patch. 

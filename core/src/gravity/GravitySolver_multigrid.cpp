@@ -34,7 +34,7 @@ struct GravitySolver_multigrid::Data{
   Kokkos::Array<BoundaryConditionType, 3> boundarycondition;
 
   bool cosmo_run;
-  real_t four_Pi_G;
+  real_t four_Pi_G_physical;
   real_t MG_eps;
   uint32_t first_mpi_multigrid_level;
   level_t level_coarse;
@@ -85,8 +85,7 @@ GravitySolver_multigrid::GravitySolver_multigrid(
     }))
 {
   int ndim = configMap.getValue<int>("mesh", "ndim", 3);
-  if(!pdata->cosmo_run)
-    pdata->four_Pi_G = configMap.getValue<real_t>("gravity", "4_Pi_G", 1.0);
+  pdata->four_Pi_G_physical = configMap.getValue<real_t>("gravity", "4_Pi_G", 1.0);
   
   DYABLO_ASSERT_HOST_RELEASE( ndim == 3, "GravitySolver_mg can only run in 3D" )
   
@@ -144,6 +143,8 @@ void GravitySolver_multigrid::gradient_3pt()
   auto& U = pdata->U;
   const auto& Uintermediate = pdata->Uintermediate;
   const auto iter_space = Uintermediate.getShape();
+  const real_t xmin = pdata->xmin, ymin = pdata->ymin, zmin = pdata->zmin;
+  const real_t xmax = pdata->xmax, ymax = pdata->ymax, zmax = pdata->zmax;
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
@@ -155,9 +156,9 @@ void GravitySolver_multigrid::gradient_3pt()
     const level_t level = cells.getLevel(iCell);
     const uint32_t nocts1d = 1u << level;
     const Kokkos::Array<real_t, 3> size = {
-          1./(nocts1d * iter_space.bx), 
-          1./(nocts1d * iter_space.by), 
-          1./(nocts1d * iter_space.bz)
+          (xmax-xmin)/(nocts1d * iter_space.bx), 
+          (ymax-ymin)/(nocts1d * iter_space.by), 
+          (zmax-zmin)/(nocts1d * iter_space.bz)
     };
     const real_t phi_C = U.at(iCell, Iphi);
 
@@ -359,9 +360,9 @@ void GravitySolver_multigrid::initialise_lhs_from_rhs(const level_t level)
   const auto iter_space = Uintermediate.getShape();
   const uint32_t nocts1d = 1u << level;
   const Kokkos::Array<real_t, 3> size = {
-        1./(nocts1d * iter_space.bx), 
-        1./(nocts1d * iter_space.by), 
-        1./(nocts1d * iter_space.bz)
+        (pdata->xmax-pdata->xmin)/(nocts1d * iter_space.bx), 
+        (pdata->ymax-pdata->ymin)/(nocts1d * iter_space.by), 
+        (pdata->zmax-pdata->zmin)/(nocts1d * iter_space.bz)
   };
   constexpr bool nonGhosts = false;
   constexpr bool Ghosts = true;
@@ -982,9 +983,9 @@ void GravitySolver_multigrid::operator_uniform(const level_t level)
   const auto iter_space = Uintermediate.getShape();
   const uint32_t nocts1d = 1u << level;
   const Kokkos::Array<real_t, 3> size = {
-        1./(nocts1d * iter_space.bx), 
-        1./(nocts1d * iter_space.by), 
-        1./(nocts1d * iter_space.bz)
+        (pdata->xmax-pdata->xmin)/(nocts1d * iter_space.bx), 
+        (pdata->ymax-pdata->ymin)/(nocts1d * iter_space.by), 
+        (pdata->zmax-pdata->zmin)/(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
   const real_t factor = 2.0/(size[IX]*size[IX]) + 2.0/(size[IY]*size[IY]) + 2.0/(size[IZ]*size[IZ]);
@@ -1080,9 +1081,9 @@ void GravitySolver_multigrid::residual_uniform(const level_t level)
   const auto iter_space = Uintermediate.getShape();
   const uint32_t nocts1d = 1u << level;
   const Kokkos::Array<real_t, 3> size = {
-        1./(nocts1d * iter_space.bx), 
-        1./(nocts1d * iter_space.by), 
-        1./(nocts1d * iter_space.bz)
+        (pdata->xmax-pdata->xmin)/(nocts1d * iter_space.bx), 
+        (pdata->ymax-pdata->ymin)/(nocts1d * iter_space.by), 
+        (pdata->zmax-pdata->zmin)/(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
   const real_t factor = 2.0/(size[IX]*size[IX]) + 2.0/(size[IY]*size[IY]) + 2.0/(size[IZ]*size[IZ]);
@@ -1185,9 +1186,9 @@ void GravitySolver_multigrid::operator_intermediate_amr_correction(const level_t
   const auto iter_space = Uintermediate.getShape();
   const uint32_t nocts1d = 1u << level;
   const Kokkos::Array<real_t, 3> size = {
-        1./(nocts1d * iter_space.bx), 
-        1./(nocts1d * iter_space.by), 
-        1./(nocts1d * iter_space.bz)
+        (pdata->xmax-pdata->xmin)/(nocts1d * iter_space.bx), 
+        (pdata->ymax-pdata->ymin)/(nocts1d * iter_space.by), 
+        (pdata->zmax-pdata->zmin)/(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
   constexpr bool nonGhosts = false;
@@ -1230,9 +1231,9 @@ void GravitySolver_multigrid::residual_intermediate_amr_correction(const level_t
   const auto iter_space = Uintermediate.getShape();
   const uint32_t nocts1d = 1u << level;
   const Kokkos::Array<real_t, 3> size = {
-        1./(nocts1d * iter_space.bx), 
-        1./(nocts1d * iter_space.by), 
-        1./(nocts1d * iter_space.bz)
+        (pdata->xmax-pdata->xmin)/(nocts1d * iter_space.bx), 
+        (pdata->ymax-pdata->ymin)/(nocts1d * iter_space.by), 
+        (pdata->zmax-pdata->zmin)/(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
   constexpr bool nonGhosts = false;
@@ -1322,9 +1323,9 @@ void GravitySolver_multigrid::operator_amr_finest(const level_t level)
   const auto iter_space = Uintermediate.getShape();
   const uint32_t nocts1d = 1u << level;
   const Kokkos::Array<real_t, 3> size = {
-        1./(nocts1d * iter_space.bx), 
-        1./(nocts1d * iter_space.by), 
-        1./(nocts1d * iter_space.bz)
+        (pdata->xmax-pdata->xmin)/(nocts1d * iter_space.bx), 
+        (pdata->ymax-pdata->ymin)/(nocts1d * iter_space.by), 
+        (pdata->zmax-pdata->zmin)/(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
   const real_t factor = 2.0/(size[IX]*size[IX]) + 2.0/(size[IY]*size[IY]) + 2.0/(size[IZ]*size[IZ]);
@@ -1382,9 +1383,9 @@ void GravitySolver_multigrid::residual_amr_finest(const level_t level)
   const auto iter_space = Uintermediate.getShape();
   const uint32_t nocts1d = 1u << level;
   const Kokkos::Array<real_t, 3> size = {
-        1./(nocts1d * iter_space.bx), 
-        1./(nocts1d * iter_space.by), 
-        1./(nocts1d * iter_space.bz)
+        (pdata->xmax-pdata->xmin)/(nocts1d * iter_space.bx), 
+        (pdata->ymax-pdata->ymin)/(nocts1d * iter_space.by), 
+        (pdata->zmax-pdata->zmin)/(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
   const real_t factor = 2.0/(size[IX]*size[IX]) + 2.0/(size[IY]*size[IY]) + 2.0/(size[IZ]*size[IZ]);
@@ -1618,9 +1619,9 @@ void GravitySolver_multigrid::gauss_seidel_intermediate_amr_correction_rb(const 
   const auto iter_space = Uintermediate.getShape();
   const uint32_t nocts1d = 1u << level;
   const Kokkos::Array<real_t, 3> size = {
-        1./(nocts1d * iter_space.bx), 
-        1./(nocts1d * iter_space.by), 
-        1./(nocts1d * iter_space.bz)
+        (pdata->xmax-pdata->xmin)/(nocts1d * iter_space.bx), 
+        (pdata->ymax-pdata->ymin)/(nocts1d * iter_space.by), 
+        (pdata->zmax-pdata->zmin)/(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
   constexpr bool nonGhosts = false;
@@ -1655,9 +1656,9 @@ void GravitySolver_multigrid::gauss_seidel_leaves_amr_finest_rb(const level_t le
   const auto iter_space = Uintermediate.getShape();
   const uint32_t nocts1d = 1u << level;
   const Kokkos::Array<real_t, 3> size = {
-        1./(nocts1d * iter_space.bx), 
-        1./(nocts1d * iter_space.by), 
-        1./(nocts1d * iter_space.bz)
+        (pdata->xmax-pdata->xmin)/(nocts1d * iter_space.bx), 
+        (pdata->ymax-pdata->ymin)/(nocts1d * iter_space.by), 
+        (pdata->zmax-pdata->zmin)/(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
   constexpr bool nonGhost = false;
@@ -1692,9 +1693,9 @@ void GravitySolver_multigrid::gauss_seidel_leaves_uniform_rb(const level_t level
   const auto iter_space = Uintermediate.getShape();
   const uint32_t nocts1d = 1u << level;
   const Kokkos::Array<real_t, 3> size = {
-        1./(nocts1d * iter_space.bx), 
-        1./(nocts1d * iter_space.by), 
-        1./(nocts1d * iter_space.bz)
+        (pdata->xmax-pdata->xmin)/(nocts1d * iter_space.bx), 
+        (pdata->ymax-pdata->ymin)/(nocts1d * iter_space.by), 
+        (pdata->zmax-pdata->zmin)/(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
   constexpr bool nonGhosts = false;
@@ -1729,9 +1730,9 @@ void GravitySolver_multigrid::gauss_seidel_intermediate_rb(const level_t level)
   const auto iter_space = Uintermediate.getShape();
   const uint32_t nocts1d = 1u << level;
   const Kokkos::Array<real_t, 3> size = {
-        1./(nocts1d * iter_space.bx), 
-        1./(nocts1d * iter_space.by), 
-        1./(nocts1d * iter_space.bz)
+        (pdata->xmax-pdata->xmin)/(nocts1d * iter_space.bx), 
+        (pdata->ymax-pdata->ymin)/(nocts1d * iter_space.by), 
+        (pdata->zmax-pdata->zmin)/(nocts1d * iter_space.bz)
   };
   const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
   constexpr bool nonGhosts = false;
@@ -2040,25 +2041,6 @@ real_t GravitySolver_multigrid::b(const UserData::FieldAccessor& Uin, const Cell
 {
   return four_Pi_G*(Uin.at(iCell_Uin, Irho)-rho_mean);
 }
-
-/**
- * @brief Right hand term of the Poisson equation in the cosmological case.
- * 
- * The right hand side of the Poisson equation for gravity in cosmological cases.
- * This expression comes from Martel & Shapiro 1998, eq. (38).
- * 
- * @param[in] Uin Array to read the density from.
- * @param[in] iCell_Uin Cell index where to read the density.
- * @param[in] rho_mean Average value of rho in the box for periodic cases.
- * @param[in] aexp Expansion factor.
- * @return real_t The right-hand side term value at the given cell.
- */
-KOKKOS_INLINE_FUNCTION
-real_t GravitySolver_multigrid::b_cosmo(const UserData::FieldAccessor& Uin, const CellIndex& iCell_Uin, real_t rho_mean, real_t aexp)
-{
-  return 6.0*aexp*(Uin.at(iCell_Uin, Irho)/rho_mean-1.0);
-}
-
 
 real_t GravitySolver_multigrid::MPI_Allreduce_scalar( real_t local_v )
 {
@@ -2555,9 +2537,9 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
     const level_t level = cells.getLevel(iCell);
     const uint32_t nocts1d = 1u << level;
     const Kokkos::Array<real_t, 3> size = {
-          1./(nocts1d * iter_space.bx), 
-          1./(nocts1d * iter_space.by), 
-          1./(nocts1d * iter_space.bz)
+          (xmax-xmin)/(nocts1d * iter_space.bx), 
+          (ymax-ymin)/(nocts1d * iter_space.by), 
+          (zmax-zmin)/(nocts1d * iter_space.bz)
     };
     const real_t rhoi = U.at(iCell, Irho);
     update_rhomean += rhoi * size[IX] * size[IY] * size[IZ];
@@ -2567,10 +2549,10 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   if (mpi_rank == 0) printf("rhomean = %.5e\n", rho_mean);
 
   const bool cosmo_run = pdata->cosmo_run;
-  real_t aexp = 0.;
+  real_t aexp = 1.;
   if( cosmo_run )
     aexp = scalar_data.get<real_t>("aexp");
-  const real_t four_Pi_G = pdata->four_Pi_G;
+  const real_t four_Pi_G = Units::physical_to_supercomoving<decltype(Units::NEWTON_G())>(pdata->four_Pi_G_physical, aexp);
 
   // Compute rho on intermediate levels
   for( level_t level = level_coarse + 1; level <= global_level_max_found; level++ )
@@ -2582,13 +2564,13 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   foreach_cell.foreach_cell("Set RHS of Laplacian, based on rho", iter_space,
     KOKKOS_LAMBDA(const CellIndex & iCell)
   {
-    U.at(iCell, Irhs) = (cosmo_run) ? b_cosmo(U, iCell, rho_mean, aexp) : b(U, iCell, rho_mean, four_Pi_G);
+    U.at(iCell, Irhs) = b(U, iCell, rho_mean, four_Pi_G);
   });
   const auto octs_intermediate = get_subview_octs<Target::INTERMEDIATES>(level_coarse, global_level_max_found);
   foreach_cell.foreach_cell_in_octants<nonGhosts, Intermediates>( "Set RHS of Laplacian, based on rho", iter_space, octs_intermediate,
     KOKKOS_LAMBDA(const CellIndex& iCell)
   {
-    Uintermediate.at( iCell, Irhs ) = (cosmo_run) ? b_cosmo(Uintermediate, iCell, rho_mean, aexp) : b(Uintermediate, iCell, rho_mean, four_Pi_G);
+    Uintermediate.at( iCell, Irhs ) = b(Uintermediate, iCell, rho_mean, four_Pi_G);
   }); 
 
 

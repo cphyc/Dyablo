@@ -88,7 +88,7 @@ public:
     {
       using Inv_Time = decltype( 1/Units::s() );
       real_t H0_ini = configMap.getValue_in_code_unit<Inv_Time>("cosmology", "H0");
-      DYABLO_ASSERT_HOST_RELEASE( H0 == H0_ini, 
+      DYABLO_ASSERT_HOST_RELEASE( fabs(H0 - H0_ini) < 1e-10, 
           ".ini parameter does not match grafic file : \n"
           << ".ini cosmology/H0 : " << H0_ini << "\n"
           << "grafic file : `" << this->H0 << "`"
@@ -110,7 +110,7 @@ public:
     {
       // Mean mass for a raw cell used for refinement
       double Lbox = (xmax-xmin);
-      double mass0 = rhoc * omegam/(Lbox*Lbox*Lbox);
+      double mass0 = rhoc * omegam * (Lbox*Lbox*Lbox)/(header.nx*header.ny*header.nz);
       std::cout << "COSMO mass0=" << mass0 << std::endl;
 
       real_t mass_coarsen_factor = configMap.getValue<real_t>("cosmology", "mass_coarsen_factor", 0.1);
