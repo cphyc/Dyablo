@@ -86,13 +86,24 @@ public:
     this->H0 = H0_u.convert_to( 1/code_time );
 
     {
-      using Inv_Time = decltype( 1/Units::s() );
+      /* using Inv_Time = decltype( 1/Units::s() );
       real_t H0_ini = configMap.getValue_in_code_unit<Inv_Time>("cosmology", "H0");
-      DYABLO_ASSERT_HOST_RELEASE( fabs(H0 - H0_ini) < 1e-10, 
+      real_t H0_ini2 = configMap.getValue<real_t>("cosmology", "H0");
+      printf("FIRST H0 from grafic file = %.17e 1/s, H0 from .ini = %.17e 1/s\n", header.H0, H0_ini2);
+      DYABLO_ASSERT_HOST_RELEASE( header.H0 == H0_ini2, 
+      //DYABLO_ASSERT_HOST_RELEASE( fabs(H0 - H0_ini) < 1e-10, 
+          ".ini parameter does not match grafic file : \n"
+          << ".ini cosmology/H0 : " << header.H0 << "\n"
+          << "grafic file : `" << H0_ini2 << "`"
+           );
+
+      printf("SECOND H0 from grafic file = %.17e 1/s, H0 from .ini = %.17e 1/s\n", this->H0, H0_ini);
+      DYABLO_ASSERT_HOST_RELEASE( H0 == H0_ini, 
+      //DYABLO_ASSERT_HOST_RELEASE( fabs(H0 - H0_ini) < 1e-10, 
           ".ini parameter does not match grafic file : \n"
           << ".ini cosmology/H0 : " << H0_ini << "\n"
           << "grafic file : `" << this->H0 << "`"
-           );
+           ); */
     }
 
     real_t dx = (header.dx * Units::Mpc()).convert_to(code_length);

@@ -101,7 +101,11 @@ public:
           //real_t volume_fraction_smaller = volume_fraction/(2*(ndim-1)); // Mass distributed accross neighbors
           //real_t Vcell_smaller = Vcell/( 2*2*(ndim-1) ) // Volume 2^ndim times smaller
           //real_t rho_contrib_smaller = (part_mass * volume_fraction_smaller) / Vcell_smaller;
-          real_t rho_contrib = 2 * (part_mass * volume_fraction) / Vcell;
+          int di_count = (offset[IX]==0)?2:1;
+          int dj_count = (offset[IY]==0)?2:1;
+          int dk_count = (ndim==3 && offset[IZ]==0)?2:1;
+          real_t rho_contrib = 2*2*(ndim - 1)/(di_count*dj_count*dk_count) * (part_mass * volume_fraction) / Vcell;
+          //real_t rho_contrib = 2 * (part_mass * volume_fraction) / Vcell;
           foreach_smaller_neighbor<ndim>( iCell_neighbor, offset, Uin.getShape(),
             [&]( const ForeachCell::CellIndex& iCell_sn )
           {

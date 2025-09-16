@@ -98,7 +98,11 @@ public:
         }
         else 
         {
-          int nneighbors = 2*(ndim-1);
+          //int nneighbors = 2*(ndim-1);
+          int di_count = (offset[IX]==0)?2:1;
+          int dj_count = (offset[IY]==0)?2:1;
+          int dk_count = (ndim==3 && offset[IZ]==0)?2:1;
+          int nneighbors = di_count*dj_count*dk_count;
           foreach_smaller_neighbor<ndim>( iCell_neighbor, offset, Uin.getShape(),
             [&]( const ForeachCell::CellIndex& iCell_sn )
           {

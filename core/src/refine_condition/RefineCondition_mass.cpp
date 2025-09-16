@@ -77,7 +77,7 @@ public:
     if (particle_update_density) {
       if (!U.has_field("rho_g"))
         U.new_fields({"rho_g"});
-      particle_update_density->update( U, scalar_data );
+      particle_update_density->update( U, scalar_data ); // FIXME: Second time calling NGP/CIC. Not useful?? 
       field_name = "rho_g";
     }
 

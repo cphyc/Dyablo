@@ -15,7 +15,7 @@ using CellIndex = typename ForeachCell::CellIndex;
 enum VarIndex_MG
 {
   Irho, Igx, Igy, Igz, Iphi,
-  Isolution, Irhs, Iresidual, Imask
+  Isolution, Irhs, Iresidual, Imask, Iphix, Iphiy, Iphiz,
 };
 
 /**
@@ -119,10 +119,10 @@ void GravitySolver_multigrid::get_weight_and_contrib_gradient_3pt(Array_t& U, Ar
 {
   CellIndex::offset_t offset = {}; offset[dir] = side;
   const CellIndex iCell_X = iCell.getNeighbor_ghost(offset, iter_space);
-  constexpr Kokkos::Array< VarIndex, 3 > IG = {Igx, Igy, Igz};
+  constexpr Kokkos::Array< VarIndex, 3 > IP = {Iphix, Iphiy, Iphiz};
   if (CellIndex::BIGGER == iCell_X.status) 
   {
-    contrib = U.at(iCell, IG[dir]);
+    contrib = U.at(iCell, IP[dir]);
     w = 0.5;
   }
   else
@@ -180,10 +180,127 @@ void GravitySolver_multigrid::gradient_3pt()
 /**
  * @brief Computes the five-point finite-difference gradient over the entire domain.
  */
-// TODO: To write 5-pt gradient!
 void GravitySolver_multigrid::gradient_5pt()
 {
-  DYABLO_ASSERT_HOST_RELEASE(false, "gradient_5pt not implemented yet");
+  auto& U = pdata->U;
+  const auto& Uintermediate = pdata->Uintermediate;
+  const auto iter_space = Uintermediate.getShape();
+  const real_t xmin = pdata->xmin, ymin = pdata->ymin, zmin = pdata->zmin;
+  const real_t xmax = pdata->xmax, ymax = pdata->ymax, zmax = pdata->zmax;
+  const ForeachCell& foreach_cell = pdata->foreach_cell;
+  const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
+  const Kokkos::Array<BoundaryConditionType, 3>& boundarycondition = pdata->boundarycondition;
+  constexpr Kokkos::Array< VarIndex, 3 > IG = {Igx, Igy, Igz};
+  constexpr Kokkos::Array< VarIndex, 3 > IP = {Iphix, Iphiy, Iphiz};
+
+  foreach_cell.foreach_cell("Gravity_mg::construct_force_field", iter_space, 
+    KOKKOS_LAMBDA(const CellIndex& iCell)
+  { 
+    const level_t level = cells.getLevel(iCell);
+    const uint32_t nocts1d = 1u << level;
+    const Kokkos::Array<real_t, 3> size = {
+          (xmax-xmin)/(nocts1d * iter_space.bx), 
+          (ymax-ymin)/(nocts1d * iter_space.by), 
+          (zmax-zmin)/(nocts1d * iter_space.bz)
+    };
+    const real_t phi_C = U.at(iCell, Iphi);
+
+    auto phi = [&](const CellIndex& iCell) -> real_t
+    {
+      return (iCell.iOct.isIntermediate) ? Uintermediate.at(iCell, Iphi) : U.at(iCell, Iphi);
+    };
+
+    for ( ComponentIndex3D dir : {IX,IY,IZ} )
+    {
+      CellIndex::offset_t offset = {}; offset[dir] = -1;
+      const CellIndex iCell_L = iCell.getNeighbor_ghost(offset, iter_space);
+      offset[dir] = -2;
+      const CellIndex iCell_2L = iCell.getNeighbor_ghost(offset, iter_space);
+      offset[dir] = 1;
+      const CellIndex iCell_R = iCell.getNeighbor_ghost(offset, iter_space);
+      offset[dir] = 2;
+      const CellIndex iCell_2R = iCell.getNeighbor_ghost(offset, iter_space);
+
+      if (CellIndex::BIGGER == iCell_L.status)
+      {
+        real_t phi_L = U.at(iCell, IP[dir]);
+        real_t phi_R = phi(iCell_R);
+        real_t phi_2R = phi(iCell_2R);
+        if( BC_ABSORBING == boundarycondition[dir] && iCell_L.is_boundary() ) phi_L = 0.;
+        if( BC_ABSORBING == boundarycondition[dir] && iCell_R.is_boundary() ) phi_R = 0.;
+        if( BC_ABSORBING == boundarycondition[dir] && iCell_2R.is_boundary() ) phi_2R = 0.; 
+        constexpr real_t f_L = 16./15.;
+        constexpr real_t f_C = -0.5;
+        constexpr real_t f_R = -2./3.;
+        constexpr real_t f_2R = 1./10.;
+        U.at(iCell, IG[dir]) = (f_L * phi_L + f_C * phi_C + f_R * phi_R + f_2R * phi_2R)/size[dir];
+      }
+      else if (CellIndex::BIGGER == iCell_R.status)
+      {
+        real_t phi_R = U.at(iCell, IP[dir]);
+        real_t phi_L = phi(iCell_L);
+        real_t phi_2L = phi(iCell_2L);
+        if( BC_ABSORBING == boundarycondition[dir] && iCell_2L.is_boundary() ) phi_2L = 0.;
+        if( BC_ABSORBING == boundarycondition[dir] && iCell_L.is_boundary() ) phi_L = 0.;
+        if( BC_ABSORBING == boundarycondition[dir] && iCell_R.is_boundary() ) phi_R = 0.;
+        constexpr real_t f_2L = -1./10.;
+        constexpr real_t f_L = 2./3.;
+        constexpr real_t f_C = 0.5;
+        constexpr real_t f_R = -16./15.;
+        U.at(iCell, IG[dir]) = (f_2L * phi_2L + f_L * phi_L + f_C * phi_C + f_R * phi_R)/size[dir];
+      }
+      else if (CellIndex::BIGGER == iCell_2L.status)
+      {
+        real_t phi_2L = U.at(iCell_L, IP[dir]);
+        real_t phi_L = phi(iCell_L);
+        real_t phi_R = phi(iCell_R);
+        real_t phi_2R = phi(iCell_2R);
+        if( BC_ABSORBING == boundarycondition[dir] && iCell_2L.is_boundary() ) phi_2L = 0.;
+        if( BC_ABSORBING == boundarycondition[dir] && iCell_L.is_boundary() ) phi_L = 0.;
+        if( BC_ABSORBING == boundarycondition[dir] && iCell_R.is_boundary() ) phi_R = 0.;
+        if( BC_ABSORBING == boundarycondition[dir] && iCell_2R.is_boundary() ) phi_2R = 0.; 
+        constexpr real_t f_2L = -64./210.;
+        constexpr real_t f_L = 1.;
+        constexpr real_t f_C = -35./210.;
+        constexpr real_t f_R = -126./210.;
+        constexpr real_t f_2R = 15./210.;
+        U.at(iCell, IG[dir]) = (f_2L * phi_2L + f_L * phi_L + f_C * phi_C + f_R * phi_R + f_2R * phi_2R)/size[dir];
+      }
+      else if (CellIndex::BIGGER == iCell_2R.status)
+      {
+        real_t phi_2L = phi(iCell_2L);
+        real_t phi_L = phi(iCell_L);
+        real_t phi_R = phi(iCell_R);
+        real_t phi_2R = U.at(iCell_R, IP[dir]);
+        if( BC_ABSORBING == boundarycondition[dir] && iCell_2L.is_boundary() ) phi_2L = 0.;
+        if( BC_ABSORBING == boundarycondition[dir] && iCell_L.is_boundary() ) phi_L = 0.;
+        if( BC_ABSORBING == boundarycondition[dir] && iCell_R.is_boundary() ) phi_R = 0.;
+        if( BC_ABSORBING == boundarycondition[dir] && iCell_2R.is_boundary() ) phi_2R = 0.; 
+        constexpr real_t f_2L = -15./210.;
+        constexpr real_t f_L = 126./210.;
+        constexpr real_t f_C = 35./210.;
+        constexpr real_t f_R = -1.;
+        constexpr real_t f_2R = 64./210.;
+        U.at(iCell, IG[dir]) = (f_2L * phi_2L + f_L * phi_L + f_C * phi_C + f_R * phi_R + f_2R * phi_2R)/size[dir];
+      }
+      else // All cells at same level
+      {
+        real_t phi_2L = phi(iCell_2L);
+        real_t phi_L = phi(iCell_L);
+        real_t phi_R = phi(iCell_R);
+        real_t phi_2R = phi(iCell_2R);
+        if( BC_ABSORBING == boundarycondition[dir] && iCell_2L.is_boundary() ) phi_2L = 0.;
+        if( BC_ABSORBING == boundarycondition[dir] && iCell_L.is_boundary() ) phi_L = 0.;
+        if( BC_ABSORBING == boundarycondition[dir] && iCell_R.is_boundary() ) phi_R = 0.;
+        if( BC_ABSORBING == boundarycondition[dir] && iCell_2R.is_boundary() ) phi_2R = 0.; 
+        constexpr real_t f_2L = -1./12.;
+        constexpr real_t f_L = 2./3.;
+        constexpr real_t f_R = -2./3.;
+        constexpr real_t f_2R = 1./12.;
+        U.at(iCell, IG[dir]) = (f_2L * phi_2L + f_L * phi_L + f_R * phi_R + f_2R * phi_2R)/size[dir];
+      }
+    }
+  });
 }
 
 
@@ -197,7 +314,7 @@ void GravitySolver_multigrid::compute_coarse_fine_transition(level_t level)
   const auto iter_space = Uintermediate.getShape();
   const ForeachCell& foreach_cell = pdata->foreach_cell;
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
-  constexpr Kokkos::Array< VarIndex, 3 > IG = {Igx, Igy, Igz};
+  constexpr Kokkos::Array< VarIndex, 3 > IP = {Iphix, Iphiy, Iphiz};
   constexpr bool nonGhosts = false;
   constexpr bool Leaves = false;
 
@@ -212,7 +329,7 @@ void GravitySolver_multigrid::compute_coarse_fine_transition(level_t level)
       const CellIndex iCell_n = iCell.getNeighbor_ghost_at_level( level, offset, iter_space);
       
       if (CellIndex::BIGGER == iCell_n.status) 
-        U.at(iCell, IG[dir]) = average_8bigger_neighbors(U, Uintermediate, level, iCell, iter_space, offset);
+        U.at(iCell, IP[dir]) = average_8bigger_neighbors(U, Uintermediate, level, iCell, iter_space, offset);
     }
   });
 }
@@ -1288,10 +1405,10 @@ void GravitySolver_multigrid::get_weight_and_contrib_amr_finest(Array_t& U, Arra
 {
   CellIndex::offset_t offset = {}; offset[dir] = side;
   const CellIndex iCell_X = iCell.getNeighbor_ghost_at_level(level, offset, iter_space);
-  constexpr Kokkos::Array< VarIndex, 3 > IG = {Igx, Igy, Igz};
+  constexpr Kokkos::Array< VarIndex, 3 > IP = {Iphix, Iphiy, Iphiz};
   if (CellIndex::BIGGER == iCell_X.status) 
   {
-    contrib = U.at(iCell, IG[dir]);
+    contrib = U.at(iCell, IP[dir]);
     w = 0.5;
   }
   else 
@@ -2480,7 +2597,7 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
 
 
   // FIXME: Currently, we need to use Uintermediate.getShape() instead of U.getShape(), as the latter is not updated with new lmesh.
-  U_.new_fields({"solution", "rhs",  "res", "mask" });
+  U_.new_fields({"solution", "rhs",  "res", "mask", "phix", "phiy", "phiz" });
   U_.new_intermediate_fields( {"rho","gphi", "solution", "rhs", "res", "mask"} ); 
   const std::vector<UserData_fields::FieldAccessor_FieldInfo> fields_info = {
     {"rho", Irho},
@@ -2495,6 +2612,9 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   fields_info_leaves.push_back({"gx", Igx});
   fields_info_leaves.push_back({"gy", Igy});
   fields_info_leaves.push_back({"gz", Igz});
+  fields_info_leaves.push_back({"phix", Iphix});
+  fields_info_leaves.push_back({"phiy", Iphiy});
+  fields_info_leaves.push_back({"phiz", Iphiz});
 
   UserData::FieldAccessor U = U_.getAccessor({fields_info_leaves});
   UserData::FieldAccessor Uintermediate = U_.getAccessor_intermediate({fields_info});
@@ -2661,10 +2781,10 @@ void GravitySolver_multigrid::update_gravity_field( UserData& U_, ScalarSimulati
   // Update force field in U from potential
 
   if (mpi_rank == 0) printf("Now compute Force\n");
-  gradient_3pt(); 
+  gradient_5pt(); 
 
   // FIXME: This only removes the keys in the map, not the actual data which is still stored in memory
-  for (std::string name : {"solution", "rhs",  "res", "mask" })
+  for (std::string name : {"solution", "rhs",  "res", "mask", "phix", "phiy", "phiz" })
     U_.delete_field(name);
   
   U_.erase_intermediate_field();
