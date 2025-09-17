@@ -70,3 +70,7 @@ configure_file(visu_kelvin_helmholtz.pvsm visu_kelvin_helmholtz.pvsm COPYONLY)
 # Kelvin-Helmholtz block-based
 configure_file(test_kelvin_helmholtz_block.ini test_kelvin_helmholtz_block.ini COPYONLY)
 configure_file(visu_kelvin_helmholtz_block.pvsm visu_kelvin_helmholtz_block.pvsm COPYONLY)
+
+# Star feedback test
+configure_file(test_star_feedback.ini test_star_feedback.ini COPYONLY)
+configure_file(validate_star_feedback.py validate_star_feedback.py COPYONLY)

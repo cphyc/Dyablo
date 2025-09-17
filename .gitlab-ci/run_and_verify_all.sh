@@ -54,6 +54,8 @@ run_and_verify test_zeldovitch_grafic.ini "../../../settings/cosmo/validate_zeld
 run_and_verify test_zeldovitch_dyablo.ini "../../../settings/cosmo/validate_zeldovitch.py zeldovitch_main.xmf 0.2 ../../../zeldovitch_dyablo/zeldovitch_dyablo.png" zeldovitch_dyablo 
 run_and_verify test_zeldovitch_particles_dyablo.ini "../../../settings/cosmo/validate_zeldovitch.py zeldovitch_main.xmf 0.2 ../../../zeldovitch_particles_dyablo/zeldovitch_particles_dyablo.png" zeldovitch_particles_dyablo 
 
+run_and_verify test_star_feedback.ini "validate_star_feedback.py star_feedback_main.xmf ../../../star_feedback/star_feedback.png" star_feedback
+
 echo "${err_count}/${run_count} runs failed"
 
 
