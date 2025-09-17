@@ -11,7 +11,7 @@ class InitialConditions_simple_particles : public InitialConditions{
     ForeachParticle foreach_particle;
     real_t gamma0;
     int npart;
-    Kokkos::View<double*> px,py,pz,vx,vy,vz,mass;
+    Kokkos::View<double*> px,py,pz,vx,vy,vz,mass,birth_time;
 public:
   InitialConditions_simple_particles(
         ConfigMap& configMap, 
@@ -23,7 +23,7 @@ public:
     npart(configMap.getValue<int>("simple_particles", "npart", 1)),
     px( "px", npart ), py( "py", npart ), pz( "pz", npart ), 
     vx( "vx", npart ), vy( "vy", npart ), vz( "vz", npart ), 
-    mass( "mass", npart )
+    mass( "mass", npart ), birth_time( "birth_time", npart )
   {    
     auto parse_array = [&](const Kokkos::View<double*>& a, const std::string& var)
     {
@@ -46,6 +46,7 @@ public:
     parse_array(vy, "vy");
     parse_array(vz, "vz");
     parse_array(mass, "mass");
+    parse_array(birth_time, "birth_time");
 
   }
 
@@ -61,13 +62,14 @@ public:
     U.new_ParticleAttribute("particles", "vy");
     U.new_ParticleAttribute("particles", "vz");
     U.new_ParticleAttribute("particles", "mass");
+    U.new_ParticleAttribute("particles", "birth_time");
 
     if (rank == 0) { 
 
       const ForeachParticle::ParticleArray& P = U.getParticleArray("particles"); 
 
       enum VarIndex_particle{
-        IVX, IVY, IVZ, IM
+        IVX, IVY, IVZ, IM, IBIRTH
       };
 
       const UserData::ParticleAccessor Pdata = U.getParticleAccessor("particles", 
@@ -83,6 +85,7 @@ public:
       const Kokkos::View<double*>& vy = this->vy;
       const Kokkos::View<double*>& vz = this->vz;
       const Kokkos::View<double*>& mass = this->mass;
+      const Kokkos::View<double*>& birth_time = this->birth_time;
 
       foreach_particle.foreach_particle("InitialConditions_simple_particles", P,
         KOKKOS_LAMBDA (ParticleData::ParticleIndex iPart) {      
@@ -94,6 +97,7 @@ public:
           Pdata.at(iPart, IVY) = vy(iPart);
           Pdata.at(iPart, IVZ) = vz(iPart);
           Pdata.at(iPart, IM)  = mass(iPart);
+          Pdata.at(iPart, IBIRTH) = birth_time(iPart);
         });
 
     }
