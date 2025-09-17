@@ -11,7 +11,7 @@ class InitialConditions_simple_particles : public InitialConditions{
     ForeachParticle foreach_particle;
     real_t gamma0;
     int npart;
-    Kokkos::View<double*> px,py,pz,vx,vy,vz,mass,birth_time;
+    Kokkos::View<double*> px, py, pz, vx, vy, vz, mass, birth_time, metallicity;
 public:
   InitialConditions_simple_particles(
         ConfigMap& configMap, 
@@ -23,7 +23,8 @@ public:
     npart(configMap.getValue<int>("simple_particles", "npart", 1)),
     px( "px", npart ), py( "py", npart ), pz( "pz", npart ), 
     vx( "vx", npart ), vy( "vy", npart ), vz( "vz", npart ), 
-    mass( "mass", npart ), birth_time( "birth_time", npart )
+    mass( "mass", npart ), birth_time( "birth_time", npart ),
+    metallicity( "metallicity", npart )
   {    
     auto parse_array = [&](const Kokkos::View<double*>& a, const std::string& var)
     {
@@ -47,6 +48,7 @@ public:
     parse_array(vz, "vz");
     parse_array(mass, "mass");
     parse_array(birth_time, "birth_time");
+    parse_array(metallicity, "metallicity");
 
   }
 
@@ -63,20 +65,23 @@ public:
     U.new_ParticleAttribute("particles", "vz");
     U.new_ParticleAttribute("particles", "mass");
     U.new_ParticleAttribute("particles", "birth_time");
+    U.new_ParticleAttribute("particles", "metallicity");
 
     if (rank == 0) { 
 
       const ForeachParticle::ParticleArray& P = U.getParticleArray("particles"); 
 
       enum VarIndex_particle{
-        IVX, IVY, IVZ, IM, IBIRTH
+        IVX, IVY, IVZ, IM, IBIRTH, IMETALLICITY
       };
 
       const UserData::ParticleAccessor Pdata = U.getParticleAccessor("particles", 
                                               {{"vx", IVX}, 
                                                {"vy", IVY},
                                                {"vz", IVZ},
-                                               {"mass", IM}});
+                                               {"mass", IM},
+                                               {"birth_time", IBIRTH},
+                                               {"metallicity", IMETALLICITY}} );
 
       const Kokkos::View<double*>& px = this->px;
       const Kokkos::View<double*>& py = this->py;
@@ -86,6 +91,7 @@ public:
       const Kokkos::View<double*>& vz = this->vz;
       const Kokkos::View<double*>& mass = this->mass;
       const Kokkos::View<double*>& birth_time = this->birth_time;
+      const Kokkos::View<double*>& metallicity = this->metallicity;
 
       foreach_particle.foreach_particle("InitialConditions_simple_particles", P,
         KOKKOS_LAMBDA (ParticleData::ParticleIndex iPart) {      
@@ -98,6 +104,7 @@ public:
           Pdata.at(iPart, IVZ) = vz(iPart);
           Pdata.at(iPart, IM)  = mass(iPart);
           Pdata.at(iPart, IBIRTH) = birth_time(iPart);
+          Pdata.at(iPart, IMETALLICITY) = metallicity(iPart);
         });
 
     }
