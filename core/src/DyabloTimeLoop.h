@@ -358,6 +358,13 @@ public:
       timers
     );
 
+    std::string particle_update_source_term_id = configMap.getValue<std::string>("particles", "source_term", "none");
+    this->particle_source_term = ParticleUpdateFactory::make_instance( particle_update_source_term_id,
+      configMap,
+      this->m_foreach_cell,
+      timers
+    );
+
     std::string mapUserData_id = configMap.getValue<std::string>("amr", "remap", "MapUserData_mean");
     this->mapUserData = MapUserDataFactory::make_instance( mapUserData_id,
       configMap,
@@ -661,6 +668,8 @@ public:
     {
       std::vector<UserData::FieldAccessor::FieldInfo> field_info;
       int nvars = exchange_vars.size();
+      if (nvars == 0)
+        return;
       for(int i=0; i<nvars; i++)
         field_info.push_back( {exchange_vars[i],i} );
       auto Uexchange = U.getAccessor(field_info);
@@ -733,7 +742,13 @@ public:
       if( particle_update_density )
         U.move_field("rho", "rho_bak");
     }
-    
+
+    // Particle source terms
+    if( particle_source_term )
+    {
+      particle_source_term->update( U, m_scalar_data );
+    }
+
     // Move particles
     if( particle_position_updater )
     {
@@ -744,7 +759,7 @@ public:
     // Update hydro
     if( godunov_updater )
     {
-      U.new_fields({"rho_next", "e_tot_next", "rho_vx_next", "rho_vy_next", "rho_vz_next"});    
+      U.new_fields({"rho_next", "e_tot_next", "rho_vx_next", "rho_vy_next", "rho_vz_next"});
       // TODO automatic new fields according to kernel
       if( this->has_mhd ) {
         U.new_fields({"Bx_next", "By_next", "Bz_next"});
@@ -887,7 +902,7 @@ private:
   std::unique_ptr<HyperbolicUpdate> rad_updater;
   bool has_mhd, is_glm; // TODO : remove this
   int ghost_count; // TODO : remove this
-  std::unique_ptr<ParticleUpdate> particle_position_updater, particle_update_density;
+  std::unique_ptr<ParticleUpdate> particle_position_updater, particle_update_density, particle_source_term;
   std::unique_ptr<MapUserData> mapUserData;
   std::unique_ptr<IOManager> io_manager, io_manager_checkpoint;
   std::unique_ptr<GravitySolver> gravity_solver;
