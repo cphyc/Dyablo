@@ -661,6 +661,8 @@ public:
     {
       std::vector<UserData::FieldAccessor::FieldInfo> field_info;
       int nvars = exchange_vars.size();
+      if (nvars == 0)
+        return;
       for(int i=0; i<nvars; i++)
         field_info.push_back( {exchange_vars[i],i} );
       auto Uexchange = U.getAccessor(field_info);
