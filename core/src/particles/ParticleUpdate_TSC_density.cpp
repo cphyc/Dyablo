@@ -61,6 +61,7 @@ public:
       ForeachCell::CellIndex iCell = cells.getCellFromPos( part_pos );
       
       pos_t cell_size = cells.getCellSize( iCell );
+      cell_size[IZ] = (ndim == 2) ? 1.0 : cell_size[IZ];
       pos_t cell_pos = cells.getCellCenter( iCell );
       real_t Vcell = cell_size[IX]*cell_size[IY]*cell_size[IZ];
 
@@ -71,6 +72,7 @@ public:
       };
       
       pos_t v_in =  {0.75-p[IX]*p[IX], 0.75-p[IY]*p[IY], 0.75-p[IZ]*p[IZ]};  // volume fraction in local cell [-0.5, 0.5]
+      v_in[IZ] = (ndim == 2) ? 1.0 : v_in[IZ];
       pos_t v_out_minus = { 0.5*(0.5 - p[IX])*(0.5 - p[IX]), 
                             0.5*(0.5 - p[IY])*(0.5 - p[IY]),
                             0.5*(0.5 - p[IZ])*(0.5 - p[IZ])};     // volume fraction in neighbor cells [-1.5, 0.5]

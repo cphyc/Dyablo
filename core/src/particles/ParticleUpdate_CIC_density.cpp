@@ -61,6 +61,7 @@ public:
       ForeachCell::CellIndex iCell = cells.getCellFromPos( part_pos );
       
       pos_t cell_size = cells.getCellSize( iCell );
+      cell_size[IZ] = (ndim == 2) ? 1.0 : cell_size[IZ];
       pos_t cell_pos = cells.getCellCenter( iCell );
       real_t Vcell = cell_size[IX]*cell_size[IY]*cell_size[IZ];
 
@@ -114,14 +115,16 @@ public:
         }
       };
 
-      apply_rho_contrib( {0              ,0              ,0              });
-      apply_rho_contrib( {part_offset[IX],0              ,0              });
-      apply_rho_contrib( {0              ,part_offset[IY],0              });
-      apply_rho_contrib( {part_offset[IX],part_offset[IY],0              });
-      apply_rho_contrib( {0              ,0              ,part_offset[IZ]});
-      apply_rho_contrib( {part_offset[IX],0              ,part_offset[IZ]});
-      apply_rho_contrib( {0              ,part_offset[IY],part_offset[IZ]});
-      apply_rho_contrib( {part_offset[IX],part_offset[IY],part_offset[IZ]});
+      for (int k = 0; k < ndim - 1; k++)
+      for (int j = 0; j < 2; j++)
+      for (int i = 0; i < 2; i++)
+      {
+        apply_rho_contrib({
+          static_cast<int16_t>(i*part_offset[IX]), 
+          static_cast<int16_t>(j*part_offset[IY]), 
+          static_cast<int16_t>(k*part_offset[IZ])
+        });
+      }
 
     });
 

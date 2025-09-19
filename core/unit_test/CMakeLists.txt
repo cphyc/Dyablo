@@ -141,6 +141,10 @@ dyablo_add_test(utest_Particles ON
   particles/test_Particles.cpp
   main.cpp)
 
+dyablo_add_test(utest_Mass_Assignment_Scheme ON
+  particles/test_Mass_Assignment_Scheme.cpp
+  main.cpp)
+
 ## Implementations registered to a factory that are contained in a separate static library have to be thourouhly tested
 add_library( RegisteringFactory_impl_lib STATIC utils/RegisteringFactory_impl_to_register.cpp )
 #target_link_libraries( RegisteringFactory_impl_lib PRIVATE shared )

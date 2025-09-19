@@ -17,7 +17,16 @@ public:
 
   ~ParticleUpdate_NGP_density() {}
 
-  void update( UserData& U, ScalarSimulationData& scalar_data) 
+  void update( UserData& U, ScalarSimulationData& scalar_data ) 
+  {
+    if( foreach_cell.getDim() == 2 )
+      update_aux<2>(U, scalar_data);
+    else
+      update_aux<3>(U, scalar_data);
+  }
+
+  template< int ndim>
+  void update_aux( UserData& U, ScalarSimulationData& scalar_data) 
   {
     timers.get("ParticleUpdate_NGP_density").start();
 
@@ -45,6 +54,7 @@ public:
     {
       ForeachCell::CellIndex iCell = cells.getCellFromPos( {Ppos.pos(iPart, IX), Ppos.pos(iPart, IY), Ppos.pos(iPart, IZ)} );
       auto size = cells.getCellSize( iCell );
+      size[IZ] = (ndim == 2) ? 1.0 : size[IZ];
       real_t rho_contrib = Pdata.at( iPart, IMass ) / (size[IX]*size[IY]*size[IZ]);
 
       Kokkos::atomic_add( &Uin.at( iCell, IRhoG ), rho_contrib ) ;
