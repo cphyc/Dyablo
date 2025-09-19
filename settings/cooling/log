@@ -1,0 +1,53 @@
+##########################
+KOKKOS CONFIG             
+##########################
+Kokkos configuration
+  Kokkos Version: 4.3.0
+Compiler:
+  KOKKOS_COMPILER_GNU: 1421
+Architecture:
+  CPU architecture: none
+  Default Device: N6Kokkos6OpenMPE
+  GPU architecture: none
+  platform: 64bit
+Atomics:
+Vectorization:
+  KOKKOS_ENABLE_PRAGMA_IVDEP: no
+  KOKKOS_ENABLE_PRAGMA_LOOPCOUNT: no
+  KOKKOS_ENABLE_PRAGMA_UNROLL: no
+  KOKKOS_ENABLE_PRAGMA_VECTOR: no
+Memory:
+Options:
+  KOKKOS_ENABLE_ASM: yes
+  KOKKOS_ENABLE_CXX17: yes
+  KOKKOS_ENABLE_CXX20: no
+  KOKKOS_ENABLE_CXX23: no
+  KOKKOS_ENABLE_CXX26: no
+  KOKKOS_ENABLE_DEBUG_BOUNDS_CHECK: no
+  KOKKOS_ENABLE_HWLOC: no
+  KOKKOS_ENABLE_LIBDL: yes
+Host Parallel Execution Space:
+  KOKKOS_ENABLE_OPENMP: yes
+
+OpenMP Runtime Configuration:
+Kokkos::OpenMP thread_pool_topology[ 1 x 4 x 1 ]
+##########################
+.ini  found   : ini                      print_config             'false'                   -> false
+AMRmesh initialized : 8 ( 0 ) 
+Reallocate : add fields 0 -> 3
+Reallocate : add fields 3 -> 8
+WARNING : can't correct dt to match t_end, possible overshoot. var=t
+##########################
+Godunov updater    : HydroUpdate_dummy
+IO Manager         : IOManager_hdf5
+Gravity solver     : none
+Initial conditions : `T_rho_grid` 
+Refine condition   : RefineCondition_second_derivative_error
+Compute dt         : `Compute_dt_hydro` Cooling : CoolingUpdate_Theuns_1998
+
+##########################
+Output: scalar_data : iter=0 aexp=0.2 rhostar=1.67262e-21 time=0 tstar=8.44322e+14 vstar=36546.2 
+scalar_data : iter=0 aexp=0.2 dt=0.0349398 rhostar=1.67262e-21 time=0 tstar=8.44322e+14 vstar=36546.2 
+Mesh - rank 0 octs : 8 (0)
+Reallocate : add fields 8 -> 13
+Cooling: N_step_max = 9655 steps, N_step_mean = 1020.53

@@ -70,3 +70,6 @@ configure_file(visu_kelvin_helmholtz.pvsm visu_kelvin_helmholtz.pvsm COPYONLY)
 # Kelvin-Helmholtz block-based
 configure_file(test_kelvin_helmholtz_block.ini test_kelvin_helmholtz_block.ini COPYONLY)
 configure_file(visu_kelvin_helmholtz_block.pvsm visu_kelvin_helmholtz_block.pvsm COPYONLY)
+
+# Cooling test
+configure_file(../../settings/cooling/test_cooling.ini test_cooling.ini COPYONLY)

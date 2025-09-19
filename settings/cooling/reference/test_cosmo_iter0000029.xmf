@@ -1,0 +1,44 @@
+<?xml version="1.0" ?>
+<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>
+<Xdmf Version="2.0">
+  <Domain>
+    <Grid Name="test_cosmo_iter0000029" GridType="Uniform">
+      <Time TimeType="Single" Value="0.9999" />
+      <Topology TopologyType="Hexahedron" NumberOfElements="512">
+        <DataItem Dimensions="512 8" DataType="UInt" Precision="8" Format="HDF">
+          test_cosmo_iter0000029.h5:/connectivity
+        </DataItem>
+      </Topology>
+      <Geometry GeometryType="XYZ">
+        <DataItem Dimensions="1000 3" NumberType="Float" Precision="4" Format="HDF">
+          test_cosmo_iter0000029.h5:/coordinates
+        </DataItem>
+      </Geometry>
+      <Attribute Name="e_tot" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="512 1" NumberType="Float" Precision="4" Format="HDF">
+         test_cosmo_iter0000029.h5:/e_tot
+        </DataItem>
+      </Attribute>
+      <Attribute Name="rho" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="512 1" NumberType="Float" Precision="4" Format="HDF">
+         test_cosmo_iter0000029.h5:/rho
+        </DataItem>
+      </Attribute>
+      <Attribute Name="rho_vx" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="512 1" NumberType="Float" Precision="4" Format="HDF">
+         test_cosmo_iter0000029.h5:/rho_vx
+        </DataItem>
+      </Attribute>
+      <Attribute Name="rho_vy" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="512 1" NumberType="Float" Precision="4" Format="HDF">
+         test_cosmo_iter0000029.h5:/rho_vy
+        </DataItem>
+      </Attribute>
+      <Attribute Name="rho_vz" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="512 1" NumberType="Float" Precision="4" Format="HDF">
+         test_cosmo_iter0000029.h5:/rho_vz
+        </DataItem>
+      </Attribute>
+    </Grid>
+  </Domain>
+</Xdmf>
