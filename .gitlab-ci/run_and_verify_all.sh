@@ -57,7 +57,7 @@ run_and_verify test_zeldovitch_particles_dyablo.ini "../../../settings/cosmo/val
 # Create cooling table
 python3 ../../../settings/cooling/create_analytical_cooling_table.py
 
-run_and_verify test_cooling.ini "validate_cooling.py cooling_main.xmf ../../../cooling/cooling.png" cooling
+run_and_verify test_cooling.ini "validate_cooling.py cooling_main.xmf 0.05 ../../../cooling/cooling.png" cooling
 
 echo "${err_count}/${run_count} runs failed"
 
