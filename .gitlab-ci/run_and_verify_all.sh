@@ -46,10 +46,10 @@ run_and_verify(){
 
 run_and_verify test_sod_2D.ini "validate_sod.py test_sod_2D_main.xmf 1e-2 ../../../sod_2D/sod.png" sod_2D 
 
-(
-    cd build/dyablo/bin
-    python3 ../../../settings/cosmo/zeldovitch_generate_grafic.py
-)
+
+cd build/dyablo/bin
+python3 ../../../settings/cosmo/zeldovitch_generate_grafic.py
+cd ../../..
 
 run_and_verify test_zeldovitch_grafic.ini "../../../settings/cosmo/validate_zeldovitch.py zeldovitch_main.xmf 0.2 ../../../zeldovitch_grafic/zeldovitch_grafic.png" zeldovitch_grafic 
 
@@ -57,10 +57,9 @@ run_and_verify test_zeldovitch_dyablo.ini "../../../settings/cosmo/validate_zeld
 run_and_verify test_zeldovitch_particles_dyablo.ini "../../../settings/cosmo/validate_zeldovitch.py zeldovitch_main.xmf 0.2 ../../../zeldovitch_particles_dyablo/zeldovitch_particles_dyablo.png" zeldovitch_particles_dyablo 
 
 # Create cooling table
-(
-    cd build/dyablo/bin
-    python3 ../../../settings/cooling/create_analytical_cooling_table.py
-)
+cd build/dyablo/bin
+python3 ../../../settings/cooling/create_analytical_cooling_table.py
+cd ../../..
 
 run_and_verify test_cooling.ini "validate_cooling.py cooling_main.xmf 0.05 ../../../cooling/cooling.png" cooling
 
