@@ -73,3 +73,4 @@ configure_file(visu_kelvin_helmholtz_block.pvsm visu_kelvin_helmholtz_block.pvsm
 
 # Cooling test
 configure_file(../../settings/cooling/test_cooling.ini test_cooling.ini COPYONLY)
+configure_file(../../settings/cooling/validate_cooling.py validate_cooling.py COPYONLY)
