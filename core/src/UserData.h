@@ -173,6 +173,15 @@ public:
     }
 
     /***
+     * @brief Delete `array_name` from user data
+     * WARNING : Invalidates all accessors containing this attribute
+     ***/
+    void delete_ParticleArray(const std::string& array_name)
+    {
+        particles.delete_ParticleArray(array_name);
+    }
+
+    /***
      * @brief Delete attribte `array_name`/`attribute_name` from user data
      * WARNING : Invalidates all accessors containing this attribute
      ***/
