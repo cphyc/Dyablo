@@ -72,3 +72,7 @@ configure_file(test_kelvin_helmholtz_block.ini test_kelvin_helmholtz_block.ini C
 configure_file(visu_kelvin_helmholtz_block.pvsm visu_kelvin_helmholtz_block.pvsm COPYONLY)
 # RT test
 configure_file(../../settings/cosmo/beam.ini beam.ini COPYONLY)
+
+# Star formation test
+configure_file(test_star_formation.ini test_star_formation.ini COPYONLY)
+configure_file(validate_star_formation.py validate_star_formation.py COPYONLY)
