@@ -57,6 +57,11 @@ run_and_verify beam.ini "../../../settings/cosmo/validate_beam.py beam_main.xmf 
 
 run_and_verify test_star_formation.ini "validate_star_formation.py star_formation_main.xmf 1e-2 ../../../star_formation/star_formation.png" star_formation
 
+# Create cooling table
+python3 ../../../settings/cooling/create_analytical_cooling_table.py
+
+run_and_verify test_cooling.ini "validate_cooling.py cooling_main.xmf ../../../cooling/cooling.png" cooling
+
 echo "${err_count}/${run_count} runs failed"
 
 
