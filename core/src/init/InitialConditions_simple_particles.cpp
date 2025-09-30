@@ -11,7 +11,9 @@ class InitialConditions_simple_particles : public InitialConditions{
     ForeachParticle foreach_particle;
     real_t gamma0;
     int npart;
-    Kokkos::View<double*> px, py, pz, vx, vy, vz, mass, birth_time, metallicity;
+    Kokkos::View<double*> px, py, pz, vx, vy, vz, mass;
+    std::vector<std::string> extra_fields;
+    std::vector<Kokkos::View<double*>> extra_field_arrays;
 public:
   InitialConditions_simple_particles(
         ConfigMap& configMap, 
@@ -21,10 +23,10 @@ public:
     foreach_particle( foreach_cell.get_amr_mesh(), configMap ),
     gamma0(configMap.getValue<real_t>("hydro", "gamma0", 1.4)),
     npart(configMap.getValue<int>("simple_particles", "npart", 1)),
-    px( "px", npart ), py( "py", npart ), pz( "pz", npart ), 
-    vx( "vx", npart ), vy( "vy", npart ), vz( "vz", npart ), 
-    mass( "mass", npart ), birth_time( "birth_time", npart ),
-    metallicity( "metallicity", npart )
+    px( "px", npart ), py( "py", npart ), pz( "pz", npart ),
+    vx( "vx", npart ), vy( "vy", npart ), vz( "vz", npart ),
+    mass("mass", npart ),
+    extra_fields(configMap.getValue<std::vector<std::string>>("simple_particles", "fields", {}))
   {    
     auto parse_array = [&](const Kokkos::View<double*>& a, const std::string& var)
     {
@@ -47,8 +49,11 @@ public:
     parse_array(vy, "vy");
     parse_array(vz, "vz");
     parse_array(mass, "mass");
-    parse_array(birth_time, "birth_time");
-    parse_array(metallicity, "metallicity");
+    for (auto& f: extra_fields) {
+      Kokkos::View<double*> arr("extra_field_" + f, npart);
+      parse_array(arr, f);
+      extra_field_arrays.push_back(arr);
+    }
 
   }
 
@@ -64,34 +69,40 @@ public:
     U.new_ParticleAttribute("particles", "vy");
     U.new_ParticleAttribute("particles", "vz");
     U.new_ParticleAttribute("particles", "mass");
-    U.new_ParticleAttribute("particles", "birth_time");
-    U.new_ParticleAttribute("particles", "metallicity");
+    for (auto& f: extra_fields) {
+      U.new_ParticleAttribute("particles", f);
+    }
 
     if (rank == 0) { 
 
       const ForeachParticle::ParticleArray& P = U.getParticleArray("particles"); 
 
       enum VarIndex_particle{
-        IVX, IVY, IVZ, IM, IBIRTH, IMETALLICITY
+        IVX, IVY, IVZ, IM
       };
 
-      const UserData::ParticleAccessor Pdata = U.getParticleAccessor("particles", 
-                                              {{"vx", IVX}, 
-                                               {"vy", IVY},
-                                               {"vz", IVZ},
-                                               {"mass", IM},
-                                               {"birth_time", IBIRTH},
-                                               {"metallicity", IMETALLICITY}} );
+      const auto Pdata = U.getParticleAccessor("particles", {
+        {"vx", IVX},
+        {"vy", IVY},
+        {"vz", IVZ},
+        {"mass", IM},
+      });
+      std::vector<dyablo::UserData_particles::ParticleAccessor_AttributeInfo> extra_field_info = {};
+      int Nextra = extra_fields.size();
+      for (auto &f: extra_fields) {
+        int idx = extra_field_info.size();
+        extra_field_info.push_back({f, idx});
+      }
+      const auto Pdata_extra = U.getParticleAccessor("particles", extra_field_info);
 
-      const Kokkos::View<double*>& px = this->px;
-      const Kokkos::View<double*>& py = this->py;
-      const Kokkos::View<double*>& pz = this->pz;
-      const Kokkos::View<double*>& vx = this->vx;
-      const Kokkos::View<double*>& vy = this->vy;
-      const Kokkos::View<double*>& vz = this->vz;
-      const Kokkos::View<double*>& mass = this->mass;
-      const Kokkos::View<double*>& birth_time = this->birth_time;
-      const Kokkos::View<double*>& metallicity = this->metallicity;
+      const auto& px = this->px;
+      const auto& py = this->py;
+      const auto& pz = this->pz;
+      const auto& vx = this->vx;
+      const auto& vy = this->vy;
+      const auto& vz = this->vz;
+      const auto& mass = this->mass;
+      const auto& extra_field_arrays = this->extra_field_arrays;
 
       foreach_particle.foreach_particle("InitialConditions_simple_particles", P,
         KOKKOS_LAMBDA (ParticleData::ParticleIndex iPart) {      
@@ -99,14 +110,20 @@ public:
           P.pos(iPart, IY) = py(iPart);
           P.pos(iPart, IZ) = pz(iPart);
 
-          Pdata.at(iPart, IVX) = vx(iPart);
-          Pdata.at(iPart, IVY) = vy(iPart);
-          Pdata.at(iPart, IVZ) = vz(iPart);
-          Pdata.at(iPart, IM)  = mass(iPart);
-          Pdata.at(iPart, IBIRTH) = birth_time(iPart);
-          Pdata.at(iPart, IMETALLICITY) = metallicity(iPart);
+          Pdata.at(iPart, IVX)    = vx(iPart);
+          Pdata.at(iPart, IVY)    = vy(iPart);
+          Pdata.at(iPart, IVZ)    = vz(iPart);
+          Pdata.at(iPart, IM)     = mass(iPart);
         });
 
+      // Set extra fields
+      for (auto i = 0; i < Nextra; i++) {
+        auto arr = extra_field_arrays[i];
+        foreach_particle.foreach_particle("InitialConditions_simple_particles_extra", P,
+          KOKKOS_LAMBDA (ParticleData::ParticleIndex iPart) {
+            Pdata_extra.at(iPart, i) = arr(iPart);
+          });
+        }
     }
 
     U.distributeParticles("particles");
