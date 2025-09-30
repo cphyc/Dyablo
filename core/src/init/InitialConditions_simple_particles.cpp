@@ -12,8 +12,8 @@ class InitialConditions_simple_particles : public InitialConditions{
     real_t gamma0;
     int npart;
     Kokkos::View<double*> px, py, pz, vx, vy, vz, mass;
-    std::vector<std::string> extra_fields;
-    std::vector<Kokkos::View<double*>> extra_field_arrays;
+    std::vector<std::string> extra_attributes;
+    std::vector<Kokkos::View<double*>> extra_attr_arrays;
 public:
   InitialConditions_simple_particles(
         ConfigMap& configMap, 
@@ -26,7 +26,7 @@ public:
     px( "px", npart ), py( "py", npart ), pz( "pz", npart ),
     vx( "vx", npart ), vy( "vy", npart ), vz( "vz", npart ),
     mass("mass", npart ),
-    extra_fields(configMap.getValue<std::vector<std::string>>("simple_particles", "fields", {}))
+    extra_attributes(configMap.getValue<std::vector<std::string>>("simple_particles", "attributes", {}))
   {    
     auto parse_array = [&](const Kokkos::View<double*>& a, const std::string& var)
     {
@@ -49,10 +49,10 @@ public:
     parse_array(vy, "vy");
     parse_array(vz, "vz");
     parse_array(mass, "mass");
-    for (auto& f: extra_fields) {
-      Kokkos::View<double*> arr("extra_field_" + f, npart);
+    for (auto& f: extra_attributes) {
+      Kokkos::View<double*> arr("extra_attribute_" + f, npart);
       parse_array(arr, f);
-      extra_field_arrays.push_back(arr);
+      extra_attr_arrays.push_back(arr);
     }
 
   }
@@ -69,7 +69,7 @@ public:
     U.new_ParticleAttribute("particles", "vy");
     U.new_ParticleAttribute("particles", "vz");
     U.new_ParticleAttribute("particles", "mass");
-    for (auto& f: extra_fields) {
+    for (auto& f: extra_attributes) {
       U.new_ParticleAttribute("particles", f);
     }
 
@@ -87,13 +87,13 @@ public:
         {"vz", IVZ},
         {"mass", IM},
       });
-      std::vector<dyablo::UserData_particles::ParticleAccessor_AttributeInfo> extra_field_info = {};
-      int Nextra = extra_fields.size();
-      for (auto &f: extra_fields) {
-        int idx = extra_field_info.size();
-        extra_field_info.push_back({f, idx});
+      std::vector<dyablo::UserData_particles::ParticleAccessor_AttributeInfo> extra_attr_info = {};
+      int Nextra = extra_attributes.size();
+      for (auto &f: extra_attributes) {
+        int idx = extra_attr_info.size();
+        extra_attr_info.push_back({f, idx});
       }
-      const auto Pdata_extra = U.getParticleAccessor("particles", extra_field_info);
+      const auto Pdata_extra = U.getParticleAccessor("particles", extra_attr_info);
 
       const auto& px = this->px;
       const auto& py = this->py;
@@ -102,7 +102,7 @@ public:
       const auto& vy = this->vy;
       const auto& vz = this->vz;
       const auto& mass = this->mass;
-      const auto& extra_field_arrays = this->extra_field_arrays;
+      const auto& extra_attr_arrays = this->extra_attr_arrays;
 
       foreach_particle.foreach_particle("InitialConditions_simple_particles", P,
         KOKKOS_LAMBDA (ParticleData::ParticleIndex iPart) {      
@@ -116,9 +116,9 @@ public:
           Pdata.at(iPart, IM)     = mass(iPart);
         });
 
-      // Set extra fields
+      // Set extra attributes
       for (auto i = 0; i < Nextra; i++) {
-        auto arr = extra_field_arrays[i];
+        auto arr = extra_attr_arrays[i];
         foreach_particle.foreach_particle("InitialConditions_simple_particles_extra", P,
           KOKKOS_LAMBDA (ParticleData::ParticleIndex iPart) {
             Pdata_extra.at(iPart, i) = arr(iPart);
