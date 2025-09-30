@@ -132,6 +132,18 @@ public:
         {
             attribute_index.erase( attribute_name );
         }
+
+        void resize( uint32_t new_num_particles )
+        {
+            uint32_t old_size = particles.getNumParticles();
+            if (new_num_particles == old_size) return;
+
+            size_t Nprops = particles.particle_data.extent(1);
+            Kokkos::resize(particles.particle_data, new_num_particles, Nprops);
+            size_t Ndim = particles.particle_position.extent(1);
+            Kokkos::resize(particles.particle_position, new_num_particles, Ndim);
+        }
+
         void distributeParticles()
         {
             ViewCommunicator part_comm = foreach_particle.get_distribute_communicator( particles );
@@ -168,6 +180,14 @@ public:
         DYABLO_ASSERT_HOST_RELEASE( !this->has_ParticleArray(name), "UserData_particles::new_ParticleArray() - particle array already exists : " << name );
         particle_containers.emplace( name, ParticleContainer(name, foreach_particle, num_particles) );
     }
+
+    void delete_ParticleArray( const std::string& name )
+    {
+        DYABLO_ASSERT_HOST_RELEASE( this->has_ParticleArray(name), "UserData_particles::delete_ParticleArray() - particle array does not exist : " << name );
+        particle_containers.erase( name );
+    }
+
+    void merge_particles_if( const std::string& id_dest, const std::string& id_to_merge, const std::string& mask_field );
 
 private:
     ParticleContainer& getParticleContainer( const std::string& array_name )
@@ -257,7 +277,7 @@ public:
      * Do not keep invalidated accessors since live accessors may prevent Kokkos::View deallocation in when deleting or moving user data
      ***/
     ParticleAccessor getParticleAccessor( const std::string& array_name, const std::vector<ParticleAccessor_AttributeInfo>& attribute_info ) const;
-    
+
     /***
      * @brief Distribute position array and attributes for particle array `array_name`
      * WARNING : Invalidates all accessors containing this particle array
@@ -389,6 +409,73 @@ protected:
 inline UserData_particles::ParticleAccessor UserData_particles::getParticleAccessor( const std::string& array_name, const std::vector<ParticleAccessor_AttributeInfo>& attribute_info ) const
 {
     return ParticleAccessor( *this, array_name, attribute_info );
+}
+
+inline void UserData_particles::merge_particles_if( const std::string& id_dest, const std::string& id_to_merge, const std::string& mask_field )
+{
+    DYABLO_ASSERT_HOST_RELEASE( this->has_ParticleArray(id_dest), "merge_particles_if error : destination array '"<<id_dest<<"' does not exist" );
+    DYABLO_ASSERT_HOST_RELEASE( this->has_ParticleArray(id_to_merge), "merge_particles_if error : array to merge '"<<id_to_merge<<"' does not exist" );
+    DYABLO_ASSERT_HOST_RELEASE( this->has_ParticleAttribute(id_to_merge, mask_field), "merge_particles_if error : mask field '"<<id_to_merge<<"/"<<mask_field<<"' does not exist" );
+
+    std::vector<ParticleAccessor::AttributeInfo> all_attr;
+    VarIndex Imask = -1;
+    {
+        for( const std::string& attr : this->getEnabledParticleAttributes( id_dest ) )
+        {
+            VarIndex ivar = all_attr.size();
+            all_attr.push_back({attr, ivar});
+            if( attr == mask_field )
+            {
+                Imask = ivar;
+            }
+        }
+    }
+    int nb_attr = all_attr.size();
+
+    int n_to_merge = 0;
+    {
+        auto Pto_merge = this->getParticleArray(id_to_merge);
+        auto Pmask = this->getParticleAccessor(id_to_merge, {{mask_field, 0}});   
+        foreach_particle.reduce_particle("count_to_merge", Pto_merge,
+            KOKKOS_LAMBDA(const ForeachParticle::ParticleIndex& iPart, int& count)
+        {
+            if( Pmask.at(iPart, 0) != 0.0 )
+                count++;
+        }, n_to_merge);
+    }
+
+    auto& Pout_container = this->getParticleContainer( id_dest );
+    uint32_t Pout_initial_size = Pout_container.getParticleArray().getNumParticles();
+    Pout_container.resize( Pout_initial_size + n_to_merge );
+    
+    {
+        auto Pin = this->getParticleArray(id_to_merge);
+        auto Pin_data = this->getParticleAccessor( id_to_merge, all_attr );
+
+        auto Pout = this->getParticleArray(id_dest);
+        auto Pout_data = this->getParticleAccessor( id_dest, all_attr );
+    
+        Kokkos::View<uint32_t> count("count");
+        foreach_particle.foreach_particle( "merge_copy", Pin,
+            KOKKOS_LAMBDA(const ForeachParticle::ParticleIndex& iPart_in)
+        {   
+            if( Pin_data.at_ivar(iPart_in, Imask) != 0 )
+            {         
+                ForeachParticle::ParticleIndex iPart_out = Pout_initial_size + Kokkos::atomic_fetch_add(&count(), 1);
+
+                Pout.pos( iPart_out, IX ) = Pin.pos( iPart_in, IX );
+                Pout.pos( iPart_out, IY ) = Pin.pos( iPart_in, IY );
+                Pout.pos( iPart_out, IZ ) = Pin.pos( iPart_in, IZ );
+
+                for( int i=0; i<nb_attr; i++ )
+                {
+                    Pout_data.at_ivar(iPart_out, i) = Pin_data.at_ivar(iPart_in, i);
+                }
+            }
+        });
+    }        
+    
+    this->delete_ParticleArray(id_to_merge);
 }
 
 
