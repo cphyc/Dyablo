@@ -110,10 +110,10 @@ public:
           P.pos(iPart, IY) = py(iPart);
           P.pos(iPart, IZ) = pz(iPart);
 
-          Pdata.at(iPart, IVX)    = vx(iPart);
-          Pdata.at(iPart, IVY)    = vy(iPart);
-          Pdata.at(iPart, IVZ)    = vz(iPart);
-          Pdata.at(iPart, IM)     = mass(iPart);
+          Pdata.at(iPart, IVX) = vx(iPart);
+          Pdata.at(iPart, IVY) = vy(iPart);
+          Pdata.at(iPart, IVZ) = vz(iPart);
+          Pdata.at(iPart, IM)  = mass(iPart);
         });
 
       // Set extra attributes
