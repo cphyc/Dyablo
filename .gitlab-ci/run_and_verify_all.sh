@@ -66,6 +66,8 @@ cd ../../..
 
 run_and_verify test_cooling.ini "validate_cooling.py cooling_main.xmf 0.05 ../../../cooling/cooling.png" cooling
 
+run_and_verify test_star_feedback.ini "validate_star_feedback.py feedback_main.xmf 1e-10" star_feedback
+
 echo "${err_count}/${run_count} runs failed"
 
 
