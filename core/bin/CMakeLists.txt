@@ -76,3 +76,7 @@ configure_file(../../settings/cosmo/beam.ini beam.ini COPYONLY)
 # Star formation test
 configure_file(test_star_formation.ini test_star_formation.ini COPYONLY)
 configure_file(validate_star_formation.py validate_star_formation.py COPYONLY)
+
+# Cooling test
+configure_file(../../settings/cooling/test_cooling.ini test_cooling.ini COPYONLY)
+configure_file(../../settings/cooling/validate_cooling.py validate_cooling.py COPYONLY)

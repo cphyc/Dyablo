@@ -30,7 +30,7 @@ run_and_verify(){
             success_list+=(${reason_success})
         else
             echo "verification ${verification_script} fail : see ${verification_stdout_filename}"
-	        err_count=$((err_count+1))
+            err_count=$((err_count+1))
             success_list+=(${reason_verification_failure})
         fi
         cd ../../..
@@ -46,9 +46,11 @@ run_and_verify(){
 
 run_and_verify test_sod_2D.ini "validate_sod.py test_sod_2D_main.xmf 1e-2 ../../../sod_2D/sod.png" sod_2D 
 
+
 cd build/dyablo/bin
 python3 ../../../settings/cosmo/zeldovitch_generate_grafic.py
 cd ../../..
+
 run_and_verify test_zeldovitch_grafic.ini "../../../settings/cosmo/validate_zeldovitch.py zeldovitch_main.xmf 0.2 ../../../zeldovitch_grafic/zeldovitch_grafic.png" zeldovitch_grafic 
 
 run_and_verify test_zeldovitch_dyablo.ini "../../../settings/cosmo/validate_zeldovitch.py zeldovitch_main.xmf 0.2 ../../../zeldovitch_dyablo/zeldovitch_dyablo.png" zeldovitch_dyablo 
@@ -56,6 +58,13 @@ run_and_verify test_zeldovitch_particles_dyablo.ini "../../../settings/cosmo/val
 run_and_verify beam.ini "../../../settings/cosmo/validate_beam.py beam_main.xmf 1e-2 ../../../beam/beam.png" beam 
 
 run_and_verify test_star_formation.ini "validate_star_formation.py star_formation_main.xmf 1e-2 ../../../star_formation/star_formation.png" star_formation
+
+# Create cooling table
+cd build/dyablo/bin
+python3 ../../../settings/cooling/create_analytical_cooling_table.py
+cd ../../..
+
+run_and_verify test_cooling.ini "validate_cooling.py cooling_main.xmf 0.05 ../../../cooling/cooling.png" cooling
 
 echo "${err_count}/${run_count} runs failed"
 
