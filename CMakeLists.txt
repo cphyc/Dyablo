@@ -77,6 +77,7 @@ endif()
 # hdf5
 if (DYABLO_USE_HDF5)
   set( HDF5_PREFER_PARALLEL ON )
+  set( HDF5_ENABLE_PARALLEL ON )
   find_package( HDF5 REQUIRED COMPONENTS C)
   if( DYABLO_USE_MPI AND NOT HDF5_IS_PARALLEL )
     message( FATAL_ERROR "HDF5 library must be parallel when compiling Dyablo with MPI" )
