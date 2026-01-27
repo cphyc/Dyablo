@@ -134,7 +134,7 @@ endif(DYABLO_USE_MPI)
 # prefer using parallel HDF5 when build with mpi
 if (DYABLO_USE_MPI)
   set(HDF5_PREFER_PARALLEL TRUE)
-  set(HDF5_ENABLE_PARALLEL ON)
+  set(HDF5_ENABLE_PARALLEL ON) # This is a workaround for a bug in CMake + HDF5 2.0
 endif(DYABLO_USE_MPI)
 
 if (DYABLO_USE_HDF5)
