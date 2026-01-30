@@ -34,6 +34,8 @@ set( core_src
     ${CMAKE_CURRENT_SOURCE_DIR}/particles/ParticleUpdate_TSC_density.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/particles/ParticleUpdate_star_formation.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/particles/ParticleUpdate_feedback.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/particles/ParticleUpdate_momentum_feedback.cpp
+
     ${CMAKE_CURRENT_SOURCE_DIR}/parabolic/ParabolicUpdate_explicit.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/source_terms/SourceUpdate_Cooling_FF.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/source_terms/SourceUpdate_GLM.cpp
@@ -51,11 +53,13 @@ set( ic_src
     ${CMAKE_CURRENT_SOURCE_DIR}/init/hydro/InitialConditions_rayleigh_taylor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/hydro/InitialConditions_sod.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/hydro/InitialConditions_double_mach.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/init/hydro/InitialConditions_disk.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/mhd/InitialConditions_orszag_tang.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/mhd/InitialConditions_MHD_blast.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/mhd/InitialConditions_MHD_rotor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/mhd/InitialConditions_MHD_rayleigh_taylor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_simple_particles.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_simple_particles_from_file.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_particle_grid.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_particles_uniform.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/init/InitialConditions_grafic_fields.cpp
