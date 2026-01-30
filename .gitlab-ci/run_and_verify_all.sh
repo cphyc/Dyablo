@@ -56,6 +56,7 @@ run_and_verify test_zeldovitch_grafic.ini "../../../settings/cosmo/validate_zeld
 run_and_verify test_zeldovitch_dyablo.ini "../../../settings/cosmo/validate_zeldovitch.py zeldovitch_main.xmf 0.2 ../../../zeldovitch_dyablo/zeldovitch_dyablo.png" zeldovitch_dyablo 
 run_and_verify test_zeldovitch_particles_dyablo.ini "../../../settings/cosmo/validate_zeldovitch.py zeldovitch_main.xmf 0.2 ../../../zeldovitch_particles_dyablo/zeldovitch_particles_dyablo.png" zeldovitch_particles_dyablo 
 run_and_verify beam.ini "../../../settings/cosmo/validate_beam.py beam_main.xmf 1e-2 ../../../beam/beam.png" beam 
+run_and_verify tiling.ini "../../../settings/cosmo/validate_tiling.py tiling_main.xmf 1e-6 ../../../tiling/tiling.png" tiling 
 
 run_and_verify test_star_formation.ini "validate_star_formation.py star_formation_main.xmf 1e-2 ../../../star_formation/star_formation.png" star_formation
 
