@@ -23,13 +23,24 @@ public:
     E_SNII_physical ( configMap.getValue_in_code_unit<Units::Energy>("star_feedback", "E_SNII", "1e51 erg") ),
     M_SNII_physical ( configMap.getValue_in_code_unit<Units::Mass>  ("star_feedback", "M_SNII", "10 Msun") ),
     t_SNII_physical ( configMap.getValue_in_code_unit<Units::Time>  ("star_feedback", "t_SNII", "10 Myr") ),
-    cosmology       ( configMap.getValue<bool>("cosmology", "active", false) )
+    cosmology       ( configMap.getValue<bool>("cosmology", "active", false) ),
+    array_names    ( configMap.getValue<std::vector<std::string>>("particles", "ParticleUpdate_feedback_array_names") )
   {
   }
 
   ~ParticleUpdate_feedback() {}
 
-  void update(UserData& U, ScalarSimulationData& scalar_data)
+  void update(UserData& U, ScalarSimulationData& scalar_data) {
+    for (const std::string& array_name : array_names) {
+      if (!U.has_ParticleArray(array_name)) {
+        throw std::runtime_error("ParticleUpdate_feedback: Particle array '" + array_name + "' does not exist in UserData.");
+      }
+
+      this->update_aux(U, scalar_data, array_name);
+    }
+  }
+
+  void update_aux(UserData& U, ScalarSimulationData& scalar_data, const std::string& array_name)
   {
 
     const real_t t = cosmology ? scalar_data.get<real_t>("time_physical") : scalar_data.get<real_t>("time");
@@ -56,8 +67,8 @@ public:
     }
 
     // Get accessors
-    auto Ppos = U.getParticleArray( "particles" );
-    auto Pdata = U.getParticleAccessor( "particles", pinfos );
+    auto Ppos = U.getParticleArray( array_name );
+    auto Pdata = U.getParticleAccessor( array_name, pinfos );
     auto Uin = U.getAccessor( Uin_infos );
 
     ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
@@ -73,8 +84,9 @@ public:
     const real_t t_SNII_physical = this->t_SNII_physical;
     const real_t dt_physical = Units::supercomoving_to_physical<Units::Time>(dt, aexp);
 
-    foreach_particle.foreach_particle( "particles_update_feedback", Ppos,
-      KOKKOS_LAMBDA( const ForeachParticle::ParticleIndex& iPart )
+    uint SN_counter = 0;
+    foreach_particle.reduce_particle( "particles_update_feedback", Ppos,
+      KOKKOS_LAMBDA( const ForeachParticle::ParticleIndex& iPart, uint& SN_counter )
     {
       // Age of the particle
       real_t age_physical = t - Pdata.at(iPart, IBIRTH);
@@ -112,8 +124,13 @@ public:
 
         // Update particle properties
         Pdata.at(iPart, IMASS) -= Mloss;
+
+        SN_counter++;
       }
-    });
+    }, SN_counter);
+
+    if (SN_counter > 0)
+      std::cout << "[ParticleUpdate_feedback] Number of SNII explosions in array '" << array_name << "': " << SN_counter << std::endl;
 
     timers.get("ParticleUpdate_feedback").stop();
   }
@@ -130,6 +147,8 @@ private:
   real_t t_SNII_physical;
 
   bool cosmology;
+
+  std::vector<std::string> array_names;
 };
 
 } // namespace dyablo

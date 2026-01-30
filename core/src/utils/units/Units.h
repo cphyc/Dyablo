@@ -12,7 +12,7 @@ namespace {
 
 [[maybe_unused]] 
 KOKKOS_INLINE_FUNCTION
-constexpr real_t pow_int(real_t x, int exp) 
+constexpr real_t pow_int(real_t x, int exp)
 {
     if( exp < 0 )
         return 1 / pow_int( x, -exp );
@@ -114,6 +114,14 @@ KOKKOS_INLINE_FUNCTION
 constexpr Unit<Dims1-Dims2...> operator/(const Unit<Dims1...>& u1, const Unit<Dims2...>& u2 )
 {
     return Unit<Dims1-Dims2...>( u1.value_SI / u2.value_SI );
+}
+
+/// Comparison operators for Units of same dimensionnality
+template< int... Dims >
+KOKKOS_INLINE_FUNCTION
+constexpr bool operator==(const Unit<Dims...>& u1, const Unit<Dims...>& u2 )
+{
+    return u1.value_SI == u2.value_SI;
 }
 
 /**
@@ -305,6 +313,7 @@ using Density       = decltype( kg()/m3() );
 using Energy        = decltype( J() );
 using EnergyDensity = decltype( J()/m3() );
 using Pressure      = decltype( Pa() );
+using NumberDensity = decltype( one() / m3() );
 
 
 class UnitSystem

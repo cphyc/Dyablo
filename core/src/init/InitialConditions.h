@@ -23,6 +23,7 @@ class AnalyticalFormula_sod;
 class AnalyticalFormula_Zeldovitch_pancake;
 class InitialConditions_zeldovitch_particles;
 class AnalyticalFormula_double_mach;
+class AnalyticalFormula_disk;
 
 // MHD
 class AnalyticalFormula_OrszagTang;
@@ -32,6 +33,7 @@ class AnalyticalFormula_MHD_RayleighTaylor;
 
 // Particles
 class InitialConditions_simple_particles;
+class InitialConditions_simple_particles_from_file;
 class InitialConditions_particle_grid;
 class InitialConditions_particles_uniform;
 
@@ -58,6 +60,7 @@ bool dyablo::InitialConditionsFactory::init()
 #endif
 
   DECLARE_REGISTERED( dyablo::InitialConditions_simple_particles );
+  DECLARE_REGISTERED( dyablo::InitialConditions_simple_particles_from_file );
   DECLARE_REGISTERED( dyablo::InitialConditions_particle_grid );
   DECLARE_REGISTERED( dyablo::InitialConditions_particles_uniform );
   
@@ -67,6 +70,7 @@ bool dyablo::InitialConditionsFactory::init()
   DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_KelvinHelmholtz> );
   DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_RayleighTaylor> );
   DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_double_mach> );
+  DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_disk> );
 
   DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_OrszagTang > );
   DECLARE_REGISTERED( dyablo::InitialConditions_analytical<dyablo::AnalyticalFormula_MHD_blast> );

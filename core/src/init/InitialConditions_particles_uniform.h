@@ -43,7 +43,7 @@ public:
         {
             const std::string& full_attr = attributes[ivar];
             // Parse array and attribute name from "<array>/<attribute>" string
-            size_t slashPos = full_attr.find_last_of("/");            
+            size_t slashPos = full_attr.find_last_of("/");
             auto trim = [](std::string& str)
             {
                 str.erase(std::remove(str.begin(),str.end(),' '),str.end());

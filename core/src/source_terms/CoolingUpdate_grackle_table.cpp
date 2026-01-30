@@ -120,7 +120,10 @@ namespace dyablo {
       real_t d0 = spacing;
       real_t di = arr(i+1) - arr(i);
 
-      if (FABS(di - d0) / d0 > 1e-6) err += 1;
+      if (FABS(di - d0) / d0 > 1e-6) {
+        err += 1;
+        printf("[%s] arr[%zu] = %e, arr[%zu] = %e, di = %e, expected = %e\n", name.c_str(), i, arr(i), i+1, arr(i+1), di, d0);
+      }
     }, Kokkos::Sum<int>(err));
 
     DYABLO_ASSERT_HOST_RELEASE(err == 0, name << " grid is not regularly spaced.");
@@ -239,14 +242,18 @@ namespace dyablo {
   KOKKOS_INLINE_FUNCTION
   real_t compute_f( const real_t nH, const real_t log_nH, const real_t Z_solar, const real_t T, const real_t log_T,
                     const Table2DQuadT& Htab, const Table2DQuadT& Ctab, const Table2DQuadT& Mutab,
-                    const Table2DQuadT& Hmetals_tab, const Table2DQuadT& Cmetals_tab ) {
+                    const Table2DQuadT& Hmetals_tab, const Table2DQuadT& Cmetals_tab,
+                    const real_t TCMB, const real_t log_TCMB
+                  ) {
     real_t H   = Htab.interp(log_nH, T, log_T);
-    real_t C   = Ctab.interp(log_nH, T, log_T);
+    // Subtract CMB contribution
+    real_t C   = Ctab.interp(log_nH, T, log_T) - Ctab.interp(log_nH, TCMB, log_TCMB);
     real_t mu  = Mutab.interp(log_nH, T, log_T);
 
     if constexpr (include_metals) {
       H += Hmetals_tab.interp(log_nH, T, log_T) * Z_solar;
-      C += Cmetals_tab.interp(log_nH, T, log_T) * Z_solar;
+      // Subtract CMB contribution
+      C += (Cmetals_tab.interp(log_nH, T, log_T) - Cmetals_tab.interp(log_nH, TCMB, log_TCMB)) * Z_solar;
     }
 
     return 2 * mu * nH / (3 * kB) * (H - C);
@@ -261,15 +268,18 @@ namespace dyablo {
   void compute_J( const real_t nH, const real_t log_nH, const real_t Z_solar, const real_t T, const real_t log_T,
                   const Table2DQuadT& Htab, const Table2DQuadT& Ctab, const Table2DQuadT& Mutab,
                   const Table2DQuadT& Hmetals_tab, const Table2DQuadT& Cmetals_tab,
+                  const real_t TCMB, const real_t log_TCMB,
                   real_t& f, real_t& J ) {
     real_t H   = Htab.interp(log_nH, T, log_T);
-    real_t C   = Ctab.interp(log_nH, T, log_T);
+    // Subtract CMB contribution
+    real_t C   = Ctab.interp(log_nH, T, log_T) - Ctab.interp(log_nH, TCMB, log_TCMB);
+
     real_t mu  = Mutab.interp(log_nH, T, log_T);
     real_t dmu = Mutab.dFdT(log_nH, T, log_T);
 
     if constexpr (include_metals) {
       H += Hmetals_tab.interp(log_nH, T, log_T) * Z_solar;
-      C += Cmetals_tab.interp(log_nH, T, log_T) * Z_solar;
+      C += (Cmetals_tab.interp(log_nH, T, log_T) - Cmetals_tab.interp(log_nH, TCMB, log_TCMB)) * Z_solar;
     }
 
     real_t prefac = 2 * mu * nH / (3 * kB);
@@ -302,6 +312,7 @@ namespace dyablo {
             const real_t h,
             const Table2DQuadT& Htab, const Table2DQuadT& Ctab, const Table2DQuadT& Mutab,
             const Table2DQuadT& Hmetals_tab, const Table2DQuadT& Cmetals_tab,
+            const real_t &TCMB, const real_t &log_TCMB,
             real_t &T_out, real_t &err_est ) {
     constexpr real_t sqrt2 = 1.4142135623730951;
     constexpr real_t gamma = 1.0 / (2.0 + sqrt2);
@@ -309,17 +320,17 @@ namespace dyablo {
     constexpr real_t d32 = (6 + sqrt2) / (2 + sqrt2);
 
     real_t f, J;
-    compute_J<include_metals>(nH, log_nH, Z_solar, T, log10(T), Htab, Ctab, Mutab, Hmetals_tab, Cmetals_tab, f, J);
+    compute_J<include_metals>(nH, log_nH, Z_solar, T, log10(T), Htab, Ctab, Mutab, Hmetals_tab, Cmetals_tab, TCMB, log_TCMB, f, J);
 
     real_t denom = 1.0 / (1.0 - gamma * h * J);
 
     real_t k1 = f * denom;
 
     real_t T1 = T + h * k1 / 2;
-    real_t k2 = (compute_f<include_metals>(nH, log_nH, Z_solar, T1, log10(T1), Htab, Ctab, Mutab, Hmetals_tab, Cmetals_tab) - gamma * h * J * k1) * denom;
+    real_t k2 = (compute_f<include_metals>(nH, log_nH, Z_solar, T1, log10(T1), Htab, Ctab, Mutab, Hmetals_tab, Cmetals_tab, TCMB, log_TCMB) - gamma * h * J * k1) * denom;
 
     real_t T2 = T + h * k2;
-    real_t k3 = (compute_f<include_metals>(nH, log_nH, Z_solar, T2, log10(T2), Htab, Ctab, Mutab, Hmetals_tab, Cmetals_tab) - d31 * h * J * k1 - d32 * h * J * k2) * denom;
+    real_t k3 = (compute_f<include_metals>(nH, log_nH, Z_solar, T2, log10(T2), Htab, Ctab, Mutab, Hmetals_tab, Cmetals_tab, TCMB, log_TCMB) - d31 * h * J * k1 - d32 * h * J * k2) * denom;
 
     T_out = T + h / 6 * (k1 + 4 * k2 + k3);
     err_est = FABS(h / 6 * (k1 - 2 * k2 + k3));
@@ -335,6 +346,7 @@ namespace dyablo {
   real_t evolve_rosenbrock( const real_t nH, const real_t log_nH, const real_t Z_solar, const real_t T0, const real_t t_final,
                             const Table2DQuadT& Htab, const Table2DQuadT& Ctab, const Table2DQuadT& Mutab,
                             const Table2DQuadT& Hmetals_tab, const Table2DQuadT& Cmetals_tab,
+                            const real_t &TCMB, const real_t &log_TCMB,
                             const real_t dt_init, int &Nsteps, const real_t tol=1e-3 ) {
     real_t t = 0.0;
     real_t T = T0;
@@ -346,7 +358,7 @@ namespace dyablo {
       real_t Tnew, err;
 
       rosenbrock3_step<include_metals>(
-        nH, log_nH, Z_solar, T, h, Htab, Ctab, Mutab, Hmetals_tab, Cmetals_tab, Tnew, err
+        nH, log_nH, Z_solar, T, h, Htab, Ctab, Mutab, Hmetals_tab, Cmetals_tab, TCMB, log_TCMB, Tnew, err
       );
 
       real_t scale = fabs(T) + 1e-40;
@@ -360,6 +372,12 @@ namespace dyablo {
         h *= fmax(0.1, 0.9 * pow(tol / (rel_err + 1e-16), 0.5));
       }
       Nsteps++;
+
+      if (Nsteps > 10'000) {
+        // Prevent infinite loops
+        printf("Warning: evolve_rosenbrock exceeded maximum number of steps (t_final = %g s)\nnH = %g cm^-3, T0 = %g K, Tend = %g K, Z = %g\n", t_final, nH, T0, T, Z_solar);
+        break;
+      }
     }
     return T;
   }
@@ -382,12 +400,14 @@ namespace dyablo {
    */
   KOKKOS_INLINE_FUNCTION
   real_t find_T( const real_t log_nH, const real_t T_over_mu, const real_t Z, const Table2DQuadT& mutab ){
-    int max_iter = 20;
+    constexpr int max_iter = 20;
     real_t tol = 1e-6;
     real_t T = T_over_mu * mutab.interp(log_nH, T_over_mu, log10(T_over_mu)); // initial guess
     int iter = 0;
     for (iter = 0; iter < max_iter; ++iter) {
       real_t log_T = log10(T);
+      if (log_T > mutab.log_T_max) break;
+      if (log_T < mutab.log_T_min) break;
       real_t mu, mu_noZ;
       // Note: chain rule applies here
       compute_mu(log_nH, T, Z, mutab, mu, mu_noZ);
@@ -402,7 +422,7 @@ namespace dyablo {
     if (iter == max_iter) {
       // If we didn't converge, just return the last value
       // (this should be rare)
-      printf("Warning: find_T did not converge after %d iterations, last T = %g K\n", max_iter, T);
+      printf("Warning: find_T did not converge after %d iterations, T/µ = %g, last T = %g K and Z = %g\n", max_iter, T_over_mu, T, Z);
     }
     return T;
   }
@@ -431,6 +451,12 @@ private:
 
   std::string cooling_table;
   real_t Zsolar;
+  Units::Temperature Tstar;
+  Units::Density nstar;
+  real_t gammastar;
+  Units::Temperature T_min;
+  Units::Temperature T_max;
+  Units::Temperature T_CMB;
 
   Kokkos::View<real_t***, Kokkos::LayoutRight> C, H, mu;
   Kokkos::View<real_t***, Kokkos::LayoutRight> C_metals, H_metals;
@@ -445,9 +471,15 @@ public:
         Timers& timers )
   : foreach_cell(foreach_cell),
     timers(timers),
-    policy_params(Policy::getParams(configMap)),
-    cooling_table(configMap.getValue<std::string>("cooling", "grackle_table")),
-    Zsolar(configMap.getValue<real_t>("cooling", "Zsolar", 0.014))
+    policy_params( Policy::getParams(configMap) ),
+    cooling_table( configMap.getValue<std::string>("cooling", "grackle_table") ),
+    Zsolar       ( configMap.getValue<real_t>("cooling", "Zsolar", 0.02) ),
+    Tstar        ( configMap.getValue<Units::Temperature>("cooling", "T_ISM", 0.1 * Units::K()) ),
+    nstar        ( configMap.getValue<Units::Density>("cooling", "n_ISM", 0.1 * Units::PROTON_MASS() / Units::cm3()) ),
+    gammastar    ( configMap.getValue<real_t>("cooling", "gamma_ISM", 1.6) ),
+    T_min        ( configMap.getValue<Units::Temperature>("cooling", "T_min", 1e-2 * Units::K()) ),
+    T_max        ( configMap.getValue<Units::Temperature>("cooling", "T_max", 1e9 * Units::K()) ),
+    T_CMB        ( configMap.getValue<Units::Temperature>("cooling", "T_CMB", 2.7 * Units::K()) )
   {
     {
       using Arr3d = Kokkos::View<real_t***, Kokkos::LayoutRight>;
@@ -557,7 +589,7 @@ public:
     Units::Time code_time = Units::code_units().getUnit(Units::s());
     const real_t dt = (scalar_data.get<real_t>("dt") * code_time).convert_to(Units::s());
     const real_t dt_tot_s = Units::supercomoving_to_physical<Units::Time>(dt,aexp);
-   
+
     real_t XH = Units::XH().convert_to(Units::one());
 
     auto mp_per_cc     = Units::PROTON_MASS() / Units::cm3();
@@ -567,6 +599,15 @@ public:
     auto code_pressure = Units::code_units().getUnit<Units::Pressure>();
 
     real_t Zsolar = this->Zsolar;
+
+    real_t TCMB = this->T_CMB.convert_to(Units::K()) * (1 + redshift);
+    real_t log_TCMB = log10(TCMB);
+    real_t T_min_fix = this->T_min.convert_to(Units::K());
+    real_t T_max_fix = this->T_max.convert_to(Units::K());
+
+    real_t Tstar = this->Tstar.convert_to(Units::K());
+    real_t nstar = this->nstar.convert_to(mp_per_cc);
+    real_t gammastar = this->gammastar;
 
     foreach_cell.foreach_cell( "Cooling::update", Uin.getShape(),
       KOKKOS_LAMBDA(const ForeachCell::CellIndex& iCell) {
@@ -582,9 +623,16 @@ public:
         // Compute T/µ
         real_t T_over_mu = (P_physical / rho_physical * mp_over_kb).convert_to(K);
 
+        // Compute polytrope
+        real_t T_min = Tstar * pow(nH / nstar, gammastar - 1);
+
+        // Clamp T/µ to allowed range
+        T_over_mu = FMIN(FMAX(T_over_mu - T_min, T_min_fix), T_max_fix);
+
         real_t Z = 0;
         if (include_metals) {
-          Z = Umetal.at_ivar(iCell, 0) / q.rho;
+          // Z = Umetal.at_ivar(iCell, 0) / q.rho;
+          Z = Zsolar;
         }
 
         // Newton-Raphson to find T from T/µ
@@ -595,21 +643,30 @@ public:
         real_t Tend = evolve_rosenbrock<include_metals>(
           nH, log_nH, Z / Zsolar, T, dt_tot_s,
           Htab, Ctab, mutab, Hmetals_tab, Cmetals_tab,
+          TCMB, log_TCMB,
           dt_tot_s, Nsteps
         );
 
+        
         // Convert back to pressure
         {
           real_t mu, mu_noZ;
           compute_mu(log_nH, Tend, Z, mutab, mu, mu_noZ);
           T_over_mu = Tend / mu;
         }
+
+        // Add back polytrope
+        T_over_mu += T_min;
+
         P_physical = T_over_mu * K * rho_physical / mp_over_kb;
         q.p = Units::physical_to_supercomoving<Units::Pressure>(P_physical.convert_to(code_pressure), aexp);
 
         // Update state
         u = policy.primToCons(q);
         policy.setConsState(Uin, iCell, u);
+
+        // printf("dt = %e s, Told = %e K, Tend = %e K, nH = %e cm^-3, Z = %g Zsolar [metals=%d], steps = %d\n",
+        //        dt_tot_s, T, Tend, nH, Z / Zsolar, include_metals, Nsteps);
     });
 
 

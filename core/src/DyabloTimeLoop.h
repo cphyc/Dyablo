@@ -753,7 +753,7 @@ public:
     if( particle_position_updater )
     {
       particle_position_updater->update( U, m_scalar_data );
-      U.distributeParticles("particles");
+      particle_position_updater->finalize( U );
     }
 
     // Update hydro

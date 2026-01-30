@@ -19,14 +19,22 @@ public:
                                 Timers& timers )
   : foreach_cell(foreach_cell),
     foreach_particle(foreach_cell.get_amr_mesh(), configMap),
-    cfl( configMap.getValue<real_t>("dt", "particle_cfl", 0.5) )
+    cfl( configMap.getValue<real_t>("dt", "particle_cfl", 0.5) ),
+    array_names( configMap.getValue<std::vector<std::string>>("particles", "Compute_dt_particle_velocity_array_names", {"particles"}) )
   {}
 
   void compute_dt( const UserData& U, ScalarSimulationData& scalar_data )
   {
-    real_t dt_local = compute_dt_aux(U);
-
-    DYABLO_ASSERT_HOST_RELEASE(dt_local>0, "invalid dt = " << dt_local);
+    real_t dt_local = std::numeric_limits<real_t>::infinity();
+    for (const auto & array_name : array_names) {
+      DYABLO_ASSERT_HOST_RELEASE(
+        U.has_ParticleArray(array_name),
+        "Compute_dt_particle_velocity: Particle array '" << array_name << "' does not exist in UserData"
+      );
+      real_t dt_local_array = compute_dt_aux( U, array_name );
+      DYABLO_ASSERT_HOST_RELEASE(dt_local_array>0, "invalid dt = " << dt_local_array << " for array " << array_name);
+      dt_local = FMIN( dt_local, dt_local_array );
+    }
 
     real_t dt;
     auto communicator = foreach_cell.get_amr_mesh().getMpiComm();
@@ -35,7 +43,7 @@ public:
     scalar_data.set<real_t>("dt", dt);
   }
 
-  double compute_dt_aux( const UserData& U )
+  double compute_dt_aux( const UserData& U, const std::string& array_name )
   {
     int ndim = foreach_cell.getDim();
     
@@ -44,8 +52,8 @@ public:
     };
     
     ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
-    const ForeachParticle::ParticleArray& Ppos = U.getParticleArray( "particles" );
-    UserData::ParticleAccessor Pdata = U.getParticleAccessor( "particles", {{"vx", IVX},{"vy", IVY},{"vz", IVZ}} );
+    const ForeachParticle::ParticleArray& Ppos = U.getParticleArray( array_name );
+    UserData::ParticleAccessor Pdata = U.getParticleAccessor( array_name, {{"vx", IVX},{"vy", IVY},{"vz", IVZ}} );
 
     constexpr real_t small_v = 1.0e-10;
     using pos_t = Kokkos::Array<real_t, 3>;
@@ -84,6 +92,8 @@ private:
   ForeachParticle foreach_particle;
 
   real_t cfl;
+
+  std::vector<std::string> array_names;
 };
 
 

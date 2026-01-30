@@ -19,6 +19,7 @@ public:
   //               Timers& timers );
   virtual ~ParticleUpdate(){}
   virtual void update( UserData& U, ScalarSimulationData& scalar_data ) = 0;
+  virtual void finalize( UserData& U ){}
 };
 
 using ParticleUpdateFactory = RegisteringFactory< ParticleUpdate, 

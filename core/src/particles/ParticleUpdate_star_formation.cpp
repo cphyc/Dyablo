@@ -92,7 +92,8 @@ public:
     }()),
     epsilon_star    ( configMap.getValue<real_t>("star_formation", "epsilon_star") ),
     seed            ( 100 ),
-    rand_pool       ( seed*GlobalMpiSession::get_comm_world().MPI_Comm_rank()+1)
+    rand_pool       ( seed*GlobalMpiSession::get_comm_world().MPI_Comm_rank()+1),
+    array_names     ( configMap.getValue<std::vector<std::string>>("particles", "ParticleUpdate_star_formation_array_names") )
   {
     const uint32_t level_max = configMap.getValue<uint32_t>("amr", "level_max");
 
@@ -119,7 +120,17 @@ public:
     this->vol_min = min_dx * min_dy * min_dz;
   }
 
-  void update(UserData& U, ScalarSimulationData& scalar_data)
+  void update(UserData& U, ScalarSimulationData& scalar_data) {
+    for (const std::string& array_name : array_names) {
+      if (!U.has_ParticleArray(array_name)) {
+        throw std::runtime_error("ParticleUpdate_star_formation: Particle array '" + array_name + "' does not exist in UserData.");
+      }
+
+      this->update_aux(U, scalar_data, array_name);
+    }
+  }
+
+  void update_aux(UserData& U, ScalarSimulationData& scalar_data, const std::string& array_name)
   {
     timers.get("ParticleUpdate_star_formation").start();
 
@@ -282,7 +293,7 @@ public:
     }
 
     // Merge spawned_particles to particles ignoring particles with mass=0
-    U.merge_particles_if( "particles", "spawned_particles", "mass" );
+    U.merge_particles_if( array_name, "spawned_particles", "mass" );
 
     timers.get("ParticleUpdate_star_formation").stop();
   }
@@ -300,6 +311,8 @@ private:
   real_t vol_min;
   int seed;
   rand::RNGPool rand_pool;
+
+  std::vector<std::string> array_names;
 
 };
 

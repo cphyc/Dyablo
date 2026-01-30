@@ -19,7 +19,7 @@ namespace dyablo{
  * - dt_perturb : dt used to displace particles (using particle velocities)
  * 
 **/
-class InitialConditions_zeldovitch_particles : public InitialConditions{ 
+class InitialConditions_zeldovitch_particles : public InitialConditions{
     ForeachCell& foreach_cell;
     ForeachParticle foreach_particle;
     uint32_t nx, ny, nz;

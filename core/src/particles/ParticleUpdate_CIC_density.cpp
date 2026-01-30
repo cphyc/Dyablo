@@ -13,24 +13,30 @@ public:
   ParticleUpdate_CIC_density(
           ConfigMap& configMap,
           ForeachCell& foreach_cell,
-          Timers& timers) 
+          Timers& timers)
   : foreach_cell(foreach_cell),
     foreach_particle(foreach_cell.get_amr_mesh(), configMap),
-    timers(timers)
+    timers(timers),
+    array_names( configMap.getValue<std::vector<std::string>>("particles", "ParticleUpdate_CIC_density_array_names", {"particles"}) )
   {}
 
   ~ParticleUpdate_CIC_density() {}
 
-  void update( UserData& U, ScalarSimulationData& scalar_data ) 
+  void update( UserData& U, ScalarSimulationData& scalar_data )
   {
+    for (const auto & array_name : array_names) {
+      DYABLO_ASSERT_HOST_RELEASE(
+        U.has_ParticleArray(array_name),
+        "ParticleUpdate_CIC_density: Particle array '" << array_name << "' does not exist in UserData"
+      );
     if( foreach_cell.getDim() == 2 )
-      update_aux<2>(U, scalar_data);
-    else
-      update_aux<3>(U, scalar_data);
+        update_aux<2>(U, scalar_data, array_name);
+      else
+        update_aux<3>(U, scalar_data, array_name);
+    }
   }
-
   template< int ndim>
-  void update_aux( UserData& U, ScalarSimulationData& scalar_data ) 
+  void update_aux( UserData& U, ScalarSimulationData& scalar_data, const std::string& array_name )
   {
     timers.get("ParticleUpdate_CIC_density").start();
 
@@ -42,8 +48,8 @@ public:
     };
 
     auto Uin = U.getAccessor( {{"rho", IRho}, {"rho_g", IRhoG}} );
-    const ForeachParticle::ParticleArray& Ppos = U.getParticleArray( "particles" );
-    UserData::ParticleAccessor Pdata = U.getParticleAccessor( "particles", {{"mass", IMass}} );
+    const ForeachParticle::ParticleArray& Ppos = U.getParticleArray( array_name );
+    UserData::ParticleAccessor Pdata = U.getParticleAccessor( array_name, {{"mass", IMass}} );
 
     ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
 
@@ -52,27 +58,27 @@ public:
     {
       Uin.at(iCell, IRhoG) = Uin.at(iCell, IRho);
     });
-    
+
     foreach_particle.foreach_particle( "ParticleUpdate_CIC_density::projection", Ppos,
       KOKKOS_LAMBDA( const ForeachParticle::ParticleIndex& iPart )
     {
       real_t part_mass = Pdata.at( iPart, IMass );
       pos_t part_pos = {Ppos.pos(iPart, IX), Ppos.pos(iPart, IY), Ppos.pos(iPart, IZ)};
       ForeachCell::CellIndex iCell = cells.getCellFromPos( part_pos );
-      
+
       pos_t cell_size = cells.getCellSize( iCell );
       cell_size[IZ] = (ndim == 2) ? 1.0 : cell_size[IZ];
       pos_t cell_pos = cells.getCellCenter( iCell );
       real_t Vcell = cell_size[IX]*cell_size[IY]*cell_size[IZ];
 
       pos_t p = { // Local position relative to center [-0.5, 0.5]^3
-        (part_pos[IX] - cell_pos[IX])/cell_size[IX], 
-        (part_pos[IY] - cell_pos[IY])/cell_size[IY], 
-        (part_pos[IZ] - cell_pos[IZ])/cell_size[IZ] 
+        (part_pos[IX] - cell_pos[IX])/cell_size[IX],
+        (part_pos[IY] - cell_pos[IY])/cell_size[IY],
+        (part_pos[IZ] - cell_pos[IZ])/cell_size[IZ]
       };
       auto sign = [](const auto& x) -> int8_t {return (x>=0)?1:-1;};
       ForeachCell::CellIndex::offset_t part_offset = {sign(p[IX]), sign(p[IY]), sign(p[IZ])};
-      
+
       pos_t v_out = {abs(p[IX]), abs(p[IY]), abs(p[IZ])};     // volume fraction in neighbor cells [0,0.5]^3
       pos_t v_in =  {1-v_out[IX], 1-v_out[IY], 1-v_out[IZ]};  // Remaining volume fraction in local cell [0.5,1]^3
 
@@ -90,13 +96,13 @@ public:
         { // bigger or same size : only one cell to write
           real_t rho_contrib = (part_mass * volume_fraction) / Vcell;
           if( iCell_neighbor.level_diff() == 1 )
-          { 
+          {
             // Same volume fraction, but Vcell_neighbor is 2^ndim times bigger
             rho_contrib = rho_contrib/( 2*2*(ndim-1) );
-          }         
+          }
           Kokkos::atomic_add( &Uin.at( iCell_neighbor, IRhoG ), rho_contrib) ;
         }
-        else 
+        else
         {
           // Smaller : write to all smaller neighbors
           //real_t volume_fraction_smaller = volume_fraction/(2*(ndim-1)); // Mass distributed accross neighbors
@@ -120,8 +126,8 @@ public:
       for (int i = 0; i < 2; i++)
       {
         apply_rho_contrib({
-          static_cast<int16_t>(i*part_offset[IX]), 
-          static_cast<int16_t>(j*part_offset[IY]), 
+          static_cast<int16_t>(i*part_offset[IX]),
+          static_cast<int16_t>(j*part_offset[IY]),
           static_cast<int16_t>(k*part_offset[IZ])
         });
       }
@@ -138,11 +144,12 @@ public:
 private:
   ForeachCell& foreach_cell;
   ForeachParticle foreach_particle;
-  Timers& timers;  
+  Timers& timers;
+  std::vector<std::string> array_names;
 };
 
 } // namespace dyablo
 
-FACTORY_REGISTER( dyablo::ParticleUpdateFactory, 
-                  dyablo::ParticleUpdate_CIC_density, 
+FACTORY_REGISTER( dyablo::ParticleUpdateFactory,
+                  dyablo::ParticleUpdate_CIC_density,
                   "ParticleUpdate_CIC_density")

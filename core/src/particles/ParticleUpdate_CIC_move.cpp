@@ -16,26 +16,34 @@ public:
     timers(timers),
     data{
       .xmin = configMap.getValue<real_t>("mesh", "xmin", 0.0),
-      .xmax = configMap.getValue<real_t>("mesh", "xmax", 1.0),      
+      .xmax = configMap.getValue<real_t>("mesh", "xmax", 1.0),
       .ymin = configMap.getValue<real_t>("mesh", "ymin", 0.0),
       .ymax = configMap.getValue<real_t>("mesh", "ymax", 1.0),
       .zmin = configMap.getValue<real_t>("mesh", "zmin", 0.0),
       .zmax = configMap.getValue<real_t>("mesh", "zmax", 1.0)
-    }
+    },
+    array_names( configMap.getValue<std::vector<std::string>>("particles", "ParticleUpdate_CIC_move_array_names", {"particles"}) )
   {}
 
   ~ParticleUpdate_CIC_move() {}
 
-  void update( UserData& U, ScalarSimulationData& scalar_data) 
+  void update( UserData& U, ScalarSimulationData& scalar_data)
   {
-    if( foreach_cell.getDim() == 2 )
-      update_aux<2>(U, scalar_data);
-    else
-      update_aux<3>(U, scalar_data);
+    for (const auto & array_name : array_names) {
+      DYABLO_ASSERT_HOST_RELEASE(
+        U.has_ParticleArray(array_name),
+        "ParticleUpdate_CIC_move: Particle array '" << array_name << "' does not exist in UserData"
+      );
+
+      if( foreach_cell.getDim() == 2 )
+        update_aux<2>(U, scalar_data, array_name);
+      else
+        update_aux<3>(U, scalar_data, array_name);
+    }
   }
   
   template< int ndim>
-  void update_aux( UserData& U, ScalarSimulationData& scalar_data) 
+  void update_aux( UserData& U, ScalarSimulationData& scalar_data, const std::string& array_name )
   {
     using pos_t = Kokkos::Array<real_t, 3>;
 
@@ -51,8 +59,8 @@ public:
     };
 
     auto Uin = U.getAccessor( {{"gx", IGX},{"gy", IGY},{"gz", IGZ}} );
-    const ForeachParticle::ParticleArray& Ppos = U.getParticleArray( "particles" );
-    UserData::ParticleAccessor Pdata = U.getParticleAccessor( "particles", {{"vx", IVX},{"vy", IVY},{"vz", IVZ}} );
+    const ForeachParticle::ParticleArray& Ppos = U.getParticleArray( array_name );
+    UserData::ParticleAccessor Pdata = U.getParticleAccessor( array_name, {{"vx", IVX},{"vy", IVY},{"vz", IVZ}} );
 
     ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
 
@@ -139,10 +147,22 @@ public:
     timers.get("ParticleUpdate_CIC_move").stop();
   }
 
+  void finalize(UserData& U) {
+    for (const auto & array_name : array_names) {
+      DYABLO_ASSERT_HOST_RELEASE(
+        U.has_ParticleArray(array_name),
+        "ParticleUpdate_CIC_move: Particle array '" << array_name << "' does not exist in UserData"
+      );
+
+      U.distributeParticles(array_name);
+    }
+  }
+
 private:
   ForeachCell& foreach_cell;
   ForeachParticle foreach_particle;
-  Timers& timers;  
+  Timers& timers;
+  std::vector<std::string> array_names;
 public: // Needed for nvcc
   struct Data {
     real_t xmin,xmax,ymin,ymax,zmin,zmax;

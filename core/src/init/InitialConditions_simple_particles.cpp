@@ -73,7 +73,7 @@ public:
 
     if (rank == 0) { 
 
-      const ForeachParticle::ParticleArray& P = U.getParticleArray(array_name); 
+      const ForeachParticle::ParticleArray& P = U.getParticleArray(array_name);
 
       std::vector<UserData::ParticleAccessor::AttributeInfo> attr_info;
       size_t nbAttr = attribute_names.size();
@@ -89,7 +89,7 @@ public:
       Kokkos::View<double**, Kokkos::LayoutLeft>& attribute_values = this->attribute_values;
 
       foreach_particle.foreach_particle("InitialConditions_simple_particles", P,
-        KOKKOS_LAMBDA (ParticleData::ParticleIndex iPart) 
+        KOKKOS_LAMBDA (ParticleData::ParticleIndex iPart)
       {      
         P.pos(iPart, IX) = px(iPart);
         P.pos(iPart, IY) = py(iPart);
