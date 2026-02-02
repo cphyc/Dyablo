@@ -49,6 +49,7 @@ public:
     // Initialize neighbor positions (normalized to dx=1)
     // from -0.75 to 0.75, excluding edges and center
     int ind = 0;
+
     for (int k = 0; k < 4; k++) {
       for (int j = 0; j < 4; j++) {
         for (int i = 0; i < 4; i++) {
@@ -240,8 +241,14 @@ public:
           };
 
           ForeachCell::CellIndex iCellNei = cells.getCellFromPos( xnei );
+          DYABLO_ASSERT_KOKKOS_DEBUG(
+            !((iCellNei.i == iCell.i) && (iCellNei.j == iCell.j) && (iCellNei.k == iCell.k) && (iCellNei.iOct.iOct == iCell.iOct.iOct)),
+            "ParticleUpdate_momentum_feedback: Neighboring cell is the same as the central cell: " <<
+            "{i, j, k} = {" << iCellNei.i << ", " << iCellNei.j << ", " << iCellNei.k << "} | iOct = " << iCellNei.iOct.iOct <<
+            " | j = " << j << " | xSNnei(j) = {" << xSNnei_dev(j)[IX] << ", " << xSNnei_dev(j)[IY] << ", " << xSNnei_dev(j)[IZ] << "} × " << dx_loc );
+
           pos_t cell_size_nei = cells.getCellSize( iCellNei );
-          real_t relative_volume = cell_volume / (cell_size_nei[IX] * cell_size_nei[IY] * cell_size_nei[IZ]);
+          real_t relative_volume = (cell_size_nei[IX] * cell_size_nei[IY] * cell_size_nei[IZ]) / cell_volume;
 
           // Get neighboring cell properties
           real_t rho_nei = Uin.at(iCellNei, IRho);
@@ -261,10 +268,10 @@ public:
           }
           real_t f_w_crit;
           {
-            real_t Zdepen = Kokkos::pow(FMAX(0.01, Z_nei / 0.02), expZ_SN * 2.0);
-            f_w_crit = Kokkos::pow(A_SN / 1e4, 2.0) / (f_ESN * M_SNII) *
-                       Kokkos::pow(num_sn, (expE_SN - 1.0) * 2.0) *
-                       Kokkos::pow(nH_nei, expN_SN * 2.0) * Zdepen - 1.0;
+            real_t Zdepen = pow(FMAX(0.01, Z_nei / 0.02), expZ_SN * 2.0);
+            f_w_crit = pow(A_SN / 1e4, 2.0) / (f_ESN * M_SNII) *
+                       pow(num_sn, (expE_SN - 1.0) * 2.0) *
+                       pow(nH_nei, expN_SN * 2.0) * Zdepen - 1.0;
             f_w_crit = FMAX(0.0, f_w_crit);
           }
 
@@ -284,13 +291,9 @@ public:
           }
           if (vload > vload_rad) vload = vload_rad;
 
-          // Compute radial momentum and kinetic energy
-          real_t p_solid = (1.0 + f_w_cell) * rho_ejecta * vload;
-          real_t ek_solid = p_solid * (vload * f_LOAD) / 2.0;
-
           // Add mass, momentum and energy from central cell loading
           real_t inv_nSNnei_vol_nei = 1.0 / (static_cast<real_t>(nSNnei) * relative_volume);
-          
+
           Kokkos::atomic_add(&Uin.at(iCellNei, IRho),     (rho_loss *      f_LOAD + rho *         f_LOAD_CEN) * inv_nSNnei_vol_nei);
           Kokkos::atomic_add(&Uin.at(iCellNei, IRho_vx),  (rho_loss * up * f_LOAD + rho * u *     f_LOAD_CEN) * inv_nSNnei_vol_nei);
           Kokkos::atomic_add(&Uin.at(iCellNei, IRho_vy),  (rho_loss * vp * f_LOAD + rho * v *     f_LOAD_CEN) * inv_nSNnei_vol_nei);
@@ -302,6 +305,13 @@ public:
               (dzloss * f_LOAD + rho * Z * f_LOAD_CEN) * inv_nSNnei_vol_nei);
           }
 
+          // Compute radial momentum and kinetic energy
+          real_t p_solid = (1.0 + f_w_cell) * rho_ejecta * vload;
+          real_t ek_solid = p_solid * (vload * f_LOAD) / 2.0;
+
+          // Important: this is *not* momentum conserving since
+          // what's injected on the left may not exactly match
+          // what's injected on the right!
           // Add momentum and energy from the cold shell
           Kokkos::atomic_add(&Uin.at(iCellNei, IRho_vx), p_solid * vSNnei_dev(j)[IX] / relative_volume);
           Kokkos::atomic_add(&Uin.at(iCellNei, IRho_vy), p_solid * vSNnei_dev(j)[IY] / relative_volume);

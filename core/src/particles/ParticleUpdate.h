@@ -15,7 +15,7 @@ class ParticleUpdate_TSC_density;
 class ParticleUpdate_star_formation;
 
 class ParticleUpdate_feedback;
-class ParticleUpdate_feedback;
+class ParticleUpdate_momentum_feedback;
 
 } //namespace dyablo 
 
@@ -33,7 +33,7 @@ inline bool dyablo::ParticleUpdateFactory::init()
   DECLARE_REGISTERED(dyablo::ParticleUpdate_star_formation);
 
   DECLARE_REGISTERED(dyablo::ParticleUpdate_feedback);
-  DECLARE_REGISTERED(dyablo::ParticleUpdate_feedback);
+  DECLARE_REGISTERED(dyablo::ParticleUpdate_momentum_feedback);
 
   return true;
 }
