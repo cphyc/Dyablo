@@ -13,6 +13,9 @@ class SourceUpdate_Photons_Beam;
 template< typename Policy >
 class SourceUpdate_cooling_grackle_table;
 
+template< typename Policy >
+class CoolingUpdate_PRISM;
+
 } //namespace dyablo
 
 
@@ -25,6 +28,8 @@ inline bool dyablo::SourceUpdateFactory::init()
 
   DECLARE_REGISTERED(dyablo::SourceUpdate_cooling_grackle_table<dyablo::HyperbolicPolicy_Hydro>);
   DECLARE_REGISTERED(dyablo::SourceUpdate_cooling_grackle_table<dyablo::HyperbolicPolicy_GLMMHD>);
+
+  DECLARE_REGISTERED(dyablo::CoolingUpdate_PRISM<dyablo::HyperbolicPolicy_Hydro>);
 
   return true;
 }
