@@ -108,3 +108,8 @@ endif (DYABLO_USE_HDF5)
 
 # config file reader / ConfigMap / monitoring timer
 add_subdirectory(utils)
+
+# subdirectories for PRISM model
+if (DYABLO_USE_PRISM)
+    add_subdirectory(source_terms/PRISM)
+endif()
