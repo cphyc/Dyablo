@@ -112,7 +112,7 @@ public:
       {
         CellIndex iCell_Uin = Uin.getShape().convert_index_ghost(iCell_Qpatch);
         int level_diff = iCell_Uin.level_diff();
-        ConsState u = {};
+        ConsState u{};
         if (iCell_Uin.is_boundary())
           u = policy.getBoundaryValue(Uin, iCell_Uin, cellmetadata);
         else if (level_diff < 0) {
