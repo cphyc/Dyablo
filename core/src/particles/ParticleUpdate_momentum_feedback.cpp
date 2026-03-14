@@ -2,16 +2,94 @@
 #include "utils/units/Units.h"
 #include "ForeachParticle.h"
 #include "states/State_hydro.h"
+#include "mpi/GhostCommunicator_partial_blocks.h"
+#include "foreach_cell/ForeachCell_utils.h"
 
 #include <Kokkos_Core.hpp>
 #include <cmath>
+
+namespace {
+  using namespace dyablo;
+
+  /**
+   * @brief Compute the momentum injection and energy contribution
+   * from a supernova.
+   *
+   * See Kimm & Cen 2014, Geen et al. 2015 and Kimm et al. 2017 for details.
+   *
+   * @param dx: cell size [code units]
+   * @param rS: Stromgren sphere radius [code units]
+   * @param ESN: supernova energy [erg]
+   * @param Zp: metallicity [solar units]
+   * @param beta_SN: fraction of SN mass redistributed in neighbour cells
+   * @param Mej: ejected mass from the SN [Msun]
+   * @param rho: density in the cell containing the SN [mp/cm³]
+   * @param rho_host: mass in the cell containing the SN [mp/cm³]
+   * @param V_host: volume of the cell containing the SN [cm³]
+   *
+   * @return the momentum to inject [Msun * km/s], to be multiplied by dΩ/4π
+   */
+  KOKKOS_INLINE_FUNCTION
+  real_t compute_dp(const real_t dx, const real_t rS, const real_t ESN, const real_t Zp, const real_t beta_SN, const real_t Mej, const real_t rho, const real_t rho_host, const real_t V_host) {
+
+    real_t M_host = rho_host * V_host;
+    constexpr real_t XH = Units::XH().convert_to(Units::one());
+
+    real_t E51 = ESN / 1e51;
+    real_t nH = rho * XH;
+    real_t nH_m217 = pow(nH, -2.0/17.0);
+    real_t nH_m417 = pow(nH, -4.0/17.0);
+
+    real_t E51_1617 = pow(E51, 16.0/17.0);
+    real_t E51_m217 = pow(E51, -2.0/17.0);
+
+    real_t Zp_m014 = pow(Zp, -0.14);
+    real_t Zp_m028 = pow(Zp, -0.28);
+
+    // Snowplow phase momentum
+
+    // Eq. (14) from Kimm et al. 2017
+    real_t pSN_snow = 3e5 * nH_m217 * E51_1617 * Zp_m014;
+    // Eq. (15) from Kimm et al. 2017
+    real_t pSN_PH = 4.2e5 * E51_1617 * Zp_m014;
+
+    // Injected momentum at the snowplow phase, accounting for
+    // boost from photo-heating (Geen et al. 2015)
+    real_t pSN;
+    {
+      // Eq. (16) from Kimm et al. 2017
+      real_t exp_factor = exp(-dx / rS);
+      pSN = pSN_snow * exp_factor + pSN_PH * (1.0 - exp_factor);
+    }
+
+    // Eq. (A5) from Kimm et Cen 2014, threshold mass ratio
+    real_t chi_tr = 87.54 * nH_m417 * E51_m217 * Zp_m028;
+
+    // Eq. (17, 18, 19) from Kimm et al. 2017
+    // Note: we're assuming the local cell is ⅛ of the volume of the cell hosting the SN
+    real_t dMej = (1 - beta_SN) * Mej / 48.0;
+    real_t dMswept = rho * V_host / 8.0 + (1 - beta_SN) * M_host / 48.0 + dMej;
+    real_t chi = dMswept / dMej;
+
+    if (chi < chi_tr) {
+      // Momentum from the adiabatic phase
+      // Eq. (21) from Kimm et al. 2017
+      real_t f_ESN = 1 - (chi - 1) / (3 * (chi_tr - 1));
+      pSN = SQRT(2 * chi * Mej * f_ESN * ESN);
+    }
+    return pSN;
+  }
+
+};
 
 namespace dyablo {
 
 class ParticleUpdate_momentum_feedback : public ParticleUpdate {
 public:
   using pos_t = Kokkos::Array<real_t, 3>;
-  
+
+  using CellIndex = ForeachCell::CellIndex;
+
   // Number of neighboring cells to deposit mass/momentum/energy
   static constexpr int nSNnei = 48;
   // Number of cells corresponding to the central cell to deposit mass
@@ -41,6 +119,10 @@ public:
     f_ESN           ( configMap.getValue<real_t>("star_feedback", "f_ESN", 0.676) )
   {
     initialize_neighbor_positions();
+    DYABLO_ASSERT_HOST_RELEASE(
+      configMap.getValue<int>("mesh", "ndim", 3) == 3,
+      "ParticleUpdate_momentum_feedback only works in 3D"
+    );
   }
 
   ~ParticleUpdate_momentum_feedback() {}
@@ -58,13 +140,13 @@ public:
           if ((i == 0 || i == 3) && (j == 0 || j == 3) && (k == 0 || k == 3)) ok = false;
           // Exclude center
           if ((i == 1 || i == 2) && (j == 1 || j == 2) && (k == 1 || k == 2)) ok = false;
-          
+
           if (ok) {
             real_t x = static_cast<real_t>(i) + 0.5 - 2.0;
             real_t y = static_cast<real_t>(j) + 0.5 - 2.0;
             real_t z = static_cast<real_t>(k) + 0.5 - 2.0;
             real_t rr = std::sqrt(x*x + y*y + z*z);
-            
+
             xSNnei[ind][IX] = x / 2.0;
             xSNnei[ind][IY] = y / 2.0;
             xSNnei[ind][IZ] = z / 2.0;
@@ -84,9 +166,20 @@ public:
         throw std::runtime_error("ParticleUpdate_momentum_feedback: Particle array '" + array_name + "' does not exist in UserData.");
       }
 
+      timers.get("ParticleUpdate_momentum_feedback").start();
+
+      U.new_fields({"rho_star", "rho_vx_star", "rho_vy_star", "rho_vz_star"});
       this->update_aux(U, scalar_data, array_name);
+
+      U.delete_field("rho_star");
+      U.delete_field("rho_vx_star");
+      U.delete_field("rho_vy_star");
+      U.delete_field("rho_vz_star");
+
+      timers.get("ParticleUpdate_momentum_feedback").stop();
     }
   }
+
 
   void update_aux(UserData& U, ScalarSimulationData& scalar_data, const std::string& array_name)
   {
@@ -94,16 +187,20 @@ public:
     const real_t dt = scalar_data.get<real_t>("dt");
 
     enum VarIndex {
-      IRho, IE_tot, IRho_vx, IRho_vy, IRho_vz, IRho_Z,
+      IRho, IE_tot, IRho_vx, IRho_vy, IRho_vz, IRho_Z, IRho_star, IRho_vx_star, IRho_vy_star, IRho_vz_star
     };
     enum VarIndex_particle {
       IMASS, IVX, IVY, IVZ, IBIRTH, IMETAL
     };
 
-    timers.get("ParticleUpdate_momentum_feedback").start();
+    std::vector<UserData_fields::FieldAccessor_FieldInfo> Uin_infos = {
+        {"rho", IRho},
+        {"e_tot", IE_tot},
+        {"rho_vx", IRho_vx},
+        {"rho_vy", IRho_vy},
+        {"rho_vz", IRho_vz},
+      };
 
-    std::vector<UserData_fields::FieldAccessor_FieldInfo>
-      Uin_infos = {{"rho", IRho},    {"e_tot", IE_tot},    {"rho_vx", IRho_vx},    {"rho_vy", IRho_vy},    {"rho_vz", IRho_vz}};
     std::vector<UserData_particles::ParticleAccessor_AttributeInfo>
       pinfos = {{"mass", IMASS}, {"vx", IVX}, {"vy", IVY}, {"vz", IVZ}, {"birth_time", IBIRTH}};
 
@@ -117,6 +214,10 @@ public:
     auto Ppos = U.getParticleArray( array_name );
     auto Pdata = U.getParticleAccessor( array_name, pinfos );
     auto Uin = U.getAccessor( Uin_infos );
+    auto Ustar = U.getAccessor( {{"rho_star", IRho_star},
+                                 {"rho_vx_star", IRho_vx_star},
+                                 {"rho_vy_star", IRho_vy_star},
+                                 {"rho_vz_star", IRho_vz_star}} );
 
     ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
 
@@ -158,9 +259,147 @@ public:
 
     real_t XH = Units::XH().convert_to(Units::one());
 
-    uint SN_counter = 0;
+    uint SN_count = 0;
+    uint SN_count_global = 0;
+
+    // //----------------------------------------------------------
+    // // FIRST PASS: count mass and momentum of SN II explosions
+    // foreach_particle.reduce_particle( "particles_update_momentum_feedback_count", Ppos,
+    //   KOKKOS_LAMBDA( const ForeachParticle::ParticleIndex& iPart, uint& SN_count )
+    // {
+    //   // Age of the particle
+    //   real_t age_physical = t - Pdata.at(iPart, IBIRTH);
+
+    //   // If the SN will explode in this time step
+    //   if ((age_physical < t_SNII_physical) && ((age_physical + dt_physical) > t_SNII_physical)) {
+    //     SN_count++;
+    //     pos_t part_pos = {Ppos.pos(iPart, IX), Ppos.pos(iPart, IY), Ppos.pos(iPart, IZ)};
+    //     pos_t part_vel = {Pdata.at(iPart, IVX), Pdata.at(iPart, IVY), Pdata.at(iPart, IVZ)};
+
+    //     ForeachCell::CellIndex iCell = cells.getCellFromPos( part_pos );
+
+    //     pos_t cell_size = cells.getCellSize( iCell );
+    //     real_t cell_volume = cell_size[IX] * cell_size[IY] * cell_size[IZ];
+    //     Kokkos::atomic_add(&Ustar.at(iCell, IRho_star), Pdata.at(iPart, IMASS) / cell_volume);
+    //     Kokkos::atomic_add(&Ustar.at(iCell, IRho_vx_star), Pdata.at(iPart, IMASS) * part_vel[IX] / cell_volume);
+    //     Kokkos::atomic_add(&Ustar.at(iCell, IRho_vy_star), Pdata.at(iPart, IMASS) * part_vel[IY] / cell_volume);
+    //     Kokkos::atomic_add(&Ustar.at(iCell, IRho_vz_star), Pdata.at(iPart, IMASS) * part_vel[IZ] / cell_volume);
+    //   }
+    // }, SN_count );
+
+    // // Count the number of SN explosions in the whole box
+    // MPI_Allreduce( &SN_count, &SN_count_global, 1, MPI_UNSIGNED, MPI_SUM, MPI_COMM_WORLD );
+
+    // if (SN_count_global == 0) {
+    //   return;
+    // }
+
+    // // Communicate ghost zones
+    // {
+    //   int ghost_count = 1;
+    //   GhostCommunicator_partial_blocks ghost_comm (
+    //     foreach_cell.get_amr_mesh(),
+    //     Ustar.getShape(),
+    //     ghost_count );
+    //   ghost_comm.exchange_ghosts( Ustar );
+    // }
+
+    // //----------------------------------------------------------
+    // // SECOND PASS: apply mass and momentum feedback following
+    // // Kimm & Cen 2014, Geen et al. 2016, Kimm et al. 2017
+    // foreach_cell.foreach_cell( "particles_update_momentum_feedback_apply",
+    //   Uin.getShape(),
+    //   KOKKOS_LAMBDA( const CellIndex& iCell ) {
+    //     pos_t cell_size = cells.getCellSize( iCell );
+
+    //     // Get injection cell properties
+    //     real_t rho = Uin.at(iCell, IRho);
+    //     real_t rho_vx = Uin.at(iCell, IRho_vx);
+    //     real_t rho_vy = Uin.at(iCell, IRho_vy);
+    //     real_t rho_vz = Uin.at(iCell, IRho_vz);
+
+    //     real_t drho = 0, drho_vx = 0, drho_vy = 0, drho_vz = 0, drho_Z = 0;
+
+    //     // Helper function doing the SN injection from iCell_SN into iCell
+    //     auto& do_SN_injection = [&] (const CellIndex& iCell_SN, int level_diff) {
+    //       pos_t cell_size_host = cells.getCellSize( iCell_SN );
+
+    //       // Get SN host cell properties
+    //       real_t rho_host = Uin.at(iCell_SN, IRho);
+    //       real_t rho_vx_host = Uin.at(iCell_SN, IRho_vx);
+    //       real_t rho_vy_host = Uin.at(iCell_SN, IRho_vy);
+    //       real_t rho_vz_host = Uin.at(iCell_SN, IRho_vz);
+
+    //       // Get SN mass and momentum
+    //       real_t V_host = cell_size_host[IX] * cell_size_host[IY] * cell_size_host[IZ];
+    //       real_t MSN = eta_SNII * Ustar.at(iCell_SN, IRho_star) * V_host;
+    //       real_t py_SN = eta_SNII * Ustar.at(iCell_SN, IRho_vy_star) * V_host;
+    //       real_t pz_SN = eta_SNII * Ustar.at(iCell_SN, IRho_vz_star) * V_host;
+    //       real_t px_SN = eta_SNII * Ustar.at(iCell_SN, IRho_vx_star) * V_host;
+
+    //       // Compute dp to inject
+    //       real_t dp = 0;
+
+    //       drho += 0;
+    //       drho_vx += 0;
+    //       drho_vy += 0;
+    //       drho_vz += 0;
+    //       drho_Z += 0;
+    //     };
+
+
+    //     CellIndex::offset_t offset;
+    //     int8_t nSN = 0;
+
+    //     for (int8_t i = -1; i <= 1; ++i)
+    //     for (int8_t j = -1; j <= 1; ++j)
+    //     for (int8_t k = -1; k <= 1; ++k) {
+    //       // Skip corners
+    //       if (((i == -1) || (i == 1)) && ((j == -1) || (j == 1)) && ((k == -1) || (k == 1)))
+    //         continue;
+
+    //       // Get neighbours
+    //       offset = {i, j, k};
+    //       CellIndex iCell_neighbor = iCell.getNeighbor_ghost(offset, Uin);
+
+    //       int level_diff = iCell_neighbor.level_diff();
+
+    //       if (iCell_neighbor.is_boundary()) {
+    //         continue; // Skip boundaries
+    //       }
+
+    //       if (level_diff == -1) { // neighbour is smaller
+    //         // Note: this will iterate over
+    //         //      - 4 smaller neighbors for neighbor that share a face,
+    //         //      - 2 for those that share an edge,
+    //         //      - 1 for those that share a corner [but we've skipped this case]
+    //         foreach_smaller_neighbor<3, true>( iCell_neighbor, offset, Uin.getShape(),
+    //           [&]( const CellIndex& iCell_smaller ) {
+    //             if (Uin.at(iCell_smaller, IRho_star) > 0) {
+    //               do_SN_injection(iCell_smaller, iCell, level_diff);
+    //             }
+    //           });
+    //       }
+    //       else if (level_diff >= 0) { // neighbour is same size or bigger
+    //         real_t rho_star = Ustar.at(iCell_neighbor, IRho_star);
+    //         if (rho_star > 0) do_SN_injection(iCell_neighbor, iCell, level_diff);
+    //       }
+    //     } // end for neighbours
+
+    //     // Update cell quantities
+    //     Uin.at(iCell, IRho)     += drho;
+    //     Uin.at(iCell, IRho_vx)  += drho_vx;
+    //     Uin.at(iCell, IRho_vy)  += drho_vy;
+    //     Uin.at(iCell, IRho_vz)  += drho_vz;
+
+    //     if (has_metallicity) {
+    //       Uin.at(iCell, IRho_Z)   += drho_Z;
+    //     }
+
+    // });
+
     foreach_particle.reduce_particle( "particles_update_momentum_feedback", Ppos,
-      KOKKOS_LAMBDA( const ForeachParticle::ParticleIndex& iPart, uint& SN_counter )
+      KOKKOS_LAMBDA( const ForeachParticle::ParticleIndex& iPart, uint& SN_count )
     {
       // Age of the particle
       real_t age_physical = t - Pdata.at(iPart, IBIRTH);
@@ -182,11 +421,11 @@ public:
         real_t Mstar = Pdata.at(iPart, IMASS);
         real_t mejecta = Mstar * eta_SNII;
         real_t num_sn = mejecta / M_SNII;
-        
+
         real_t up = part_vel[IX];
         real_t vp = part_vel[IY];
         real_t wp = part_vel[IZ];
-        
+
         real_t rho_loss = mejecta / cell_volume;
         real_t ekloss = rho_loss * 0.5 * (up*up + vp*vp + wp*wp);
 
@@ -210,7 +449,7 @@ public:
         real_t e = Uin.at(iCell, IE_tot);
         real_t ekk = 0.5 * rho * (u*u + v*v + w*w);
         real_t eth = e - ekk;
-        
+
         real_t Z = 0.02; // Default solar metallicity
         if (has_metallicity) {
           Z = Uin.at(iCell, IRho_Z) / rho;
@@ -222,7 +461,7 @@ public:
         Kokkos::atomic_add(&Uin.at(iCell, IRho_vy), (1 - f_LOAD) * rho_loss*vp - rho*v     * f_LOAD_CEN);
         Kokkos::atomic_add(&Uin.at(iCell, IRho_vz), (1 - f_LOAD) * rho_loss*wp - rho*w     * f_LOAD_CEN);
         Kokkos::atomic_add(&Uin.at(iCell, IE_tot),  (1 - f_LOAD) * ekloss      - (ekk+eth) * f_LOAD_CEN);
-        
+
         if (has_metallicity) {
           Kokkos::atomic_add(&Uin.at(iCell, IRho_Z), (1 - f_LOAD) * dzloss - rho*Z*f_LOAD_CEN);
         }
@@ -241,11 +480,11 @@ public:
           };
 
           ForeachCell::CellIndex iCellNei = cells.getCellFromPos( xnei );
-          DYABLO_ASSERT_KOKKOS_DEBUG(
-            !((iCellNei.i == iCell.i) && (iCellNei.j == iCell.j) && (iCellNei.k == iCell.k) && (iCellNei.iOct.iOct == iCell.iOct.iOct)),
-            "ParticleUpdate_momentum_feedback: Neighboring cell is the same as the central cell: " <<
-            "{i, j, k} = {" << iCellNei.i << ", " << iCellNei.j << ", " << iCellNei.k << "} | iOct = " << iCellNei.iOct.iOct <<
-            " | j = " << j << " | xSNnei(j) = {" << xSNnei_dev(j)[IX] << ", " << xSNnei_dev(j)[IY] << ", " << xSNnei_dev(j)[IZ] << "} × " << dx_loc );
+          // DYABLO_ASSERT_KOKKOS_DEBUG(
+          //   !((iCellNei.i == iCell.i) && (iCellNei.j == iCell.j) && (iCellNei.k == iCell.k) && (iCellNei.iOct.iOct == iCell.iOct.iOct)),
+          //   "ParticleUpdate_momentum_feedback: Neighboring cell is the same as the central cell: " <<
+          //   "{i, j, k} = {" << iCellNei.i << ", " << iCellNei.j << ", " << iCellNei.k << "} | iOct = " << iCellNei.iOct.iOct <<
+          //   " | j = " << j << " | xSNnei(j) = {" << xSNnei_dev(j)[IX] << ", " << xSNnei_dev(j)[IY] << ", " << xSNnei_dev(j)[IZ] << "} × " << dx_loc );
 
           pos_t cell_size_nei = cells.getCellSize( iCellNei );
           real_t relative_volume = (cell_size_nei[IX] * cell_size_nei[IY] * cell_size_nei[IZ]) / cell_volume;
@@ -322,14 +561,12 @@ public:
         // Update particle properties
         Pdata.at(iPart, IMASS) -= mejecta;
 
-        SN_counter++;
+        SN_count++;
       }
-    }, SN_counter);
+    }, SN_count);
 
-    if (SN_counter > 0)
-      std::cout << "[ParticleUpdate_momentum_feedback] Number of SNII explosions in array '" << array_name << "': " << SN_counter << std::endl;
-
-    timers.get("ParticleUpdate_momentum_feedback").stop();
+    if (SN_count > 0)
+      std::cout << "[ParticleUpdate_momentum_feedback] Number of SNII explosions in array '" << array_name << "': " << SN_count << std::endl;
   }
 
 private:

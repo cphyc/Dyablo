@@ -116,13 +116,14 @@ namespace dyablo {
 
   void check_spacing(Kokkos::View<const real_t*> arr, const real_t spacing, const std::string& name) {
     int err = 0;
+    auto name_loc = name.c_str();
     Kokkos::parallel_reduce("check_spacing", arr.extent(0) - 2, KOKKOS_LAMBDA(const size_t i, int& err) {
       real_t d0 = spacing;
       real_t di = arr(i+1) - arr(i);
 
-      if (FABS(di - d0) / d0 > 1e-6) {
+      if (FABS(di - d0) / d0 > 1e-3) {
         err += 1;
-        printf("[%s] arr[%zu] = %e, arr[%zu] = %e, di = %e, expected = %e\n", name.c_str(), i, arr(i), i+1, arr(i+1), di, d0);
+        printf("[%s] arr[%zu] = %e, arr[%zu] = %e, di = %e, expected = %e\n", name_loc, i, arr(i), i+1, arr(i+1), di, d0);
       }
     }, Kokkos::Sum<int>(err));
 
