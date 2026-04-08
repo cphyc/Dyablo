@@ -1,0 +1,336 @@
+#
+# GitHub Actions CI — mirrors .gitlab-ci.yml
+#
+# GPU (CUDA) test/run jobs are DISABLED by default because GitHub-hosted runners
+# have no GPU.  CUDA *compilation* is always verified (no GPU needed at build time).
+#
+# To enable GPU testing:
+#   1. Add a repository variable  ENABLE_CUDA = true
+#      (Settings → Secrets and variables → Variables)
+#   2. Register a self-hosted runner with labels  self-hosted  and  cuda
+#      that exposes GPUs via nvidia-container-toolkit.
+#
+# Pipeline (matching GitLab stages):
+#   build  →  test  →  run_all  →  verify
+#                    ↘  run  (workflow_dispatch only)
+#
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      ini_file:
+        description: ".ini file for dyablo (custom run)"
+        default: "test_gravity_spheres_3D.ini"
+        required: false
+      pvsm_file:
+        description: ".pvsm file for visualization (custom run)"
+        default: "visu_gravity_spheres_3D.pvsm"
+        required: false
+      mpi_count:
+        description: "Number of MPI processes (custom run)"
+        default: "4"
+        required: false
+
+permissions:
+  checks: write    # required by dorny/test-reporter to post check runs
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+
+  # ── Build ───────────────────────────────────────────────────────────────────
+  # Both backends are always built: compilation is verified even without GPU
+  # hardware (nvcc is in the Docker image).
+
+  build:
+    name: build / ${{ matrix.backend }}
+    runs-on: ubuntu-latest          # nvcc inside the container; no GPU needed to compile
+    container:
+      image: arnodurocher/dyablo-ci:cuda-12.6.2-ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: openmp
+            build_script: .gitlab-ci/build-openmp.sh
+          - backend: cuda
+            build_script: .gitlab-ci/build-cuda.sh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: System info
+        run: |
+          date && lscpu
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/external/kokkos"
+
+      - name: Show nvcc version
+        if: matrix.backend == 'cuda'
+        run: nvcc --version
+
+      - name: Build
+        run: bash ${{ matrix.build_script }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.backend }}
+          retention-days: 7
+          path: |
+            build/dyablo/bin/dyablo
+            build/dyablo/bin/*.py
+            build/dyablo/bin/*.ini
+            build/dyablo/bin/*.pvsm
+            build/dyablo/unit_test/utest_*
+            build/dyablo/unit_test/block_data/
+            build/dyablo/unit_test/hydro/
+            build/dyablo/unit_test/CTestTestfile.cmake
+
+  # ── Test ────────────────────────────────────────────────────────────────────
+  # OpenMP unit tests always run.
+  # CUDA unit tests require a GPU runner and are skipped unless the repository
+  # variable ENABLE_CUDA is set to 'true'.
+
+  test-openmp:
+    name: test / openmp
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: arnodurocher/dyablo-ci:cuda-12.6.2-ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-openmp
+          path: build/dyablo
+
+      - name: System info & fix permissions
+        run: |
+          date && lscpu
+          chmod +x build/dyablo/bin/dyablo
+          find build/dyablo/unit_test -name 'utest_*' -exec chmod +x {} \;
+
+      - name: Run unit tests
+        run: .gitlab-ci/run_unit_tests.sh
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Unit Tests (openmp)
+          path: build/dyablo/unit_test/gtest_reports/*.xml
+          reporter: java-junit
+
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-openmp
+          retention-days: 7
+          path: build/dyablo/unit_test/gtest_reports/*.xml
+
+  test-cuda:
+    name: test / cuda
+    needs: build
+    if: vars.ENABLE_CUDA == 'true'       # set repo variable to enable; requires GPU runner
+    runs-on: [self-hosted, cuda]
+    container:
+      image: arnodurocher/dyablo-ci:cuda-12.6.2-ubuntu-24.04
+      options: --gpus all
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-cuda
+          path: build/dyablo
+
+      - name: System info & fix permissions
+        run: |
+          date && lscpu
+          nvidia-smi
+          chmod +x build/dyablo/bin/dyablo
+          find build/dyablo/unit_test -name 'utest_*' -exec chmod +x {} \;
+
+      - name: Run unit tests
+        run: .gitlab-ci/run_unit_tests.sh
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Unit Tests (cuda)
+          path: build/dyablo/unit_test/gtest_reports/*.xml
+          reporter: java-junit
+
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-cuda
+          retention-days: 7
+          path: build/dyablo/unit_test/gtest_reports/*.xml
+
+  # ── Run all (render) ─────────────────────────────────────────────────────────
+  # Matches GitLab's run_all stage (4 MPI, OpenMP only).
+  # Runs automatically on PRs and dev; skipped on other branch pushes.
+
+  run-all:
+    name: run_all / openmp / 4mpi
+    needs: test-openmp
+    if: >
+      github.event_name == 'pull_request' ||
+      github.ref == 'refs/heads/dev'      ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    container:
+      image: arnodurocher/dyablo-ci:cuda-12.6.2-ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-openmp
+          path: build/dyablo
+
+      - name: System info & fix permissions
+        run: |
+          date && lscpu
+          chmod +x build/dyablo/bin/dyablo
+
+      - name: Run and render all
+        run: .gitlab-ci/run_and_render_all.sh
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Run All (OpenMP)
+          path: report.xml
+          reporter: java-junit
+
+      - name: Upload run artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: run-all-openmp
+          retention-days: 7
+          path: |
+            run_*.txt
+            **/run.txt
+            *.png
+            */*.png
+            report.xml
+
+  # ── Verify ───────────────────────────────────────────────────────────────────
+  # Matches GitLab's verify stage (1 MPI, numerical validation scripts).
+
+  verify:
+    name: verify / openmp / 1mpi
+    needs: run-all
+    if: >
+      github.event_name == 'pull_request' ||
+      github.ref == 'refs/heads/dev'      ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    container:
+      image: arnodurocher/dyablo-ci:cuda-12.6.2-ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-openmp
+          path: build/dyablo
+
+      - name: System info & fix permissions
+        run: |
+          date && lscpu
+          chmod +x build/dyablo/bin/dyablo
+
+      - name: Run and verify all
+        run: .gitlab-ci/run_and_verify_all.sh
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Verify All (OpenMP)
+          path: report.xml
+          reporter: java-junit
+
+      - name: Upload verification artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verify-openmp
+          retention-days: 7
+          path: |
+            run_*.txt
+            **/run.txt
+            **/verification.txt
+            *.png
+            */*.png
+            report.xml
+
+  # ── Custom run (manual) ───────────────────────────────────────────────────────
+  # Matches GitLab's run stage (.rules_mr_manual_branch_manual).
+  # Only triggered via workflow_dispatch; uses the ini_file/pvsm_file/mpi_count inputs.
+
+  run-custom:
+    name: run / custom / openmp
+    needs: build
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    container:
+      image: arnodurocher/dyablo-ci:cuda-12.6.2-ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-openmp
+          path: build/dyablo
+
+      - name: System info & fix permissions
+        run: |
+          date && lscpu
+          chmod +x build/dyablo/bin/dyablo
+
+      - name: Run custom testcase
+        run: .gitlab-ci/run_testcase_mpi.sh "${{ inputs.ini_file }}" "${{ inputs.mpi_count }}"
+
+      - name: Render
+        run: .gitlab-ci/render.sh "${{ inputs.pvsm_file }}"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: run-custom-openmp
+          retention-days: 7
+          path: |
+            run_*.txt
+            *.png
+            report.xml
