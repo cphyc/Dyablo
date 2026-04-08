@@ -7,7 +7,7 @@
 # To enable GPU testing:
 #   1. Add a repository variable  ENABLE_CUDA = true
 #      (Settings → Secrets and variables → Variables)
-#   2. Register a self-hosted runner with labels  self-hosted  and  cuda
+#   2. Register a self-hosted runner with labels  self-hosted and GPU
 #      that exposes GPUs via nvidia-container-toolkit.
 #
 # Pipeline (matching GitLab stages):
@@ -146,7 +146,7 @@ jobs:
     name: test / cuda
     needs: build
     if: vars.ENABLE_CUDA == 'true'       # set repo variable to enable; requires GPU runner
-    runs-on: [self-hosted, cuda]
+    runs-on: [self-hosted, Linux, X64, GPU]
     container:
       image: arnodurocher/dyablo-ci:cuda-12.6.2-ubuntu-24.04
       options: --gpus all
