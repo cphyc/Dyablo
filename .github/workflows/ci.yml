@@ -65,7 +65,7 @@ jobs:
             build_script: .gitlab-ci/build-cuda.sh
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -82,7 +82,7 @@ jobs:
         run: bash ${{ matrix.build_script }}
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-${{ matrix.backend }}
           retention-days: 7
@@ -109,10 +109,10 @@ jobs:
       image: arnodurocher/dyablo-ci:cuda-12.6.2-ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: build-openmp
           path: build/dyablo
@@ -127,7 +127,7 @@ jobs:
         run: .gitlab-ci/run_unit_tests.sh
 
       - name: Publish test results
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         if: always()
         with:
           name: Unit Tests (openmp)
@@ -135,7 +135,7 @@ jobs:
           reporter: java-junit
 
       - name: Upload test reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-openmp
@@ -152,10 +152,10 @@ jobs:
       options: --gpus all
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: build-cuda
           path: build/dyablo
@@ -171,7 +171,7 @@ jobs:
         run: .gitlab-ci/run_unit_tests.sh
 
       - name: Publish test results
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         if: always()
         with:
           name: Unit Tests (cuda)
@@ -179,7 +179,7 @@ jobs:
           reporter: java-junit
 
       - name: Upload test reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-cuda
@@ -202,10 +202,10 @@ jobs:
       image: arnodurocher/dyablo-ci:cuda-12.6.2-ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: build-openmp
           path: build/dyablo
@@ -219,7 +219,7 @@ jobs:
         run: .gitlab-ci/run_and_render_all.sh
 
       - name: Publish test results
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         if: always()
         with:
           name: Run All (OpenMP)
@@ -227,7 +227,7 @@ jobs:
           reporter: java-junit
 
       - name: Upload run artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: run-all-openmp
@@ -254,10 +254,10 @@ jobs:
       image: arnodurocher/dyablo-ci:cuda-12.6.2-ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: build-openmp
           path: build/dyablo
@@ -271,7 +271,7 @@ jobs:
         run: .gitlab-ci/run_and_verify_all.sh
 
       - name: Publish test results
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         if: always()
         with:
           name: Verify All (OpenMP)
@@ -279,7 +279,7 @@ jobs:
           reporter: java-junit
 
       - name: Upload verification artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: verify-openmp
@@ -305,10 +305,10 @@ jobs:
       image: arnodurocher/dyablo-ci:cuda-12.6.2-ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: build-openmp
           path: build/dyablo
@@ -325,7 +325,7 @@ jobs:
         run: .gitlab-ci/render.sh "${{ inputs.pvsm_file }}"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: run-custom-openmp
