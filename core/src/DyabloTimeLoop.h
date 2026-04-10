@@ -21,7 +21,6 @@
 #include "UserData.h"
 #include "Cosmo.h"
 #include "mpi/GhostCommunicator.h"
-#include "types.hpp"
 
 namespace dyablo {
 
