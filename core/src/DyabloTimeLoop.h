@@ -292,6 +292,7 @@ public:
     }
 
     this->m_scalar_data.set("iter", m_iter_start);
+    this->m_scalar_data.set<int>("n_groups", configMap.getValue<int>("rad", "n_groups", 4));
     {
       real_t t0 = configMap.getValue<real_t>("run", "tStart", t0_default);
       this->m_scalar_data.set("time", t0);
@@ -718,10 +719,14 @@ public:
     }
 
     if( this->rad_updater ){
-      fields_to_exchange.push_back("e_rad");
-      fields_to_exchange.push_back("fx_rad");
-      fields_to_exchange.push_back("fy_rad");
-      fields_to_exchange.push_back("fz_rad");
+      const int n_groups = m_scalar_data.get<int>("n_groups");
+      // Push by group
+      for (int g = 0; g < n_groups; g++) {
+        fields_to_exchange.push_back("e_rad_" + std::to_string(g));
+        fields_to_exchange.push_back("fx_rad_" + std::to_string(g));
+        fields_to_exchange.push_back("fy_rad_" + std::to_string(g));
+        fields_to_exchange.push_back("fz_rad_" + std::to_string(g));
+      }
     }
 
     timers.get("MPI ghosts").start();
@@ -775,7 +780,14 @@ public:
 
       if( rad_updater )
       {
-        U.new_fields({"e_rad_next", "fx_rad_next", "fy_rad_next", "fz_rad_next"});
+        const int n_groups = m_scalar_data.get<int>("n_groups");
+        // generate update fields for each group
+        for (int g = 0; g < n_groups; g++) {
+          auto suffix = "_" + std::to_string(g) + "_next";
+          U.new_fields({"e_rad" + suffix, "fx_rad" + suffix, "fy_rad" + suffix, "fz_rad" + suffix});
+        }
+        // This now has an overriden update in RadUpdate_euler
+        // that cycles over radiation groups and updates them.
         rad_updater->update( U, m_scalar_data );
       }
 
@@ -805,10 +817,15 @@ public:
       }
       if(rad_updater)
       {
-        U.move_field( "e_rad", "e_rad_next" );
-        U.move_field( "fx_rad", "fx_rad_next" );
-        U.move_field( "fy_rad", "fy_rad_next" );
-        U.move_field( "fz_rad", "fz_rad_next" );
+        const int n_groups = m_scalar_data.get<int>("n_groups");
+        // Move by group
+        for (int g = 0; g < n_groups; g++) {
+          auto suffix = "_" + std::to_string(g);
+          U.move_field("e_rad"  + suffix, "e_rad"  + suffix + "_next");
+          U.move_field("fx_rad" + suffix, "fx_rad" + suffix + "_next");
+          U.move_field("fy_rad" + suffix, "fy_rad" + suffix + "_next");
+          U.move_field("fz_rad" + suffix, "fz_rad" + suffix + "_next");
+        }
       }
     }
 
