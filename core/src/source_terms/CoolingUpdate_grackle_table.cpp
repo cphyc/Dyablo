@@ -532,7 +532,7 @@ public:
       });
 
     // Create 2D interpolation table objects
-    auto create_tab = [=]( const Kokkos::View<const real_t**>& array2D ) {
+    auto create_tab = [this]( const Kokkos::View<const real_t**>& array2D ) {
       real_t log_nH_spacing = log_nH_grid_h(1) - log_nH_grid_h(0),
             log_nH_min = log_nH_grid_h(0),
             log_nH_max = log_nH_grid_h(log_nH_grid_h.extent(0)-1);
