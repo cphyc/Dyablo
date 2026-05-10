@@ -115,4 +115,31 @@ if (DYABLO_USE_HDF5)
     target_sources( dyablo_plugins PRIVATE ${hdf5_src} )
 endif (DYABLO_USE_HDF5)
 
+# ── libyt in-situ analysis backend ──────────────────────────────────────────
+option(DYABLO_USE_LIBYT "Enable libyt in-situ analysis via the oct AMR path" OFF)
+if (DYABLO_USE_LIBYT)
+    # Locate libyt: prefer LIBYT_ROOT env/cmake var, then pkg-config, then find_path
+    if (NOT DEFINED LIBYT_ROOT AND DEFINED ENV{LIBYT_ROOT})
+        set(LIBYT_ROOT "$ENV{LIBYT_ROOT}")
+    endif()
+
+    find_library(LIBYT_LIBRARY
+        NAMES yt libyt
+        HINTS "${LIBYT_ROOT}/src" "${LIBYT_ROOT}/lib" "${LIBYT_ROOT}/build-serial/src"
+        REQUIRED)
+    find_path(LIBYT_INCLUDE_DIR
+        NAMES libyt.h
+        HINTS "${LIBYT_ROOT}/include" "${LIBYT_ROOT}"
+        REQUIRED)
+
+    message(STATUS "libyt: library   = ${LIBYT_LIBRARY}")
+    message(STATUS "libyt: includes  = ${LIBYT_INCLUDE_DIR}")
+
+    target_sources(dyablo_plugins PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/io/IOManager_libyt.cpp)
+    target_include_directories(dyablo_plugins PRIVATE ${LIBYT_INCLUDE_DIR})
+    target_link_libraries(dyablo_plugins PRIVATE ${LIBYT_LIBRARY})
+    target_compile_definitions(dyablo_plugins PRIVATE DYABLO_USE_LIBYT)
+endif (DYABLO_USE_LIBYT)
+
 
