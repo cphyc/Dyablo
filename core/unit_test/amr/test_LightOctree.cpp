@@ -4,8 +4,6 @@
  */
 #include <Kokkos_Core.hpp>
 
-#include <impl/Kokkos_Error.hpp>
-
 #include "utils/monitoring/SimpleTimer.h"
 #include "amr/LightOctree.h"
 #include <iostream>

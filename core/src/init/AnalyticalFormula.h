@@ -1,6 +1,7 @@
 #pragma once
 
 #include "user_data/UserData.h"
+#include "user_data/FieldAccessor.h"
 
 namespace dyablo {
 

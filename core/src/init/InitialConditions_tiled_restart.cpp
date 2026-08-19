@@ -1,12 +1,13 @@
 #include "InitialConditions_base.h"
-#include "AnalyticalFormula.h"
+
+#include <hdf5.h>
+#include <hdf5_hl.h>
 
 #include "foreach_cell/ForeachCell.h"
 #include "userdata_utils.h"
 #include "user_data/UserData.h"
-
-#include <hdf5.h>
-#include <hdf5_hl.h>
+#include "user_data/FieldAccessor.h"
+#include "user_data/ParticleAccessor.h"
 
 namespace dyablo{
 

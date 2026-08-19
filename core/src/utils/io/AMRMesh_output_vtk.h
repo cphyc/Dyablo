@@ -2,11 +2,11 @@
 
 #include <iostream>
 #include <fstream>
-#include <vector>
+
+#include <Kokkos_Core.hpp>
 
 #include "amr/AMRmesh.h"
 #include "amr/LightOctree.h"
-#include "kokkos_shared.h"
 
 namespace dyablo{
 namespace debug{

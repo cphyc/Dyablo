@@ -9,7 +9,6 @@
 #ifndef DYABLO_UTILS_MONITORING_SIMPLETIMER_H_
 #define DYABLO_UTILS_MONITORING_SIMPLETIMER_H_
 
-#include <time.h>
 #include <sys/time.h> // for gettimeofday and struct timeval
 
 typedef struct timeval timeval_t;

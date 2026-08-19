@@ -2,6 +2,8 @@
 
 #include <variant>
 
+#include "utils/misc/Dyablo_assert.h"
+
 namespace dyablo{
 
 namespace dyablo_std_variant {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "user_data/UserData.h"
+#include "user_data/UserData.h" // IWYU pragma: export
 #include <tuple>
 
 namespace dyablo {

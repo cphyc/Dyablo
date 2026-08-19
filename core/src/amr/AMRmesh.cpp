@@ -1,10 +1,11 @@
 #include "AMRmesh.h"
 
-#include "LightOctree.h"
+#include <Kokkos_StdAlgorithms.hpp>
+
+#include "amr/LightOctree.h"
 #include "mpi/ViewCommunicator.h"
 #include "utils/config/ConfigMap.h"
 #include "user_data/UserData.h"
-#include <Kokkos_StdAlgorithms.hpp>
 
 namespace dyablo{
 

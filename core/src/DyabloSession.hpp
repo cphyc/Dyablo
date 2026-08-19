@@ -1,9 +1,9 @@
 #pragma once
 
 #include <memory>
-#include "utils/mpi/GlobalMpiSession.h"
+#include <functional>
 
-#include "kokkos_shared.h"
+#include "utils/mpi/GlobalMpiSession.h"
 
 namespace dyablo {
 

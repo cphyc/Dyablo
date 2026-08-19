@@ -13,6 +13,8 @@
 #include "foreach_cell/ForeachCell.h"
 #include "io/IOManager.h"
 #include "init/InitialConditions.h"
+#include "user_data/FieldAccessor.h"
+#include "user_data/ParticleAccessor.h"
 
 namespace dyablo {
 

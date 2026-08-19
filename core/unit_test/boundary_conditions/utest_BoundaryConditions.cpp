@@ -9,9 +9,6 @@
 #include "gtest/gtest.h"
 
 #include "amr/AMRmesh.h"
-#include "utils/mpi/GlobalMpiSession.h"
-#include "utils/monitoring/Timers.h"
-#include "io/IOManager.h"
 
 #include "foreach_cell/ForeachCell.h"
 #include "states/State_hydro.h"

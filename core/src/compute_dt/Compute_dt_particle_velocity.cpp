@@ -1,7 +1,5 @@
 #include "Compute_dt_base.h"
 
-#include "utils_hydro.h"
-
 #include "user_data/ParticleAccessor.h"
 
 namespace dyablo {

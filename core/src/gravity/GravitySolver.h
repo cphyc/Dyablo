@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gravity/GravitySolver_base.h"
+#include "GravitySolver_base.h" // IWYU pragma: export
 #include "plugins_lib.h"
 
 template<>

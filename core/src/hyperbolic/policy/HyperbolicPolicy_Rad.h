@@ -1,9 +1,9 @@
 #pragma once
 
-#include "states/State_Ops.h"
 #include "HyperbolicPolicy_base.h"
+
+#include "states/State_Ops.h"
 #include "HyperbolicPolicy_Slope.h"
-#include "HyperbolicPolicy_BoundaryConditions.h"
 
 namespace dyablo{
 

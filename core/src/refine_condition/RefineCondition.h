@@ -1,6 +1,6 @@
 #pragma once
 
-#include "refine_condition/RefineCondition_base.h"
+#include "RefineCondition_base.h" // IWYU pragma: export
 #include "plugins_lib.h"
 
 template<>

@@ -16,7 +16,6 @@
 #include "user_data/FieldAccessor.h"
 
 #include "amr/AMRmesh.h"
-#include "amr/LightOctree.h"
 #include "io/IOManager.h"
 
 #include "mpi/GhostCommunicator.h"

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "utils/misc/Dyablo_assert.h"
+
 namespace dyablo {
 
 /// Apply f(int index, auto elt) to tuple elements until f returns true;

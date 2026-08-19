@@ -11,9 +11,6 @@
  * @copyright © Commissariat a l'Energie Atomique et aux Energies Alternatives (CEA)
  *
  */
-
-#include <Kokkos_Core.hpp>
-
 #include "gtest/gtest.h"
 
 #include "DyabloSession.hpp"

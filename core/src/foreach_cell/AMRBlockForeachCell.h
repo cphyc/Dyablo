@@ -1,7 +1,7 @@
 #pragma once
 
 #include "utils/config/ConfigMap.h"
-#include "foreach_cell/AMRBlockForeachCell_CellArray.h"
+#include "AMRBlockForeachCell_CellArray.h"
 
 namespace dyablo {
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ParticleUpdate_base.h"
+#include "ParticleUpdate_base.h" // IWYU pragma: export
 #include "plugins_lib.h"
 
 template<>

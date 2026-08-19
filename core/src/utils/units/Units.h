@@ -1,8 +1,8 @@
 #pragma once
 
+#include <Kokkos_Core.hpp>
+
 #include "real_type.h"
-#include "Kokkos_Core.hpp"
-#include "../misc/Dyablo_assert.h"
 
 namespace dyablo {
 

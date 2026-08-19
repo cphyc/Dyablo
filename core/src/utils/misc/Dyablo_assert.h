@@ -1,8 +1,8 @@
 #pragma once
 
-#include <iostream>
+#include <iostream> // IWYU pragma: export
 
-#include "Kokkos_Core.hpp"
+#include "Kokkos_Core.hpp" // IWYU pragma: export
 
 /// -----------------------
 /// Private Implementation

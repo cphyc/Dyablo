@@ -5,8 +5,6 @@
  */
 #include "gtest/gtest.h"
 
-#include "mpi/ViewCommunicator.h"
-
 #include "amr/AMRmesh.h"
 #include "utils/io/AMRMesh_output_vtk.h"
 

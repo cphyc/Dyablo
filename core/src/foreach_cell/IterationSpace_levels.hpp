@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ForeachCell.h"
 #include "foreach_cell/Binned_iOcts.hpp"
 
 namespace dyablo {

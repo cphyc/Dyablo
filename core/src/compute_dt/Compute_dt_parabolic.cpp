@@ -1,10 +1,7 @@
 #include "Compute_dt_base.h"
 
-#include "utils_hydro.h"
-
 #include "parabolic/ParabolicTerm_thermal_conduction.h"
 #include "parabolic/ParabolicTerm_viscosity.h"
-
 #include "hyperbolic/policy/HyperbolicPolicy_Hydro.h"
 
 namespace dyablo {

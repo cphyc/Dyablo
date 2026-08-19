@@ -1,8 +1,11 @@
 #pragma once
 
-#include "HyperbolicUpdate_base.h"
+#include "hyperbolic/HyperbolicUpdate_base.h"
+
+#include "hyperbolic/policy/HyperbolicPolicy_base.h"
 #include "mpi/GhostCommunicator_partial_blocks.h"
 #include "foreach_cell/ForeachCell_utils.h"
+#include "states/State_Ops.h"
 
 namespace dyablo {
 namespace{

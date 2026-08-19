@@ -1,6 +1,7 @@
 #pragma once
 
 #include "utils/misc/dyablo_variant.h"
+#include "utils/config/ConfigMap.h"
 
 namespace dyablo{
 

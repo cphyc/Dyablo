@@ -1,6 +1,7 @@
 #pragma once
 
-#include "kokkos_shared.h"
+#include <Kokkos_Core.hpp>
+
 #include "amr/LightOctree.h"
 
 namespace dyablo {

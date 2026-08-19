@@ -1,12 +1,9 @@
 #pragma once 
 
-#include "kokkos_shared.h"
-#include "amr/LightOctree.h"
 #include "utils/misc/RegisteringFactory.h"
 #include "utils/monitoring/Timers.h"
 #include "foreach_cell/ForeachCell.h"
 #include "user_data/UserData.h"
-#include "utils/io/HDF5ViewWriter.h"
 
 namespace dyablo{
 

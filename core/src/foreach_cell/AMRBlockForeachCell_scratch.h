@@ -1,6 +1,6 @@
 #pragma once
 
-#include "foreach_cell/AMRBlockForeachCell.h"
+#include "AMRBlockForeachCell.h"
 
 #define PATCH_LAMBDA KOKKOS_LAMBDA
 #define CELL_LAMBDA [&]

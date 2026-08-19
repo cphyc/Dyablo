@@ -3,6 +3,8 @@
 #include "InitialConditions_base.h"
 
 #include "particles/ForeachParticle.h"
+#include "user_data/ParticleAccessor.h"
+
 
 namespace dyablo{
 

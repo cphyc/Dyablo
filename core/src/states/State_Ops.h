@@ -12,8 +12,9 @@
 
 #pragma once
 
+#include <Kokkos_Core.hpp>
+
 #include "real_type.h"
-#include "kokkos_shared.h"
 
 namespace dyablo {
 

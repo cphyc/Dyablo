@@ -1,7 +1,9 @@
 #pragma once
 
 #include <memory>
-#include "mpi/GhostCommunicator.h"
+
+#include "GhostCommunicator_full_blocks.h"
+#include "GhostCommunicator_partial_blocks.h"
 
 namespace dyablo{
 

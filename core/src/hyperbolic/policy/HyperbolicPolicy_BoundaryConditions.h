@@ -1,7 +1,8 @@
 #pragma once
 
-#include "HyperbolicPolicy_base.h"
 #include "utils/misc/dyablo_variant.h"
+#include "foreach_cell/ForeachCell.h"
+#include "ScalarSimulationData.h"
 
 namespace dyablo{
 

@@ -7,7 +7,6 @@
 #include "gtest/gtest.h"
 
 #include "amr/AMRmesh.h"
-#include "mpi/ViewCommunicator.h"
 
 #include "foreach_cell/ForeachCell.h"
 #include "user_data/UserData.h"

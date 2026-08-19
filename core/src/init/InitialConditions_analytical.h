@@ -2,11 +2,10 @@
 
 #include "InitialConditions_base.h"
 #include "AnalyticalFormula.h"
-#include "refine_condition/RefineCondition.h"
 
 #include "foreach_cell/ForeachCell.h"
-
 #include "mpi/GhostCommunicator.h"
+#include "refine_condition/RefineCondition.h"
 
 namespace dyablo{
 

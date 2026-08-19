@@ -1,6 +1,6 @@
 #pragma once
 
-#include "amr/LightOctree.h"
+#include "amr/LightOctree_forward.h"
 #include "foreach_cell/ForeachCell.h"
 
 namespace dyablo{

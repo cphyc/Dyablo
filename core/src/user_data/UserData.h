@@ -3,7 +3,8 @@
 #include <set>
 
 #include "foreach_cell/ForeachCell.h"
-#include "particles/ForeachParticle.h"
+#include "particles/ParticleArray.h"
+#include "mpi/ViewCommunicator.h"
 
 namespace dyablo {
 

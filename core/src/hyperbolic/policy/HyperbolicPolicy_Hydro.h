@@ -1,7 +1,8 @@
 #pragma once
 
-#include "states/State_Ops.h"
 #include "HyperbolicPolicy_base.h"
+
+#include "states/State_Ops.h"
 #include "HyperbolicPolicy_Slope.h"
 #include "HyperbolicPolicy_BoundaryConditions.h"
 
@@ -448,7 +449,7 @@ private:
 
 } // namespace dyablo
 
-#include "HyperbolicPolicy_Hydro_BoundaryConditions.h"
+#include "HyperbolicPolicy_Hydro_BoundaryConditions.tpp"
 
 namespace dyablo {
 

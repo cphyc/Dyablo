@@ -3,10 +3,11 @@
 #include <memory>
 #include <array>
 
+#include <Kokkos_Core.hpp>
+
 #include "amr/LightOctree_forward.h"
 #include "amr/LightOctree_storage.h"
-#include "GlobalMpiSession.h"
-#include "kokkos_shared.h"
+#include "utils/mpi/GlobalMpiSession.h"
 
 class ConfigMap;
 

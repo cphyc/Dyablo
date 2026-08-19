@@ -1,6 +1,6 @@
 #pragma once
 
-#include "MapUserData_base.h"
+#include "MapUserData_base.h" // IWYU pragma: export
 #include "plugins_lib.h"
 
 template<>

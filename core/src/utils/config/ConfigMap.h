@@ -9,14 +9,14 @@
 #include <limits>
 #include <algorithm>
 #include <type_traits>
+#include <cassert>
 
 #include "utils/mpi/GlobalMpiSession.h"
 #include "utils/config/inih/ini.h"
 #include "utils/misc/Dyablo_assert.h"
 #include "utils/units/UnitParser.hpp"
-#include "enums.h"
 #include "named_enum.h"
-#include <cassert>
+
 
 namespace Impl{
 

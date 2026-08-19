@@ -1,10 +1,10 @@
 #pragma once
 
-#include "kokkos_shared.h"
-#include <memory>
 #include <map>
 #include <set>
 #include <iostream>
+
+#include <Kokkos_Core.hpp>
 
 namespace dyablo{
 
