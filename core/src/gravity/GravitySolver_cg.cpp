@@ -4,6 +4,7 @@
 #include "mpi/GhostCommunicator.h"
 #include "foreach_cell/ForeachCell_utils.h"
 #include <mpi.h>
+#include "user_data/FieldAccessor.h"
 
 namespace dyablo { 
 

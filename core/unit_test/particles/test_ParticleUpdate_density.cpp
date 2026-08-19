@@ -6,6 +6,8 @@
 
 #include "particles/ForeachParticle.h"
 #include "particles/ParticleUpdate.h"
+#include "user_data/FieldAccessor.h"
+#include "user_data/ParticleAccessor.h"
 
 namespace dyablo
 {

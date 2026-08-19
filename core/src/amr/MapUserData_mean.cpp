@@ -1,7 +1,8 @@
 #include "amr/MapUserData_base.h"
 
 #include "amr/CellIndexRemapper.h"
-#include "UserData.h"
+#include "user_data/UserData.h"
+#include "user_data/FieldAccessor.h"
 
 namespace dyablo {
 

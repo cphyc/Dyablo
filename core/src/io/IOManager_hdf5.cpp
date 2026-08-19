@@ -9,6 +9,8 @@
 #include "utils/io/HDF5ViewWriter.h"
 #include "foreach_cell/ForeachCell.h"
 #include "particles/ForeachParticle.h"
+#include "user_data/FieldAccessor.h"
+#include "user_data/ParticleAccessor.h"
 
 #include "utils/monitoring/Timers.h"
 #include "utils/config/named_enum.h"

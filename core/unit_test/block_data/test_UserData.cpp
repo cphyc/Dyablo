@@ -1,6 +1,8 @@
 #include "gtest/gtest.h"
 
-#include "UserData.h"
+#include "user_data/UserData.h"
+#include "user_data/FieldAccessor.h"
+#include "user_data/ParticleAccessor.h"
 
 using namespace dyablo;
 

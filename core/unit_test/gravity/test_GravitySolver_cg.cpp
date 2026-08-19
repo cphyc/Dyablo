@@ -25,6 +25,7 @@
 #include "mpi/GhostCommunicator.h"
 #include "gravity/GravitySolver.h"
 #include "io/IOManager.h"
+#include "user_data/FieldAccessor.h"
 
 namespace dyablo {
 namespace constants{

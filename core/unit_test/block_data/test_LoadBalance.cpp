@@ -10,7 +10,8 @@
 #include "mpi/ViewCommunicator.h"
 
 #include "foreach_cell/ForeachCell.h"
-#include "UserData.h"
+#include "user_data/UserData.h"
+#include "user_data/FieldAccessor.h"
 
 namespace dyablo
 {

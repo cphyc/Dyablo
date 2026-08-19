@@ -3,7 +3,7 @@
 #include "LightOctree.h"
 #include "mpi/ViewCommunicator.h"
 #include "utils/config/ConfigMap.h"
-#include "UserData.h"
+#include "user_data/UserData.h"
 #include <Kokkos_StdAlgorithms.hpp>
 
 namespace dyablo{

@@ -2,6 +2,8 @@
 
 #include "utils_hydro.h"
 
+#include "user_data/ParticleAccessor.h"
+
 namespace dyablo {
 
 

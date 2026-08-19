@@ -5,7 +5,7 @@
 #include "utils/misc/RegisteringFactory.h"
 #include "utils/monitoring/Timers.h"
 #include "foreach_cell/ForeachCell.h"
-#include "UserData.h"
+#include "user_data/UserData.h"
 #include "mpi/GhostCommunicator_full_blocks.h"
 
 namespace dyablo {

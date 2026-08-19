@@ -5,7 +5,7 @@
 #include "utils/monitoring/Timers.h"
 #include "foreach_cell/ForeachCell.h"
 #include "particles/ForeachParticle.h"
-#include "UserData.h"
+#include "user_data/UserData.h"
 #include "ScalarSimulationData.h"
 
 namespace dyablo {

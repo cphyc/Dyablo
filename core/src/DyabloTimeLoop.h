@@ -18,7 +18,7 @@
 #include "amr/MapUserData.h"
 #include "parabolic/ParabolicUpdate.h"
 #include "source_terms/SourceUpdate.h"
-#include "UserData.h"
+#include "user_data/UserData.h"
 #include "Cosmo.h"
 #include "mpi/GhostCommunicator.h"
 

@@ -1,5 +1,7 @@
 #include "scheme/HyperbolicUpdate_base.h"
 
+#include "user_data/FieldAccessor.h"
+
 namespace dyablo {
 
 

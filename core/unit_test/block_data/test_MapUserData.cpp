@@ -13,6 +13,7 @@
 #include "gtest/gtest.h"
 
 #include "amr/MapUserData.h"
+#include "user_data/FieldAccessor.h"
 
 #include "amr/AMRmesh.h"
 #include "amr/LightOctree.h"

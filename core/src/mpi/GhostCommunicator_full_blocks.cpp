@@ -1,5 +1,7 @@
 #include "GhostCommunicator_full_blocks.h"
 
+#include "user_data/FieldAccessor.h"
+
 namespace dyablo {
 
 Kokkos::View<uint32_t*> GhostCommunicator_full_blocks::iOcts_send() const

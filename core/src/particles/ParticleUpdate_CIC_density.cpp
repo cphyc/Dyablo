@@ -3,6 +3,8 @@
 #include "ForeachParticle.h"
 #include "foreach_cell/ForeachCell_utils.h"
 #include "mpi/GhostCommunicator.h"
+#include "user_data/ParticleAccessor.h"
+#include "user_data/FieldAccessor.h"
 
 namespace dyablo {
 
