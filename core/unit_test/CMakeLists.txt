@@ -6,6 +6,7 @@ include(FetchContent)
 FetchContent_Declare(
   googletest
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../external/gtest
+  EXCLUDE_FROM_ALL
 )
 FetchContent_MakeAvailable(googletest)
 include(GoogleTest)

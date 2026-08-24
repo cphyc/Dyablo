@@ -54,6 +54,7 @@ set( LIBDL_LIBRARY CACHE STRING "LIBDL library" "${CMAKE_DL_LIBS}" )
 if( DYABLO_USE_INTERNAL_KOKKOS )
   FetchContent_Declare( kokkos_external
     SOURCE_DIR ${Kokkos_DIR}
+    EXCLUDE_FROM_ALL
   )
   # Import kokkos targets
   FetchContent_MakeAvailable(kokkos_external)
@@ -161,6 +162,7 @@ endif(DYABLO_USE_HDF5)
 #####################################################################
 FetchContent_Declare( backward-cpp_external
   SOURCE_DIR ${PROJECT_SOURCE_DIR}/../external/backward-cpp
+  EXCLUDE_FROM_ALL
 )
 # Import kokkos targets
 FetchContent_MakeAvailable(backward-cpp_external)
