@@ -153,6 +153,9 @@ DECLARE_STATE_TYPE_ARRAY_AUX(const, State, N_VARS, N_FIELDS ) \
 
 #define DECLARE_STATE_GET( State, I, var ) /*empty*/
 
+template< typename T >
+concept State = State_traits<T>::is_state;
+
 /**
  * Iterate over each member variable for a set of states
  * @tparam I start index (mainly here for metaprogramming purpose)
@@ -164,7 +167,7 @@ DECLARE_STATE_TYPE_ARRAY_AUX(const, State, N_VARS, N_FIELDS ) \
  *          one real& for each State& in `states`
  *          e.g. state_foreach_var( [](real_t&, real_t, real_t){...}, State&, const State&, const State& );
  **/
-template< typename F, typename... State_t >
+template< typename F, State... State_t >
 KOKKOS_INLINE_FUNCTION
 void state_foreach_var( const F& f, State_t&... states )
 {
@@ -176,8 +179,7 @@ void state_foreach_var( const F& f, State_t&... states )
 //################
 
 // Operator +
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t > 
 KOKKOS_INLINE_FUNCTION
 State_t operator+(const State_t& lhs, const State_t& rhs)
 {
@@ -186,8 +188,7 @@ State_t operator+(const State_t& lhs, const State_t& rhs)
     return res;
 }
 
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t >
 KOKKOS_INLINE_FUNCTION
 State_t operator+(const State_t& lhs, real_t rhs)
 {
@@ -196,8 +197,7 @@ State_t operator+(const State_t& lhs, real_t rhs)
     return res;
 }
 
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t > 
 KOKKOS_INLINE_FUNCTION
 State_t operator+(real_t lhs, const State_t& rhs)
 {
@@ -206,16 +206,14 @@ State_t operator+(real_t lhs, const State_t& rhs)
     return res;
 }
 
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t >
 KOKKOS_INLINE_FUNCTION
 State_t& operator+=(State_t &lhs, const State_t& rhs) {
     state_foreach_var( [&](real_t& l, real_t r){l+=r;}, lhs, rhs );
     return lhs;
 }
 
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t >
 KOKKOS_INLINE_FUNCTION
 State_t& operator+=(State_t &lhs, real_t rhs) {
     state_foreach_var( [&](real_t& l){l+=rhs;}, lhs );
@@ -223,8 +221,7 @@ State_t& operator+=(State_t &lhs, real_t rhs) {
 }
 
 // Operator -
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t >
 KOKKOS_INLINE_FUNCTION
 State_t operator-(const State_t& lhs, const State_t& rhs)
 {
@@ -233,8 +230,7 @@ State_t operator-(const State_t& lhs, const State_t& rhs)
     return res;
 }
 
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t > 
 KOKKOS_INLINE_FUNCTION
 State_t operator-(const State_t& lhs, real_t rhs)
 {
@@ -243,8 +239,7 @@ State_t operator-(const State_t& lhs, real_t rhs)
     return res;
 }
 
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t > 
 KOKKOS_INLINE_FUNCTION
 State_t operator-(real_t lhs, const State_t& rhs)
 {
@@ -253,16 +248,14 @@ State_t operator-(real_t lhs, const State_t& rhs)
     return res;
 }
 
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t > 
 KOKKOS_INLINE_FUNCTION
 State_t& operator-=(State_t &lhs, const State_t& rhs) {
     state_foreach_var( [&](real_t& l, real_t r){l-=r;}, lhs, rhs );
     return lhs;
 }
 
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t >
 KOKKOS_INLINE_FUNCTION
 State_t& operator-=(State_t &lhs, real_t rhs) {
     state_foreach_var( [&](real_t& l){l-=rhs;}, lhs );
@@ -270,8 +263,7 @@ State_t& operator-=(State_t &lhs, real_t rhs) {
 }
 
 // Operator *
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t > 
 KOKKOS_INLINE_FUNCTION
 State_t operator*(const State_t& lhs, const State_t& rhs)
 {
@@ -280,8 +272,7 @@ State_t operator*(const State_t& lhs, const State_t& rhs)
     return res;
 }
 
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t > 
 KOKKOS_INLINE_FUNCTION
 State_t operator*(const State_t& lhs, real_t rhs)
 {
@@ -290,8 +281,7 @@ State_t operator*(const State_t& lhs, real_t rhs)
     return res;
 }
 
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t > 
 KOKKOS_INLINE_FUNCTION
 State_t operator*(real_t lhs, const State_t& rhs)
 {
@@ -300,16 +290,14 @@ State_t operator*(real_t lhs, const State_t& rhs)
     return res;
 }
 
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t > 
 KOKKOS_INLINE_FUNCTION
 State_t& operator*=(State_t &lhs, const State_t& rhs) {
     state_foreach_var( [&](real_t& l, real_t r){l*=r;}, lhs, rhs );
     return lhs;
 }
 
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t > 
 KOKKOS_INLINE_FUNCTION
 State_t& operator*=(State_t &lhs, real_t rhs) {
     state_foreach_var( [&](real_t& l){l*=rhs;}, lhs );
@@ -317,8 +305,7 @@ State_t& operator*=(State_t &lhs, real_t rhs) {
 }
 
 // Operator /
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t >
 KOKKOS_INLINE_FUNCTION
 State_t operator/(const State_t& lhs, const State_t& rhs)
 {
@@ -327,8 +314,7 @@ State_t operator/(const State_t& lhs, const State_t& rhs)
     return res;
 }
 
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t >
 KOKKOS_INLINE_FUNCTION
 State_t operator/(const State_t& lhs, real_t rhs)
 {
@@ -337,8 +323,7 @@ State_t operator/(const State_t& lhs, real_t rhs)
     return res;
 }
 
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t > 
 KOKKOS_INLINE_FUNCTION
 State_t operator/(real_t lhs, const State_t& rhs)
 {
@@ -347,16 +332,14 @@ State_t operator/(real_t lhs, const State_t& rhs)
     return res;
 }
 
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t >
 KOKKOS_INLINE_FUNCTION
 State_t& operator/=(State_t &lhs, const State_t& rhs) {
     state_foreach_var( [&](real_t& l, real_t r){l/=r;}, lhs, rhs );
     return lhs;
 }
 
-template<   typename State_t,
-            std::enable_if_t< State_traits<State_t>::is_state, bool> = false > 
+template< State State_t > 
 KOKKOS_INLINE_FUNCTION
 State_t& operator/=(State_t &lhs, real_t rhs) {
     state_foreach_var( [&](real_t& l){l/=rhs;}, lhs );
