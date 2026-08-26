@@ -3,6 +3,7 @@
 #include <Kokkos_Core.hpp>
 
 #include "amr/LightOctree.h"
+#include "utils/misc/dyablo_tuple.h"
 
 namespace dyablo {
 namespace AMRBlockForeachCell_CellArray_impl{
@@ -1016,7 +1017,7 @@ public:
     if constexpr ( sizeof...(VarIndex_s) == 0 )
         return (value(ivar0));  // Parenthesis are important here to keep real_t& reference
     else
-        return std::tie( value(ivar0), value(ivars)... );
+        return dyablo_tuple_tie( value(ivar0), value(ivars)... );
   }
 
   template< typename ... VarIndex_s >

@@ -5,6 +5,7 @@
 #include "states/State_Ops.h"
 #include "HyperbolicPolicy_Slope.h"
 #include "HyperbolicPolicy_BoundaryConditions.h"
+#include "utils/misc/dyablo_tuple.h"
 
 namespace dyablo{
 
@@ -145,12 +146,12 @@ public:
     ConsState u{};
     if( ndim == 3 )
     {
-      std::tie(u.rho, u.e_tot, u.rho_u, u.rho_v, u.rho_w) 
+      dyablo_tuple_tie(u.rho, u.e_tot, u.rho_u, u.rho_v, u.rho_w) 
         = U.at( iCell, V::Irho, V::Ie_tot, V::Irho_vx, V::Irho_vy, V::Irho_vz );
     }
     else
     {
-      std::tie(u.rho, u.e_tot, u.rho_u, u.rho_v) 
+      dyablo_tuple_tie(u.rho, u.e_tot, u.rho_u, u.rho_v) 
         = U.at( iCell, V::Irho, V::Ie_tot, V::Irho_vx, V::Irho_vy);
     }
 
@@ -166,12 +167,12 @@ public:
     if( ndim == 3 )
     {
       U.at( iCell, V::Irho, V::Ie_tot, V::Irho_vx, V::Irho_vy, V::Irho_vz )
-        = std::tie(u.rho, u.e_tot, u.rho_u, u.rho_v, u.rho_w);
+        = dyablo_tuple_tie(u.rho, u.e_tot, u.rho_u, u.rho_v, u.rho_w);
     }
     else
     {
       U.at( iCell, V::Irho, V::Ie_tot, V::Irho_vx, V::Irho_vy)
-        = std::tie(u.rho, u.e_tot, u.rho_u, u.rho_v);
+        = dyablo_tuple_tie(u.rho, u.e_tot, u.rho_u, u.rho_v);
     }
   }
 
@@ -211,12 +212,12 @@ public:
     PrimState q{};
     if( ndim == 3 )
     {
-      std::tie( q.rho, q.p, q.u, q.v, q.w )
+      dyablo_tuple_tie( q.rho, q.p, q.u, q.v, q.w )
         = Q.at( iCell, V::Irho, V::Ip, V::Iu, V::Iv, V::Iw );
     }
     else 
     {
-      std::tie( q.rho, q.p, q.u, q.v)
+      dyablo_tuple_tie( q.rho, q.p, q.u, q.v)
         = Q.at( iCell, V::Irho, V::Ip, V::Iu, V::Iv);
     }
     return q;
@@ -231,12 +232,12 @@ public:
     if( ndim == 3 )
     {
       Q.at( iCell, V::Irho, V::Ip, V::Iu, V::Iv, V::Iw )
-        = std::tie( q.rho, q.p, q.u, q.v, q.w );
+        = dyablo_tuple_tie( q.rho, q.p, q.u, q.v, q.w );
     }
     else 
     {
       Q.at( iCell, V::Irho, V::Ip, V::Iu, V::Iv )
-        = std::tie( q.rho, q.p, q.u, q.v );
+        = dyablo_tuple_tie( q.rho, q.p, q.u, q.v );
     }
   }
 

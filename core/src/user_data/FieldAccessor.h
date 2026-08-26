@@ -1,7 +1,7 @@
 #pragma once
 
 #include "user_data/UserData.h" // IWYU pragma: export
-#include <tuple>
+#include "utils/misc/dyablo_tuple.h"
 
 namespace dyablo {
 
@@ -178,7 +178,7 @@ public:
         if constexpr ( sizeof...(VarIndex_s) == 0 )
             return (value(varindex_0)); // Parenthesis are important here to keep real_t& reference
         else
-            return std::tie( value(varindex_0), value(varindex_s)... );
+            return dyablo_tuple_tie( value(varindex_0), value(varindex_s)... );
     }
 
     template< typename ... Int_t >
@@ -200,7 +200,7 @@ public:
         if constexpr ( sizeof...(Int_t) == 0 )
             return (value(ivar0));  // Parenthesis are important here to keep real_t& reference
         else
-            return std::tie( value(ivar0), value(ivars)... );
+            return dyablo_tuple_tie( value(ivar0), value(ivars)... );
     }
     
 
