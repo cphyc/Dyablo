@@ -13,111 +13,12 @@
 #pragma once
 
 #include <Kokkos_Core.hpp>
+#include <tuple>
 
 #include "real_type.h"
+#include "utils/misc/dyablo_tuple.h"
 
 namespace dyablo {
-
-
-namespace {
-
-template< typename... Ts >
-struct State_tuple;
-
-template< typename _T0, typename... Ts >
-struct State_tuple<_T0, Ts...>
-{
-    using T0 = _T0;
-
-    T0 head;
-    State_tuple<Ts...> tail;
-
-    KOKKOS_INLINE_FUNCTION
-    State_tuple(T0 h, Ts... t)
-    : head(h), tail(t...)
-    {}
-};
-
-template<>
-struct State_tuple<>
-{};
-
-template<typename... Ts>
-KOKKOS_INLINE_FUNCTION
-auto make_state_tuple( Ts&... vs )
-{
-    return State_tuple<Ts&...>(vs...);
-}
-
-
-template<int N>
-struct as_tuple_t
-{
-    template<typename S>
-    KOKKOS_INLINE_FUNCTION
-    static auto as_tuple(S& s)
-    {
-        static_assert( !std::is_same_v<S,S>, "as_tuple, not defined for this size" );
-    }
-};
-
-#define DEFINE_AS_TUPLE(N, ...) \
-template<> \
-struct as_tuple_t<N> \
-{ \
-    template<typename S> \
-    KOKKOS_INLINE_FUNCTION \
-    static auto as_tuple(S& s) \
-    { \
-        auto& [__VA_ARGS__] = s; \
-        return make_state_tuple(__VA_ARGS__); \
-    } \
-};
-
-DEFINE_AS_TUPLE(1,e0)
-DEFINE_AS_TUPLE(2,e0,e1)
-DEFINE_AS_TUPLE(3,e0,e1,e2)
-DEFINE_AS_TUPLE(4,e0,e1,e2,e3)
-DEFINE_AS_TUPLE(5,e0,e1,e2,e3,e4)
-DEFINE_AS_TUPLE(6,e0,e1,e2,e3,e4,e5)
-DEFINE_AS_TUPLE(7,e0,e1,e2,e3,e4,e5,e6)
-DEFINE_AS_TUPLE(8,e0,e1,e2,e3,e4,e5,e6,e7)
-DEFINE_AS_TUPLE(9,e0,e1,e2,e3,e4,e5,e6,e7,e8)
-DEFINE_AS_TUPLE(10,e0,e1,e2,e3,e4,e5,e6,e7,e8,e9)
-DEFINE_AS_TUPLE(11,e0,e1,e2,e3,e4,e5,e6,e7,e8,e9,e10)
-DEFINE_AS_TUPLE(12,e0,e1,e2,e3,e4,e5,e6,e7,e8,e9,e10,e11)
-DEFINE_AS_TUPLE(13,e0,e1,e2,e3,e4,e5,e6,e7,e8,e9,e10,e11,e12)
-DEFINE_AS_TUPLE(14,e0,e1,e2,e3,e4,e5,e6,e7,e8,e9,e10,e11,e12,e13)
-DEFINE_AS_TUPLE(15,e0,e1,e2,e3,e4,e5,e6,e7,e8,e9,e10,e11,e12,e13,e14)
-
-template <int I, typename T> 
-using state_tuple_elt_t = std::remove_reference_t<std::tuple_element_t<I,T>>;
-
-template< typename F, typename... Tuple_t >
-KOKKOS_INLINE_FUNCTION
-void state_foreach_aux( const F& f, const Tuple_t&... t )
-{
-    constexpr bool is_empty = ( std::is_same_v< Tuple_t, State_tuple<> > && ... );
-    static_assert(((is_empty == std::is_same_v< Tuple_t, State_tuple<> >) && ... ), "state_foreach : states are not the same size" );
-    if constexpr (!is_empty)
-    {
-        constexpr bool is_array = ((std::is_bounded_array_v<std::remove_reference_t<decltype(t.head)>>) || ...);
-        static_assert(((is_array == std::is_bounded_array_v<std::remove_reference_t<decltype(t.head)>>) && ...), "state_foreach : states don't have the same arrays" );
-        if constexpr ( is_array )
-        {
-            constexpr size_t array_len = std::min({std::size(std::remove_reference_t<decltype(t.head)>{}) ...});
-            static_assert( ((array_len == std::size(std::remove_reference_t<decltype(t.head)>{})) && ...), "state_foreach : arrays not the same size" );
-            for( size_t i=0; i<array_len; i++ )
-                f( t.head[i]... );
-        }
-        else
-            f( t.head... );
-
-        state_foreach_aux( f, t.tail... );
-    }    
-}
-
-} // namespace
 
 /// By default T is not a State
 template<typename T>
@@ -132,11 +33,7 @@ struct State_traits<constness State> \
 { \
     static constexpr bool is_state = true; \
     static constexpr int nvars = N_VARS; \
-    KOKKOS_INLINE_FUNCTION\
-    static constness auto as_tuple( constness State& s ) \
-    { \
-        return as_tuple_t<N_FIELDS>::as_tuple(s); \
-    } \
+    static constexpr int nfields = N_FIELDS; \
 }; \
 
 /// Type-trait for States without arrays
@@ -156,6 +53,65 @@ DECLARE_STATE_TYPE_ARRAY_AUX(const, State, N_VARS, N_FIELDS ) \
 template< typename T >
 concept State = State_traits<T>::is_state;
 
+namespace {
+
+/***
+ * Use structured bindings (auto& [e0,e1,...] = s;) to transform State into tuple
+ * Note : this doesn't support > 15 fields because structured bindings needs to statically list the variables
+ ***/
+template< State State_t >
+KOKKOS_INLINE_FUNCTION
+auto as_dyablo_tuple( State_t& s )
+{
+    constexpr int N = State_traits<State_t>::nfields;
+
+    if      constexpr (N == 1) { auto& [e0] = s; return dyablo_tuple_tie( e0 ); }
+    #define DEFINE_AS_TUPLE(n, ...) else if constexpr ( N == (n) ) \
+    {\
+        auto& [__VA_ARGS__] = s; \
+        return dyablo_tuple_tie(__VA_ARGS__); \
+    }
+    DEFINE_AS_TUPLE(2,e0,e1)
+    DEFINE_AS_TUPLE(3,e0,e1,e2)
+    DEFINE_AS_TUPLE(4,e0,e1,e2,e3)
+    DEFINE_AS_TUPLE(5,e0,e1,e2,e3,e4)
+    DEFINE_AS_TUPLE(6,e0,e1,e2,e3,e4,e5)
+    DEFINE_AS_TUPLE(7,e0,e1,e2,e3,e4,e5,e6)
+    DEFINE_AS_TUPLE(8,e0,e1,e2,e3,e4,e5,e6,e7)
+    DEFINE_AS_TUPLE(9,e0,e1,e2,e3,e4,e5,e6,e7,e8)
+    DEFINE_AS_TUPLE(10,e0,e1,e2,e3,e4,e5,e6,e7,e8,e9)
+    DEFINE_AS_TUPLE(11,e0,e1,e2,e3,e4,e5,e6,e7,e8,e9,e10)
+    DEFINE_AS_TUPLE(12,e0,e1,e2,e3,e4,e5,e6,e7,e8,e9,e10,e11)
+    DEFINE_AS_TUPLE(13,e0,e1,e2,e3,e4,e5,e6,e7,e8,e9,e10,e11,e12)
+    DEFINE_AS_TUPLE(14,e0,e1,e2,e3,e4,e5,e6,e7,e8,e9,e10,e11,e12,e13)
+    DEFINE_AS_TUPLE(15,e0,e1,e2,e3,e4,e5,e6,e7,e8,e9,e10,e11,e12,e13,e14)
+
+    static_assert( N <= 15, "States with more than 15 fields are not supported (1 real_t or array = 1 field)" );
+}
+
+template<typename F, size_t I, typename... Tuple_t>
+KOKKOS_INLINE_FUNCTION
+constexpr void state_foreach_at(const F& f, Tuple_t... t)
+{
+    constexpr bool is_array = ( std::is_bounded_array_v<std::remove_reference_t<decltype(dyablo_tuple_get<I>(t))>> || ... );
+    static_assert( ( (is_array == std::is_bounded_array_v<std::remove_reference_t<decltype(dyablo_tuple_get<I>(t))>>) && ... ),
+                   "state_foreach State mismatch : all States must have arrays and real_t at the same place" );
+    if constexpr (is_array) {
+        constexpr size_t array_len = std::min({ std::extent_v<std::remove_reference_t<decltype(dyablo_tuple_get<I>(t))>>... });
+        for (size_t i=0; i<array_len; i++) f( dyablo_tuple_get<I>(t)[i]... );
+    } else {
+        f( dyablo_tuple_get<I>(t)... );
+    }
+}
+
+template<typename F, typename... Tuple_t, size_t... Is>
+KOKKOS_INLINE_FUNCTION
+constexpr void state_foreach_impl(const F& f, std::index_sequence<Is...>, Tuple_t... t)
+{
+    ( state_foreach_at<F, Is, Tuple_t...>(f, t...), ... );
+}
+} // namespace
+
 /**
  * Iterate over each member variable for a set of states
  * @tparam I start index (mainly here for metaprogramming purpose)
@@ -171,7 +127,11 @@ template< typename F, State... State_t >
 KOKKOS_INLINE_FUNCTION
 void state_foreach_var( const F& f, State_t&... states )
 {
-    state_foreach_aux( f, State_traits<State_t>::as_tuple(states)... );
+    using State_t0 = std::tuple_element_t<0, std::tuple<State_t...>>;
+    constexpr int N = State_traits<State_t0>::nfields;
+    static_assert( ( (N == State_traits<State_t>::nfields) && ... ), 
+                   "state_foreach State mismatch : States are not the same size" );
+    state_foreach_impl(f, std::make_index_sequence<N>{}, as_dyablo_tuple(states)...);
 }
 
 //################
