@@ -433,7 +433,7 @@ void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_d
                                                                              "VarIndex is " << info.id << ", MAX_FIELD_COUNT is " << max_field_count  );
     }
 
-    for(size_t i=0; i<max_field_count; i++)
+    for(int i=0; i<max_field_count; i++)
     {
       ivar_to_arrayindex[i] = 0;
       var_to_arrayindex[i] = -1;
