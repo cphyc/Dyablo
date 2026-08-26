@@ -1,16 +1,10 @@
 #######################
 ### MISC ##############
 #######################
-add_library(misc "")
-
-target_sources(misc
-  PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/utils.h
-)
+add_library(misc INTERFACE)
 
 target_include_directories(misc
-  PUBLIC
+  INTERFACE
   ${CMAKE_SOURCE_DIR}/src/utils/misc
   )
 
