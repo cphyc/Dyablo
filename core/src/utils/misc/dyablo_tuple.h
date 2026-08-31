@@ -7,13 +7,15 @@
 
 #pragma once
 
-//#define DYABLO_TUPLE_STD
+/// Use std::tuple implementation
+#define DYABLO_TUPLE_STD
 
 #ifdef DYABLO_TUPLE_STD
 
 #include <tuple>
 #include <Kokkos_Core.hpp>
 
+/// Note : please try to run new code that uses dyablo_tuple with the custom implementation
 template<typename... Ts>
 using dyablo_tuple = std::tuple<Ts...>;
 
