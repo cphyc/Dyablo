@@ -116,26 +116,6 @@ constexpr Unit<Dims1-Dims2...> operator/(const Unit<Dims1...>& u1, const Unit<Di
     return Unit<Dims1-Dims2...>( u1.value_SI / u2.value_SI );
 }
 
-/**
- * Helper template function to perform controlled conversions from other types to units
- * Version for Units : Units are already units
- **/ 
-template< int... Dims >
-KOKKOS_INLINE_FUNCTION 
-constexpr Unit<Dims...> to_unit( const Unit<Dims...>& u )
-{
-    return u;
-}
-/**
- * Helper template function to perform controlled conversions from other types to units
- * Version for floats : Automatically convert floats to dimensionless Units (in operators only)
- **/ 
-KOKKOS_INLINE_FUNCTION
-constexpr Unit<> to_unit( real_t val )
-{
-    return Unit<>(val);
-}
-
 template<typename T>
 struct Unit_traits
 {
@@ -160,43 +140,63 @@ template<typename T>
 constexpr bool is_unit = Unit_traits<T>::is_unit;
 
 //----------------------------
-// Operators for units with automatic type conversion using to_unit()
+// Binary operators for units with real_t on either side
 //----------------------------
 
-// Don't overload operators when units are not involved
-template<typename... Ts>
-using enable_if_has_unit = std::enable_if_t<((is_unit<Ts> || ...)), int>;
-
-/// Units can be multiplied with types compatible with to_unit() on both sides
-template< typename T1, typename T2, enable_if_has_unit<T1, T2> = 0 >
+/// Units can be multiplied by real_t on either side
+template< int... Dims >
 KOKKOS_INLINE_FUNCTION
-constexpr auto operator*(const T1& u1, const T2& u2 )
+constexpr Unit<Dims...> operator*(const Unit<Dims...>& u1, const real_t& u2 )
 {
-    return to_unit( u1 ) * to_unit( u2 );
+    return u1 * Unit<>(u2);
 }
 
-/// Units can be divided with types compatible with to_unit() on both sides
-template< typename T1, typename T2, enable_if_has_unit<T1, T2> = 0  >
+template< int... Dims >
 KOKKOS_INLINE_FUNCTION
-constexpr auto operator/(const T1& u1, const T2& u2 )
+constexpr Unit<Dims...> operator*(const real_t& u1, const Unit<Dims...>& u2 )
 {
-    return to_unit( u1 ) / to_unit( u2 );
+    return Unit<>(u1) * u2;
 }
 
-/// Units can be added with types compatible with to_unit() on both sides
-template< typename T1, typename T2, enable_if_has_unit<T1, T2> = 0  >
+/// Units can be divided by real_t on either side
+template< int... Dims >
 KOKKOS_INLINE_FUNCTION
-constexpr auto operator+(const T1& u1, const T2& u2 )
+constexpr Unit<Dims...> operator/(const Unit<Dims...>& u1, const real_t& u2 )
 {
-    return to_unit( u1 ).operator+(to_unit( u2 ));
+    return u1 / Unit<>( u2 );
 }
 
-/// Units can be substracted with types compatible with to_unit() on both sides
-template< typename T1, typename T2, enable_if_has_unit<T1, T2> = 0  >
+template< int... Dims >
 KOKKOS_INLINE_FUNCTION
-constexpr auto operator-(const T1& u1, const T2& u2 )
+constexpr Unit<-Dims...> operator/(const real_t& u1, const Unit<Dims...>& u2 )
 {
-    return to_unit( u1 ).operator-(to_unit( u2 ));
+    return Unit<>( u1 ) / u2;
+}
+
+/// Dimensionless Units can be added with real_t on either sides
+KOKKOS_INLINE_FUNCTION
+constexpr Unit<> operator+(const Unit<>& u1, const real_t& u2 )
+{
+    return u1 + Unit<>(u2);
+}
+
+KOKKOS_INLINE_FUNCTION
+constexpr Unit<> operator+(const real_t& u1, const Unit<>& u2 )
+{
+    return Unit<>(u1) + u2;
+}
+
+/// Dimensionless Units can be substracted with real_t on either side
+KOKKOS_INLINE_FUNCTION
+constexpr Unit<> operator-(const Unit<>& u1, const real_t& u2 )
+{
+    return u1 - Unit<>(u2);
+}
+
+KOKKOS_INLINE_FUNCTION
+constexpr Unit<> operator-(const real_t& u1, const Unit<>& u2 )
+{
+    return Unit<>(u1) - u2;
 }
 
 #define DEFINE_UNIT(name, ...) constexpr auto name() {return __VA_ARGS__;}
