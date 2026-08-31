@@ -138,8 +138,14 @@ void state_foreach_var( const F& f, State_t&... states )
 // Arithmetic operators on states
 //################
 
+// See https://github.com/llvm/llvm-project/issues/49197
+// Fixed in https://github.com/llvm/llvm-project/pull/131777
+// operator*(real_t, State) with concept was not filtered out when operator is called with an enum instead of real_t 
+// This uses enable_if on top of concept to ensure sfinae actually triggers
+#define CLANG_ISSUE_49197_WORKAROUND , std::enable_if_t<State<State_t>, int> = 0
+
 // Operator +
-template< State State_t > 
+template< State State_t >
 KOKKOS_INLINE_FUNCTION
 State_t operator+(const State_t& lhs, const State_t& rhs)
 {
@@ -148,7 +154,7 @@ State_t operator+(const State_t& lhs, const State_t& rhs)
     return res;
 }
 
-template< State State_t >
+template< State State_t CLANG_ISSUE_49197_WORKAROUND >
 KOKKOS_INLINE_FUNCTION
 State_t operator+(const State_t& lhs, real_t rhs)
 {
@@ -157,7 +163,7 @@ State_t operator+(const State_t& lhs, real_t rhs)
     return res;
 }
 
-template< State State_t > 
+template< State State_t CLANG_ISSUE_49197_WORKAROUND >
 KOKKOS_INLINE_FUNCTION
 State_t operator+(real_t lhs, const State_t& rhs)
 {
@@ -166,14 +172,14 @@ State_t operator+(real_t lhs, const State_t& rhs)
     return res;
 }
 
-template< State State_t >
+template< State State_t, std::enable_if_t<State<State_t>, int> = 0 >
 KOKKOS_INLINE_FUNCTION
 State_t& operator+=(State_t &lhs, const State_t& rhs) {
     state_foreach_var( [&](real_t& l, real_t r){l+=r;}, lhs, rhs );
     return lhs;
 }
 
-template< State State_t >
+template< State State_t CLANG_ISSUE_49197_WORKAROUND >
 KOKKOS_INLINE_FUNCTION
 State_t& operator+=(State_t &lhs, real_t rhs) {
     state_foreach_var( [&](real_t& l){l+=rhs;}, lhs );
@@ -190,7 +196,7 @@ State_t operator-(const State_t& lhs, const State_t& rhs)
     return res;
 }
 
-template< State State_t > 
+template< State State_t CLANG_ISSUE_49197_WORKAROUND > 
 KOKKOS_INLINE_FUNCTION
 State_t operator-(const State_t& lhs, real_t rhs)
 {
@@ -199,7 +205,7 @@ State_t operator-(const State_t& lhs, real_t rhs)
     return res;
 }
 
-template< State State_t > 
+template< State State_t CLANG_ISSUE_49197_WORKAROUND > 
 KOKKOS_INLINE_FUNCTION
 State_t operator-(real_t lhs, const State_t& rhs)
 {
@@ -215,7 +221,7 @@ State_t& operator-=(State_t &lhs, const State_t& rhs) {
     return lhs;
 }
 
-template< State State_t >
+template< State State_t CLANG_ISSUE_49197_WORKAROUND >
 KOKKOS_INLINE_FUNCTION
 State_t& operator-=(State_t &lhs, real_t rhs) {
     state_foreach_var( [&](real_t& l){l-=rhs;}, lhs );
@@ -232,7 +238,7 @@ State_t operator*(const State_t& lhs, const State_t& rhs)
     return res;
 }
 
-template< State State_t > 
+template< State State_t CLANG_ISSUE_49197_WORKAROUND > 
 KOKKOS_INLINE_FUNCTION
 State_t operator*(const State_t& lhs, real_t rhs)
 {
@@ -241,7 +247,7 @@ State_t operator*(const State_t& lhs, real_t rhs)
     return res;
 }
 
-template< State State_t > 
+template< State State_t CLANG_ISSUE_49197_WORKAROUND > 
 KOKKOS_INLINE_FUNCTION
 State_t operator*(real_t lhs, const State_t& rhs)
 {
@@ -257,7 +263,7 @@ State_t& operator*=(State_t &lhs, const State_t& rhs) {
     return lhs;
 }
 
-template< State State_t > 
+template< State State_t CLANG_ISSUE_49197_WORKAROUND > 
 KOKKOS_INLINE_FUNCTION
 State_t& operator*=(State_t &lhs, real_t rhs) {
     state_foreach_var( [&](real_t& l){l*=rhs;}, lhs );
@@ -274,7 +280,7 @@ State_t operator/(const State_t& lhs, const State_t& rhs)
     return res;
 }
 
-template< State State_t >
+template< State State_t CLANG_ISSUE_49197_WORKAROUND >
 KOKKOS_INLINE_FUNCTION
 State_t operator/(const State_t& lhs, real_t rhs)
 {
@@ -283,7 +289,7 @@ State_t operator/(const State_t& lhs, real_t rhs)
     return res;
 }
 
-template< State State_t > 
+template< State State_t CLANG_ISSUE_49197_WORKAROUND > 
 KOKKOS_INLINE_FUNCTION
 State_t operator/(real_t lhs, const State_t& rhs)
 {
@@ -299,7 +305,7 @@ State_t& operator/=(State_t &lhs, const State_t& rhs) {
     return lhs;
 }
 
-template< State State_t > 
+template< State State_t CLANG_ISSUE_49197_WORKAROUND > 
 KOKKOS_INLINE_FUNCTION
 State_t& operator/=(State_t &lhs, real_t rhs) {
     state_foreach_var( [&](real_t& l){l/=rhs;}, lhs );
