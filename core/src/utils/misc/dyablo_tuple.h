@@ -15,6 +15,8 @@
 #include <tuple>
 #include <Kokkos_Core.hpp>
 
+namespace dyablo {
+
 /// Note : please try to run new code that uses dyablo_tuple with the custom implementation
 template<typename... Ts>
 using dyablo_tuple = std::tuple<Ts...>;
@@ -39,6 +41,8 @@ constexpr decltype(auto) dyablo_tuple_get(Tuple& t)
 { 
     return std::get<I>(t); 
 }
+
+} // namespace dyablo
 
 #else
 
