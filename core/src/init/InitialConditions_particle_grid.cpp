@@ -1,10 +1,10 @@
 #include "InitialConditions_base.h"
-#include "AnalyticalFormula.h"
 
 #include "foreach_cell/ForeachCell.h"
 #include "particles/ForeachParticle.h"
-
 #include "utils/units/Units.h"
+#include "user_data/FieldAccessor.h"
+#include "user_data/ParticleAccessor.h"
 
 
 namespace dyablo{

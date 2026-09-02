@@ -1,6 +1,7 @@
 #pragma once
 
-#include "Kokkos_Core.hpp"
+#include <Kokkos_Core.hpp>
+
 #include "userdata_utils.h"
 #include "amr/AMRmesh.h"
 #include "utils/misc/Dyablo_assert.h"

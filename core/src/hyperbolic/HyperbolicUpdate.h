@@ -1,6 +1,7 @@
 #pragma once
 
-#include "scheme/HyperbolicUpdate_base.h"
+#include "HyperbolicUpdate_base.h" // IWYU pragma: export
+
 #include "plugins_lib.h"
 
 template<>

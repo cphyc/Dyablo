@@ -1,15 +1,9 @@
 /**
  * Testing the states implementation and conversion
  **/
-
-#include "utils/mpi/GlobalMpiSession.h"
-#include "utils/monitoring/Timers.h"
 #include "foreach_cell/ForeachCell.h"
-#include "compute_dt/Compute_dt.h"
-#include "init/InitialConditions.h"
-#include "states/State_forward.h"
+#include "states/State_hydro.h"
 #include "states/State_Nd.h"
-#include "io/IOManager.h"
 #include "foreach_cell/ForeachCell.h"
 using blockSize_t    = Kokkos::Array<uint32_t, 3>;
 

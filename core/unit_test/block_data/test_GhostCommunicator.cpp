@@ -5,8 +5,6 @@
  */
 #include "gtest/gtest.h"
 
-#include "mpi/ViewCommunicator.h"
-
 #include "amr/AMRmesh.h"
 #include "utils/io/AMRMesh_output_vtk.h"
 
@@ -14,7 +12,8 @@
 #include "foreach_cell/ForeachCell_utils.h"
 
 #include "mpi/GhostCommunicator.h"
-#include "UserData.h"
+#include "user_data/UserData.h"
+#include "user_data/FieldAccessor.h"
 #include "utils/config/ConfigMap.h"
 
 #include "mpi/GhostCommunicator_Subset_levels.hpp"

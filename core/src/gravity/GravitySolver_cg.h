@@ -1,10 +1,8 @@
 #pragma once
 
-#include <memory>
+#include "GravitySolver_base.h"
 
-#include "kokkos_shared.h"
-#include "amr/LightOctree.h"
-#include "gravity/GravitySolver_base.h"
+#include <memory>
 
 class Timers;
 class ConfigMap;

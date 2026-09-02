@@ -1,6 +1,9 @@
 #pragma once
 
-#include "kokkos_shared.h"
+#include <Kokkos_Core.hpp>
+
+#include "real_type.h"
+#include "enums.h"
 #include "VarIndex.h"
 
 namespace dyablo {

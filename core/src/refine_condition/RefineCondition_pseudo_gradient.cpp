@@ -1,9 +1,8 @@
 #include "refine_condition/RefineCondition_helper.h"
 
-#include "kokkos_shared.h"
 #include "foreach_cell/ForeachCell.h"
-#include "utils_hydro.h"
-#include "UserData.h"
+#include "user_data/UserData.h"
+#include "user_data/FieldAccessor.h"
 
 namespace dyablo {
 

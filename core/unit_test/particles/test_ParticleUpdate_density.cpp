@@ -1,11 +1,12 @@
 #include "gtest/gtest.h"
 
 #include "amr/AMRmesh.h"
-#include "amr/LightOctree.h"
 #include "io/IOManager.h"
 
 #include "particles/ForeachParticle.h"
 #include "particles/ParticleUpdate.h"
+#include "user_data/FieldAccessor.h"
+#include "user_data/ParticleAccessor.h"
 
 namespace dyablo
 {

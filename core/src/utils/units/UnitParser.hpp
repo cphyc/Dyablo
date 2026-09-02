@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Units.h"
-#include <any>
 
 namespace dyablo {
 

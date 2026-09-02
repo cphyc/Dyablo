@@ -1,12 +1,12 @@
 #include "InitialConditions_base.h"
-#include "AnalyticalFormula.h"
-
-#include "foreach_cell/ForeachCell.h"
-#include "userdata_utils.h"
-#include "UserData.h"
 
 #include <hdf5.h>
 #include <hdf5_hl.h>
+
+#include "foreach_cell/ForeachCell.h"
+#include "userdata_utils.h"
+#include "user_data/FieldAccessor.h"
+#include "user_data/ParticleAccessor.h"
 
 namespace dyablo{
 
@@ -235,7 +235,7 @@ public:
         std::cout << "Restart mesh : " << input_lmesh.getNumOctants() << " octs." << std::endl;
 
         // Refine until level_max using analytical markers
-        for (uint32_t level=level_min; level<level_max; ++level)
+        for (int level=level_min; level<level_max; ++level)
         {
             const LightOctree& lmesh = pmesh.getLightOctree();
             uint32_t nbOcts = lmesh.getNumOctants();

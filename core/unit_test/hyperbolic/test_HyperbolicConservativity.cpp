@@ -12,20 +12,23 @@
  * each HyperbolicUpdate/dim pair : use --gtest_filter to run a 
  * specific Kernel/dim and view the result
  **/
+#include "hyperbolic/HyperbolicUpdate.h"
+
+#include "gtest/gtest.h"
 
 #include "utils/mpi/GlobalMpiSession.h"
 #include "utils/monitoring/Timers.h"
 #include "foreach_cell/ForeachCell.h"
 #include "compute_dt/Compute_dt.h"
 #include "init/InitialConditions.h"
-#include "hyperbolic/HyperbolicUpdate.h"
 #include "io/IOManager.h"
 #include "mpi/GhostCommunicator.h"
+#include "user_data/UserData.h"
+#include "user_data/FieldAccessor.h"
+
 using blockSize_t    = Kokkos::Array<uint32_t, 3>;
 
 using Device = Kokkos::DefaultExecutionSpace;
-
-#include "gtest/gtest.h"
 
 namespace dyablo {
 

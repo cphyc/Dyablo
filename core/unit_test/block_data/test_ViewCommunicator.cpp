@@ -17,6 +17,9 @@
 namespace dyablo
 {
 
+using DataArrayBlock = ForeachCell::CellArray_global::View_t;
+using DataArray = Kokkos::View<real_t**, Kokkos::LayoutLeft>;
+
 // =======================================================================
 // =======================================================================
 template<typename Array_t>

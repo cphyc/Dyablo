@@ -1,6 +1,6 @@
 #pragma once
 
-#include "DerivedFields_base.h"
+#include "DerivedFields_base.h" // IWYU pragma: export
 #include "plugins_lib.h"
 
 template<>

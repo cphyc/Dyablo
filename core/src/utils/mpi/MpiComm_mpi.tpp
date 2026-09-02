@@ -1,8 +1,18 @@
-#include <mpi.h>
+#pragma once
+
+#ifndef DYABLO_USE_MPI
+#warning "DYABLO_USE_MPI should be defined when including this backend (this warning is OK in intellisense)"
+#define DYABLO_USE_MPI
+#endif
+
+#include "MpiComm.h"
 
 #include <cstdint>
 #include <array>
 #include <vector>
+#include <type_traits>
+
+#include <mpi.h>
 
 namespace dyablo
 {

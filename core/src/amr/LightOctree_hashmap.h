@@ -1,14 +1,12 @@
 #pragma once
 
-#include <utility>
+#include <Kokkos_Core.hpp>
+#include <Kokkos_UnorderedMap.hpp>
 
 #include "morton_utils.h"
-#include "kokkos_shared.h"
 #include "amr/AMRmesh.h"
 #include "amr/LightOctree_storage.h"
-#include "Kokkos_UnorderedMap.hpp"
 #include "utils/misc/Dyablo_assert.h"
-
 #include "amr/LightOctree_base.h"
 
 namespace dyablo { 

@@ -1,11 +1,12 @@
 #include "DyabloSession.hpp"
 
 #include <iostream>
+
+#include <Kokkos_Core.hpp>
+
 #include "utils/misc/Dyablo_assert.h"
 #include "utils/mpi/GlobalMpiSession.h"
 #include "utils/mpi/MpiBufferPool.h"
-
-#include "kokkos_shared.h"
 
 namespace dyablo {
 

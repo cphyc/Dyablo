@@ -1,4 +1,6 @@
-#include "io/IOManager_base.h"
+#include "IOManager_base.h"
+
+#include "user_data/FieldAccessor.h"
 
 namespace dyablo { 
 

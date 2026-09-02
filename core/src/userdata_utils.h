@@ -1,6 +1,6 @@
 #pragma once
 
-#include "kokkos_shared.h"
+#include <Kokkos_Core.hpp>
 
 namespace userdata_utils{
   template< int N >

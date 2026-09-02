@@ -1,8 +1,11 @@
 #pragma once
 
-#include "kokkos_shared.h"
+#include <Kokkos_Core.hpp>
+
 #include "particles/ParticleArray.h"
 #include "mpi/ViewCommunicator.h"
+#include "utils/config/ConfigMap.h"
+#include "amr/LightOctree.h"
 
 namespace dyablo
 {

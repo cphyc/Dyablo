@@ -3,7 +3,6 @@
 #include <memory>
 
 #include "utils/misc/Dyablo_assert.h"
-#include "kokkos_shared.h"
 #include "amr/LightOctree_forward.h"
 
 namespace dyablo {

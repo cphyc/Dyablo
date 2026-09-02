@@ -1,6 +1,6 @@
 #pragma once
 
-#include "amr/LightOctree_hashmap.h"
+#include "LightOctree_hashmap.h"
 
 namespace dyablo { 
 

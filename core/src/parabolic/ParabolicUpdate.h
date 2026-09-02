@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ParabolicUpdate_base.h"
+#include "ParabolicUpdate_base.h" // IWYU pragma: export
 #include "plugins_lib.h"
 
 template<>

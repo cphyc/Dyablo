@@ -1,10 +1,22 @@
 #pragma once
 
-#include "amr/LightOctree_hashmap.h"
-#include "amr/LightOctree_hashmap_precompute.h"
+#include "LightOctree_forward.h"
 
-#include "amr/LightOctree_forward.h"
+//#include "amr/LightOctree_hashmap.h"
+#include "LightOctree_hashmap_precompute.h"
 
+namespace dyablo{
+
+//using LightOctree_hashmap_Impl = LightOctree_hashmap;
+using LightOctree_hashmap_Impl = LightOctree_hashmap_precompute;
+
+class LightOctree : public LightOctree_hashmap_Impl
+{
+public:
+  using  LightOctree_hashmap_Impl::LightOctree_hashmap_Impl;
+};
+
+}
 
 namespace dyablo::LightOctree_tools{
 

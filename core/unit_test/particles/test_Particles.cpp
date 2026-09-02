@@ -1,7 +1,6 @@
 #include "gtest/gtest.h"
 
 #include "amr/AMRmesh.h"
-#include "amr/LightOctree.h"
 #include "io/IOManager.h"
 
 #include "particles/ForeachParticle.h"

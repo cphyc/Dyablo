@@ -1,6 +1,6 @@
 #include "ViewCommunicator.h"
+
 #include <cstdint>
-#include "utils/mpi/GlobalMpiSession.h"
 
 namespace dyablo{
 

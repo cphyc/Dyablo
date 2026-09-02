@@ -2,6 +2,8 @@
 
 #include "InitialConditions_base.h"
 
+#include "user_data/FieldAccessor.h"
+
 namespace dyablo{
 
 class InitialConditions_uniform : public InitialConditions

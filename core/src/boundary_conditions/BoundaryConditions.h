@@ -1,6 +1,6 @@
 #pragma once
 
-#include "kokkos_shared.h"
+#include "foreach_cell/ForeachCell.h"
 
 namespace dyablo {
 namespace {

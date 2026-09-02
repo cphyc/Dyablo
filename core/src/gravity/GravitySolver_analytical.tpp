@@ -1,8 +1,8 @@
 #pragma once
 
-#include "kokkos_shared.h"
-#include "amr/LightOctree.h"
-#include "gravity/GravitySolver_base.h"
+#include "GravitySolver_base.h"
+
+#include "user_data/FieldAccessor.h"
 
 namespace dyablo {
 

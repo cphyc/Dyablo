@@ -1,7 +1,9 @@
 #pragma once
 
-#include "kokkos_shared.h"
+#include <Kokkos_Core.hpp>
+
 #include "amr/LightOctree.h"
+#include "utils/misc/dyablo_tuple.h"
 
 namespace dyablo {
 namespace AMRBlockForeachCell_CellArray_impl{
@@ -543,8 +545,6 @@ public:
 
         constexpr bool is_search_mode_neighbor = std::is_same_v<SearchMode, SearchMode_neighbor>
                                               || std::is_same_v<SearchMode, SearchMode_intermediates>;
-        DYABLO_ASSERT_KOKKOS_DEBUG( is_search_mode_neighbor,
-          "status is not local, but SearchMode_neighbor is not active" );
         if constexpr ( is_search_mode_neighbor )
         {
           // Neighbor search
@@ -674,9 +674,14 @@ public:
           }
           else
           {
-            DYABLO_ASSERT_KOKKOS_DEBUG(false, "unexpected status");
+            DYABLO_KOKKOS_UNREACHABLE("getNeighbor : unexpected status");
             return CELLINDEX_INVALID;
           }
+        }
+        else 
+        {
+          DYABLO_KOKKOS_UNREACHABLE( "status is not local, but SearchMode_neighbor is not active" );
+          return CELLINDEX_INVALID;
         }
       }
     }
@@ -787,9 +792,9 @@ struct CellArray_shape
     int32_t i = in.i() + gx;
     int32_t j = in.j() + gy;
     int32_t k = in.k() + gz;
-    int32_t bx = this->bx;
-    int32_t by = this->by;
-    int32_t bz = this->bz;
+    uint32_t bx = this->bx;
+    uint32_t by = this->by;
+    uint32_t bz = this->bz;
 
     bool index_inside =  /*i>0 && */(uint32_t)i<bx 
                       && /*j>0 && */(uint32_t)j<by 
@@ -818,7 +823,7 @@ struct CellArray_shape
         return CellIndex::Status::INVALID;
         
       // Neighbor search
-      CellIndex iCell_in{in.iOct(), 0, 0, 0, (uint32_t)bx, (uint32_t)by, (uint32_t)bz};
+      CellIndex iCell_in{in.iOct(), 0, 0, 0, bx, by, bz};
       CellIndex::Status status = iCell_in.getNeighborStatus( i, j, k, search_mode );
       return status;
     }
@@ -1015,7 +1020,7 @@ public:
     if constexpr ( sizeof...(VarIndex_s) == 0 )
         return (value(ivar0));  // Parenthesis are important here to keep real_t& reference
     else
-        return std::tie( value(ivar0), value(ivars)... );
+        return dyablo_tuple_tie( value(ivar0), value(ivars)... );
   }
 
   template< typename ... VarIndex_s >

@@ -1,8 +1,8 @@
 #pragma once
 
-#include <iostream>
+#include <iostream> // IWYU pragma: export
 
-#include "Kokkos_Core.hpp"
+#include "Kokkos_Core.hpp" // IWYU pragma: export
 
 /// -----------------------
 /// Private Implementation
@@ -150,3 +150,11 @@
 #else
     #define DYABLO_ASSERT_KOKKOS_DEBUG(cond, message) DYABLO_OPTIM_ASSUME(cond)
 #endif
+
+#define DYABLO_ASSUME_KOKKOS_DEBUG(cond, message) DYABLO_ASSERT_KOKKOS_DEBUG(cond, message); IMPL_DYABLO_OPTIM_ASSUME(cond)
+#define DYABLO_ASSUME_KOKKOS_RELEASE(cond, message) DYABLO_ASSERT_KOKKOS_RELEASE(cond, message); IMPL_DYABLO_OPTIM_ASSUME(cond)
+#define DYABLO_ASSUME_HOST_DEBUG(cond, message) DYABLO_ASSERT_HOST_DEBUG(cond, message); IMPL_DYABLO_OPTIM_ASSUME(cond)
+#define DYABLO_ASSUME_HOST_RELEASE(cond, message) DYABLO_ASSERT_HOST_RELEASE(cond, message); IMPL_DYABLO_OPTIM_ASSUME(cond)
+
+#define DYABLO_KOKKOS_UNREACHABLE(message) DYABLO_ASSUME_KOKKOS_DEBUG(false, message) 
+#define DYABLO_HOST_UNREACHABLE(message) DYABLO_ASSUME_HOST_DEBUG(false, message) 

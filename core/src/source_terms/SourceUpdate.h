@@ -1,6 +1,7 @@
 #pragma once
 
-#include "source_terms/SourceUpdate_base.h"
+#include "SourceUpdate_base.h" // IWYU pragma: export
+#include "plugins_lib.h"
 
 template<>
 inline bool dyablo::SourceUpdateFactory::init()

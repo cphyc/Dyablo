@@ -1,6 +1,6 @@
 #pragma once
 
-#include "UserData.h"
+#include "user_data/UserData.h"
 #include "mpi/ViewCommunicator.h"
 
 namespace dyablo {

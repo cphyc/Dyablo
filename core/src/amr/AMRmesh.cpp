@@ -1,10 +1,11 @@
 #include "AMRmesh.h"
 
-#include "LightOctree.h"
+#include <Kokkos_StdAlgorithms.hpp>
+
+#include "amr/LightOctree.h"
 #include "mpi/ViewCommunicator.h"
 #include "utils/config/ConfigMap.h"
-#include "UserData.h"
-#include <Kokkos_StdAlgorithms.hpp>
+#include "user_data/UserData.h"
 
 namespace dyablo{
 
@@ -81,7 +82,7 @@ oct_index_t lower_bound_morton( const Storage_t& octs, morton_t morton, level_t 
 struct NeighborPair
 {
   oct_index_t iOct_local;
-  int rank_neighbor;
+  uint32_t rank_neighbor;
 };
 
 AMRmesh::GhostMap_t discover_ghosts(
@@ -129,7 +130,8 @@ AMRmesh::GhostMap_t discover_ghosts(
       auto compute_morton = [level_max]( const Kokkos::Array<logical_coord_t, 3>& pos, level_t level )
       { 
         morton_t morton = compute_morton_key( pos[IX], pos[IY], pos[IZ] );
-        morton = shift_level( morton, level_max-level );
+        int level_diff = (int)level_max-(int)level;
+        morton = shift_level( morton, level_diff );
         return morton;
       };
 
@@ -159,7 +161,7 @@ AMRmesh::GhostMap_t discover_ghosts(
       };
 
       // Register current octant as ghost for neighbor_rank, aggregate masks for faces
-      auto register_neighbor = [mpi_rank, iOct_i, &neighborMap, &first_fail_local]( int neighbor_rank, Face face )
+      auto register_neighbor = [mpi_rank, iOct_i, &neighborMap, &first_fail_local]( uint32_t neighbor_rank, Face face )
       {
         if(neighbor_rank != mpi_rank)
         {
@@ -167,7 +169,7 @@ AMRmesh::GhostMap_t discover_ghosts(
           auto insert_result = neighborMap.insert( NeighborPair{iOct_i, neighbor_rank }, faceMask );
           if( insert_result.existing() )
           {
-            int it = neighborMap.find(NeighborPair{iOct_i, neighbor_rank });
+            auto it = neighborMap.find(NeighborPair{iOct_i, neighbor_rank });
             Kokkos::atomic_or( &neighborMap.value_at( it ), faceMask );
           }
           else if( insert_result.failed() )
@@ -221,7 +223,7 @@ AMRmesh::GhostMap_t discover_ghosts(
               (pos[IZ] >> 1),
             };
             morton_t m_parent = compute_morton( pos_parent, level-1 );
-            int parent_rank = find_rank(m_parent);
+            uint32_t parent_rank = find_rank(m_parent);
             register_neighbor(parent_rank, Face::FULL_BLOCK);
           }
 
@@ -249,7 +251,7 @@ AMRmesh::GhostMap_t discover_ghosts(
                 pos_child_origin[IZ] + sz,
               };
               morton_t m_suboctant = compute_morton( pos_child, level+1 );
-              int child_rank = find_rank(m_suboctant);
+              uint32_t child_rank = find_rank(m_suboctant);
               register_neighbor(child_rank, Face::FULL_BLOCK);
             }
           }
@@ -264,7 +266,7 @@ AMRmesh::GhostMap_t discover_ghosts(
             (pos[IZ]+dz+max_iz)%max_iz
           };
           morton_t morton_n = compute_morton( pos_n, level );
-          int neighbor_rank = find_rank( morton_n );
+          uint32_t neighbor_rank = find_rank( morton_n );
 
           Face neighbor_face = Face::FACE_COUNT; // To avoid warnings, should be set in one of the if below
           if      ( dx==-1 ) neighbor_face = Face::XL; // Whole face is included for corners 
@@ -281,8 +283,9 @@ AMRmesh::GhostMap_t discover_ghosts(
           // Verify that the whole same-size virtual neighbor is owned by neighbor_rank
           // i.e : last suboctant of same-size neighbor is owned by the same MPI
           // TODO : get morton of last neighbor to filter even more
-          morton_t morton_next = shift_level(morton_n, level-level_max) + 1;
-                   morton_next = shift_level(morton_next, level_max-level) - 1;
+          int level_diff = (int)level_max-(int)level;
+          morton_t morton_next = shift_level(morton_n, level_diff) + 1;
+                   morton_next = shift_level(morton_next, level_diff) - 1;
             
           register_neighbor(neighbor_rank, neighbor_face);
           if(  !iOct.isIntermediate // if intermediate it has a matching intermediate neighbor with same size
@@ -314,7 +317,7 @@ AMRmesh::GhostMap_t discover_ghosts(
                 pos_n_smaller_origin[IZ] + sz,
               };
               morton_t m_suboctant = compute_morton( pos_n_smaller, level+1 );
-              int neighbor_rank = find_rank(m_suboctant);
+              uint32_t neighbor_rank = find_rank(m_suboctant);
               register_neighbor(neighbor_rank, neighbor_face);
             }
           }
@@ -382,7 +385,7 @@ AMRmesh::GhostMap_t discover_ghosts(
 
     uint32_t offset_first_leaf = 0;
     uint32_t offset_first_intermediate = 0;
-    for( int rank=0; rank<mpi_size; rank++ )
+    for( uint32_t rank=0; rank<mpi_size; rank++ )
     {
       uint32_t nbLeaves_rank = 0;
       Kokkos::parallel_scan( "discover_ghosts::fill_ghostmap_leaves", neighborMap.capacity(),
@@ -453,7 +456,7 @@ void init_intermediates(LightOctree_storage<>& storage_device)
 {
   using OctantIndex = LightOctree::OctantIndex;
 
-  int dim = storage_device.getNdim();
+  uint32_t dim = storage_device.getNdim();
   level_t level_min = storage_device.level_min;
   uint32_t nbLocalLeaves = storage_device.getNumOctants();
 
@@ -545,9 +548,10 @@ AMRmesh::GhostMap_t init_ghosts(
   ViewCommunicator ghost_comm_leaves( ghostmap.to_send_leaves.send_sizes, ghostmap.to_send_leaves.send_iOcts );
   ViewCommunicator ghost_comm_intermediates( ghostmap.to_send_intermediates.send_sizes, ghostmap.to_send_intermediates.send_iOcts );
   { // Reallocate storage_device to hold ghosts
-    int nbGhostLeaves = ghost_comm_leaves.getNumGhosts();
-    int nbGhostIntermediates = ghost_comm_intermediates.getNumGhosts();
-    LightOctree_storage<> storage_device_new( storage_device.getNdim(),
+    uint32_t ndim = storage_device.getNdim();
+    uint32_t nbGhostLeaves = ghost_comm_leaves.getNumGhosts();
+    uint32_t nbGhostIntermediates = ghost_comm_intermediates.getNumGhosts();
+    LightOctree_storage<> storage_device_new( (int)ndim,
                                               storage_device.getNumOctants(),
                                               nbGhostLeaves,
                                               storage_device.getNumIntermediates(),
@@ -700,7 +704,7 @@ AMRmesh::AMRmesh( int dim, const std::array<bool,3>& periodic, level_t level_min
     .periodic =       Kokkos::Array<bool,3>{periodic[IX],periodic[IY],periodic[IZ]},
     .storage =        Storage_t(),
     .mpi_comm =       mpi_comm,
-    .total_num_octs = coarse_grid_size[IX]*coarse_grid_size[IY]*coarse_grid_size[IZ],
+    .total_num_octs = (uint64_t)coarse_grid_size[IX]*(uint64_t)coarse_grid_size[IY]*(uint64_t)coarse_grid_size[IZ],
     .first_local_oct = 0,
     .ghostmap{},
     /*
@@ -750,8 +754,8 @@ AMRmesh::Parameters AMRmesh::parse_parameters(ConfigMap& configMap)
 
   if( configMap.hasValue( "amr","level_min" ) )
   {
-    res.level_min = configMap.getValue<int>("amr","level_min");
-    res.level_max = configMap.getValue<int>("amr","level_max", res.level_min + 3);
+    res.level_min = configMap.getValue<level_t>("amr","level_min");
+    res.level_max = configMap.getValue<level_t>("amr","level_max", res.level_min + 3);
     uint32_t max_width = (1U << res.level_min);
     res.coarse_grid_size = { 
         configMap.getValue<uint32_t>("amr","coarse_oct_resolution_x", max_width ),
@@ -778,8 +782,8 @@ AMRmesh::Parameters AMRmesh::parse_parameters(ConfigMap& configMap)
     };
 
     uint32_t width = std::max({res.coarse_grid_size[IX], res.coarse_grid_size[IY], res.coarse_grid_size[IZ]} );
-    res.level_min = configMap.getValue<int>( "amr", "level_min", std::ceil(std::log2( width ))  );
-    res.level_max = configMap.getValue<int>( "amr", "level_max", res.level_min + 3);
+    res.level_min = configMap.getValue<level_t>( "amr", "level_min", std::ceil(std::log2( width ))  );
+    res.level_max = configMap.getValue<level_t>( "amr", "level_max", res.level_min + 3);
   }
 
   return res;
@@ -1162,7 +1166,8 @@ void AMRmesh::adapt()
             if( level_current+marker_current < level_neighbor+maker_neighbor-1 )
             {
               // Set to smallest compatible marker
-              marker_current = (level_neighbor-level_current)+maker_neighbor-1;
+              int level_diff = (int)level_neighbor-(int)level_current;
+              marker_current = level_diff+maker_neighbor-1;
             }
           });
         }

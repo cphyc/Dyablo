@@ -1,6 +1,12 @@
-#include <cstdint>
-#include <algorithm>
-#include <cassert>
+#pragma once
+
+#ifdef DYABLO_USE_MPI
+#warning "DYABLO_USE_MPI should not be defined when including this backend (this is ok in intellisense)"
+#undef DYABLO_USE_MPI
+#endif
+#include "MpiComm.h"
+
+#include "utils/misc/Dyablo_assert.h"
 
 namespace dyablo{
 

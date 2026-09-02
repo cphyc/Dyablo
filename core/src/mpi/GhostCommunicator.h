@@ -3,7 +3,6 @@
 #include "amr/AMRmesh.h"
 
 #include "GhostCommunicator_partial_blocks.h"
-#include "GhostCommunicator_full_blocks.h"
 
 namespace dyablo {
 

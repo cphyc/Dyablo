@@ -1,18 +1,7 @@
-#include <memory>
+#include "parabolic/ParabolicUpdate_base.h"
 
-#include "kokkos_shared.h"
-#include "amr/LightOctree.h"
-#include "ScalarSimulationData.h"
-#include "ParabolicUpdate_base.h"
-#include "ParabolicTerm.h"
 #include "mpi/GhostCommunicator.h"
-
-
-#include "foreach_cell/ForeachCell.h"
 #include "foreach_cell/ForeachCell_utils.h"
-#include "utils_hydro.h"
-#include "utils/config/ConfigMap.h"
-
 #include "parabolic/ParabolicTerm_thermal_conduction.h"
 #include "parabolic/ParabolicTerm_viscosity.h"
 

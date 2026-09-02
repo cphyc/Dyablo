@@ -3,12 +3,13 @@
 #include <iostream>
 #include <iomanip>
 #include <cassert>
-#include <fstream>
 
-#include "kokkos_shared.h"
+#include <Kokkos_Profiling_ScopedRegion.hpp>
+
 #include "utils/misc/Dyablo_assert.h"
-
+#include "real_type.h"
 #include "OpenMPTimer.h"
+
 #if defined(KOKKOS_ENABLE_CUDA)
   #include "CudaTimer.h"
   using GpuTimer = CudaTimer;

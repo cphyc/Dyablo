@@ -1,6 +1,7 @@
 #pragma once
 
 #include "utils/misc/MultiTypeMap.h"
+#include "real_type.h"
 
 namespace dyablo {
 

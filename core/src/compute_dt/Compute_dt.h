@@ -1,6 +1,6 @@
 #pragma once
 
-#include "compute_dt/Compute_dt_base.h"
+#include "Compute_dt_base.h" // IWYU pragma: export
 #include "plugins_lib.h"
 
 template<>

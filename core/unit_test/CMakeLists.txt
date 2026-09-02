@@ -6,6 +6,7 @@ include(FetchContent)
 FetchContent_Declare(
   googletest
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../external/gtest
+  EXCLUDE_FROM_ALL
 )
 FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
@@ -153,4 +154,8 @@ dyablo_add_test(utest_UserData ON
 
 dyablo_add_test(utest_FullTree ON
   block_data/test_FullTree.cpp
+  main.cpp)
+
+  dyablo_add_test(utest_dyablo_tuple OFF
+  utils/test_dyablo_tuple.cpp
   main.cpp)

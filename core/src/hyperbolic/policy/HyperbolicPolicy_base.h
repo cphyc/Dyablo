@@ -1,6 +1,7 @@
 #pragma once
 
-#include "UserData.h"
+#include "user_data/UserData.h"
+#include "user_data/FieldAccessor.h"
 #include "ScalarSimulationData.h"
 #include "foreach_cell/ForeachCell.h"
 

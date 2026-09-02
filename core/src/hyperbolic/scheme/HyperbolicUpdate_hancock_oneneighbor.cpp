@@ -1,12 +1,7 @@
-#include <memory>
-
-#include "kokkos_shared.h"
-#include "amr/LightOctree.h"
-#include "HyperbolicUpdate_base.h"
+#include "hyperbolic/HyperbolicUpdate_base.h"
 
 #include "foreach_cell/ForeachCell.h"
 #include "foreach_cell/ForeachCell_utils.h"
-#include "utils_hydro.h"
 #include "utils/config/ConfigMap.h"
 
 #include "mpi/GhostCommunicator.h"

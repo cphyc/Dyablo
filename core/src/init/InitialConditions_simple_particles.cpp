@@ -1,8 +1,9 @@
 #include "InitialConditions_base.h"
-#include "AnalyticalFormula.h"
 
 #include "foreach_cell/ForeachCell.h"
 #include "particles/ForeachParticle.h"
+#include "user_data/ParticleAccessor.h"
+
 
 namespace dyablo{
 

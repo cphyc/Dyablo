@@ -1,6 +1,6 @@
 #pragma once
 
-#include "IOManager_base.h"
+#include "IOManager_base.h" // IWYU pragma: export
 #include "plugins_lib.h"
 
 template<>

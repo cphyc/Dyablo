@@ -1,8 +1,4 @@
-#include <memory>
-
-#include "kokkos_shared.h"
-#include "amr/LightOctree.h"
-#include "gravity/GravitySolver_base.h"
+#include "GravitySolver_base.h"
 
 class Timers;
 namespace dyablo {

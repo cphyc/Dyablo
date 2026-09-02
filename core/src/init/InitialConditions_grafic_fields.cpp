@@ -1,6 +1,8 @@
 #include "InitialConditions_base.h"
+
 #include "utils/io/FortranBinaryReader.h"
 #include "utils/units/Units.h"
+#include "user_data/FieldAccessor.h"
 
 namespace dyablo {
 
