@@ -350,13 +350,6 @@ public:
     offset = {i_offset, j_offset, k_offset};
   }
 
-  template<typename SearchMode>
-  KOKKOS_INLINE_FUNCTION
-  CellIndex::Status getNeighborStatus( const offset_t& offset, const SearchMode& search_mode ) const
-  {
-    return getNeighborStatus(offset[IX], offset[IY], offset[IZ], search_mode);
-  }
-
   /**
    * Compute neighbor status
    * 
@@ -516,7 +509,7 @@ public:
     return getNeighbor(offset[IX], offset[IY], offset[IZ], search_mode, status);
   }
 
-
+  
   template<CellIndex::Status only_status, typename SearchMode>
   KOKKOS_INLINE_FUNCTION
   CellIndex getNeighbor( int32_t offset_x, int32_t offset_y, int32_t offset_z, const SearchMode& search_mode ) const
@@ -730,7 +723,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   CellIndex operator+( const offset_t& offset ) const
   {
-    return getNeighbor(offset, SearchMode_local(SearchMode_local::INVALID));
+    return getNeighbor(offset[IX], offset[IY], offset[IZ], SearchMode_local(SearchMode_local::INVALID));
   }
 
   /**
