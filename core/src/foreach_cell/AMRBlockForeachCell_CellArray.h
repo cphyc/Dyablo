@@ -481,12 +481,12 @@ public:
         static_assert( !std::is_same_v<SearchMode, SearchMode>, "Unsupported search mode" );
       }
     }
-  }
+  }  
 
   /**
    * Compute neighbor cell index
    * 
-   * @param offset offset from the original cell
+   * @param offset_xyz offsets in each dimension from the original cell
    * @param search_mode configures how to search when neighbor cell is outside of local block
    * - SearchMode_local : does not look for neighbor octs
    * - SearchMode_neighbor : search cell in neighbor octants
@@ -502,21 +502,6 @@ public:
    * NOTE: If offset >= 2 outside of the block, resulting cell is one of the subcells in same-size equivalent neighbor 
    * accessing octants that are not direcly contiguous to local octant is undefined behavior, so be careful with block size
    **/
-  template<typename SearchMode>
-  KOKKOS_INLINE_FUNCTION
-  CellIndex getNeighbor( const offset_t& offset, const SearchMode& search_mode, CellIndex::Status status = CellIndex::Status::UNSET ) const
-  {
-    return getNeighbor(offset[IX], offset[IY], offset[IZ], search_mode, status);
-  }
-
-  
-  template<CellIndex::Status only_status, typename SearchMode>
-  KOKKOS_INLINE_FUNCTION
-  CellIndex getNeighbor( int32_t offset_x, int32_t offset_y, int32_t offset_z, const SearchMode& search_mode ) const
-  {
-    return getNeighbor< StatusFilter<only_status>, SearchMode >( offset_x, offset_y, offset_z, search_mode, only_status );
-  }
-
   template<typename StatusFilter_t = StatusFilter_all, typename SearchMode>
   KOKKOS_INLINE_FUNCTION
   CellIndex getNeighbor( int32_t offset_x, int32_t offset_y, int32_t offset_z, const SearchMode& search_mode, CellIndex::Status status = CellIndex::Status::UNSET ) const
@@ -720,10 +705,34 @@ public:
     }
   }
 
+  /**
+   * getNeighbor variant with only one possible status
+   * Works like getNeighbor with only_status as the only status on StatusFilter_t,
+   * `only_status` is used as status, it doesn not need to be recomputed.
+   **/
+  template<CellIndex::Status only_status, typename SearchMode>
+  KOKKOS_INLINE_FUNCTION
+  CellIndex getNeighbor( int32_t offset_x, int32_t offset_y, int32_t offset_z, const SearchMode& search_mode ) const
+  {
+    return getNeighbor< StatusFilter<only_status>, SearchMode >( offset_x, offset_y, offset_z, search_mode, only_status );
+  }
+
+  /// Operator+ overload for getNeighbor with SeachMode_local
   KOKKOS_INLINE_FUNCTION
   CellIndex operator+( const offset_t& offset ) const
   {
     return getNeighbor(offset[IX], offset[IY], offset[IZ], SearchMode_local(SearchMode_local::INVALID));
+  }
+
+  /**
+   * Like getNeighbor(x,y,z) for backward compatibility but with 3D array as offset
+   * This is deprecated, use getNeighbor(x,y,z) instead
+   **/
+  template<typename SearchMode>
+  KOKKOS_INLINE_FUNCTION
+  CellIndex getNeighbor( const offset_t& offset, const SearchMode& search_mode ) const
+  {
+    return getNeighbor(offset[IX], offset[IY], offset[IZ], search_mode, CellIndex::Status::UNSET);
   }
 
   /**
