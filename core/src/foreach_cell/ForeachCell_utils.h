@@ -45,7 +45,8 @@ int foreach_smaller_neighbor( int ndim, const CellIndex& iCell_n, const CellInde
         // Looking for same-size (local or remote)
         // neighbor can't be smaller (Assert if it is)
         ForeachCell::SearchMode_neighbor search_mode( lmesh, ForeachCell::SearchMode_neighbor::ASSERT );
-        iCell_ghost = iCell_n.getNeighbor<CellIndex::LOCAL_TO_BLOCK, CellIndex::SAME_SIZE>( di, dj, dk, search_mode );
+        using StatusFilter_t = CellIndex::StatusFilter<CellIndex::LOCAL_TO_BLOCK, CellIndex::SAME_SIZE>;
+        iCell_ghost = iCell_n.getNeighbor<StatusFilter_t>( di, dj, dk, search_mode );
       }        
       else
       {
@@ -103,7 +104,8 @@ int foreach_sibling( int ndim, const CellIndex& iCell_n, const LightOctree& lmes
         // Looking for same-size (local or remote)
         // neighbor can't be smaller (Assert if it is)
         ForeachCell::SearchMode_neighbor search_mode( lmesh, ForeachCell::SearchMode_neighbor::ASSERT );
-        iCell_ghost = iCell_n.getNeighbor<CellIndex::LOCAL_TO_BLOCK, CellIndex::SAME_SIZE>( di, dj, dk, search_mode );
+        using StatusFilter_t = CellIndex::StatusFilter<CellIndex::LOCAL_TO_BLOCK, CellIndex::SAME_SIZE>;
+        iCell_ghost = iCell_n.getNeighbor<StatusFilter_t>( di, dj, dk, search_mode );
       }        
       else
       {

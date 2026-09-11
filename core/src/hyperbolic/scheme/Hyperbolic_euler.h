@@ -122,11 +122,11 @@ public:
         ConsState u = {};
         if (CellIndex::is_boundary(iCell_Uin_status))
         {
-          CellIndex iCell_Uin = shape.convert_index<CellIndex::BOUNDARY>( iCell_Qpatch, search_neighbor_origin, CellIndex::BOUNDARY );
+          CellIndex iCell_Uin = shape.convert_index<CellIndex::BOUNDARY>( iCell_Qpatch, search_neighbor_origin );
           u = policy.getBoundaryValue(Uin, iCell_Uin, cellmetadata);
         }
         else if (level_diff < 0) { 
-          CellIndex iCell_Uin = shape.convert_index<CellIndex::SMALLER>( iCell_Qpatch, search_neighbor_origin, CellIndex::SMALLER );
+          CellIndex iCell_Uin = shape.convert_index<CellIndex::SMALLER>( iCell_Qpatch, search_neighbor_origin );
           int subcell_count = 
           foreach_sibling_gathered(ndim, iCell_Uin,
             [&](const CellIndex& iCell_neigh) {
@@ -137,7 +137,8 @@ public:
         }
         else
         {
-          CellIndex iCell_Uin = shape.convert_index<CellIndex::LOCAL_TO_BLOCK, CellIndex::SAME_SIZE, CellIndex::BIGGER>( iCell_Qpatch, search_neighbor_origin, iCell_Uin_status );
+          using StatusFilter_t = CellIndex::StatusFilter<CellIndex::LOCAL_TO_BLOCK, CellIndex::SAME_SIZE, CellIndex::BIGGER>;
+          CellIndex iCell_Uin = shape.convert_index<StatusFilter_t>( iCell_Qpatch, search_neighbor_origin, iCell_Uin_status );
           u = policy.getConsState(Uin, iCell_Uin);
         }
         
@@ -195,14 +196,14 @@ public:
 
             if( CellIndex::is_boundary(iCell_Uin_m_status) )
             {
-              const CellIndex iCell_Uin_m = iCell_Uin.getNeighbor<CellIndex::BOUNDARY>(-(dir==IX), -(dir==IY), -(dir==IZ), search_neighbor, CellIndex::BOUNDARY );
+              const CellIndex iCell_Uin_m = iCell_Uin.getNeighbor<CellIndex::BOUNDARY>(-(dir==IX), -(dir==IY), -(dir==IZ), search_neighbor);
               fluxL = policy.getBoundaryFlux(Uin, iCell_Uin_m, qC, cellmetadata);
             }
             else
             {  
               if (Ldiff >= 0) 
               {
-                CellIndex iCell_Qpatch_m = iCell_Qpatch.getNeighbor<CellIndex::LOCAL_TO_BLOCK>( -(dir==IX), -(dir==IY), -(dir==IZ), search_local, CellIndex::LOCAL_TO_BLOCK ); 
+                CellIndex iCell_Qpatch_m = iCell_Qpatch.getNeighbor<CellIndex::LOCAL_TO_BLOCK>( -(dir==IX), -(dir==IY), -(dir==IZ), search_local ); 
                 PrimState qL0 = policy.getPrimState( Qpatch, iCell_Qpatch_m );
 
                 //R neighbor is center cell, smaller if iCell_Uin_m was bigger
@@ -231,7 +232,7 @@ public:
                 {
                   real_t size_L = 2 * size_C;
                   ConsState du_n = fluxL * (- dim_fac * dt / size_L);
-                  const CellIndex iCell_Uin_m = iCell_Uin.getNeighbor<CellIndex::BIGGER>(-(dir==IX), -(dir==IY), -(dir==IZ), search_neighbor, CellIndex::BIGGER);
+                  const CellIndex iCell_Uin_m = iCell_Uin.getNeighbor<CellIndex::BIGGER>(-(dir==IX), -(dir==IY), -(dir==IZ), search_neighbor);
                   policy.atomic_addConsState(Uout, iCell_Uin_m, du_n);
                 }
               } // If smaller we skip
@@ -245,14 +246,14 @@ public:
 
             if( CellIndex::is_boundary(iCell_Uin_p_status) )
             {
-              const CellIndex iCell_Uin_p = iCell_Uin.getNeighbor<CellIndex::BOUNDARY>( (dir==IX),  (dir==IY),  (dir==IZ), search_neighbor, CellIndex::BOUNDARY);
+              const CellIndex iCell_Uin_p = iCell_Uin.getNeighbor<CellIndex::BOUNDARY>( (dir==IX),  (dir==IY),  (dir==IZ), search_neighbor);
               fluxR = policy.getBoundaryFlux(Uin, iCell_Uin_p, qC, cellmetadata);
             }
             else
             {
               if (Rdiff >= 0) 
               {
-                CellIndex iCell_Qpatch_p = iCell_Qpatch.getNeighbor<CellIndex::LOCAL_TO_BLOCK>(  (dir==IX),  (dir==IY),  (dir==IZ), search_local, CellIndex::LOCAL_TO_BLOCK ); 
+                CellIndex iCell_Qpatch_p = iCell_Qpatch.getNeighbor<CellIndex::LOCAL_TO_BLOCK>(  (dir==IX),  (dir==IY),  (dir==IZ), search_local ); 
                 PrimState qR0 = policy.getPrimState( Qpatch, iCell_Qpatch_p );
                 
                 //L neighbor is center cell, smaller if iCell_Uin_p was bigger
@@ -281,7 +282,7 @@ public:
                 {
                   real_t size_R = 2 * size_C;
                   ConsState du_n = fluxR * (dim_fac * dt / size_R);
-                  CellIndex iCell_Uin_p = iCell_Uin.getNeighbor<CellIndex::BIGGER>( (dir==IX),  (dir==IY),  (dir==IZ), search_neighbor, CellIndex::BIGGER);
+                  CellIndex iCell_Uin_p = iCell_Uin.getNeighbor<CellIndex::BIGGER>( (dir==IX),  (dir==IY),  (dir==IZ), search_neighbor);
                   policy.atomic_addConsState(Uout, iCell_Uin_p, du_n);
                 }
               }
