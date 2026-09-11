@@ -91,7 +91,8 @@ public:
       Uout.getShape(),
       KOKKOS_LAMBDA(const CellIndex &iCell)
     {
-      ForeachCell::SearchMode_neighbor search_neighbor( cellmetadata.getLightOctree(), ForeachCell::SearchMode_neighbor::CLOSEST );
+      const auto& lmesh = cellmetadata.getLightOctree();
+      ForeachCell::SearchMode_neighbor search_neighbor( lmesh, ForeachCell::SearchMode_neighbor::CLOSEST );
 
       // Return Slope at position iCell
       auto get_slope = [&](const CellIndex &iCell, ComponentIndex3D dir) { 
@@ -107,7 +108,7 @@ public:
             u = policy.getBoundaryValue(Uin, iCell_n, cellmetadata);
           else if (level_diff < 0) {
             int subcell_count = 
-            foreach_smaller_neighbor(ndim, iCell_n, off, search_neighbor,
+            foreach_smaller_neighbor_scattered(ndim, iCell_n, off, lmesh,
               [&](const CellIndex& iCell_neigh) {
                 ConsState uloc = policy.getConsState(Uin, iCell_neigh);
                 u += uloc;

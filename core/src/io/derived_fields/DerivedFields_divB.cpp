@@ -46,8 +46,9 @@ public:
                               Uin.getShape(),
                               CELL_LAMBDA(const CellIndex &iCell) 
     {
-      ForeachCell::SearchMode_neighbor search_neighbor( cellmetadata.getLightOctree(), ForeachCell::SearchMode_neighbor::CLOSEST );
-      ForeachCell::SearchMode_neighbor search_neighbor_origin( cellmetadata.getLightOctree(), ForeachCell::SearchMode_neighbor::ORIGIN );
+      const auto& lmesh = cellmetadata.getLightOctree();
+      ForeachCell::SearchMode_neighbor search_neighbor( lmesh, ForeachCell::SearchMode_neighbor::CLOSEST );
+      ForeachCell::SearchMode_neighbor search_neighbor_origin( lmesh, ForeachCell::SearchMode_neighbor::ORIGIN );
 
       // Centered field is only used when one side is a boundary
       const real_t Bx = Uin.at(iCell, IBX);
@@ -85,7 +86,7 @@ public:
           // Smaller neighbor
           else {
             Bm = 0.0;
-            foreach_smaller_neighbor(ndim, iCell, off_m, search_neighbor_origin, [&](const CellIndex iCell_smaller) 
+            foreach_smaller_neighbor_scattered(ndim, iCell, off_m, lmesh, [&](const CellIndex iCell_smaller) 
             {
               Bm += Uin.at(iCell_smaller, IB);
             });
@@ -109,7 +110,7 @@ public:
           // Samller neighbor
           else {
             Bp = 0.0;
-            foreach_smaller_neighbor(ndim, iCell, off_p, search_neighbor_origin, [&](const CellIndex iCell_smaller) 
+            foreach_smaller_neighbor_scattered(ndim, iCell, off_p, lmesh, [&](const CellIndex iCell_smaller) 
             {
               Bp += Uin.at(iCell_smaller, IB);
             });

@@ -162,7 +162,7 @@ void test_FullTree_average_children(bool getParent_mode)
         ForeachCell::CellIndex iCell_c0 = iCell.getChildren(lmesh);
 
         pos_t p{};
-        int ns = foreach_sibling( ndim, iCell_c0, search_neighbor_intermediate,
+        int ns = foreach_sibling_scattered( ndim, iCell_c0, lmesh,
           [&]( const ForeachCell::CellIndex& iCell_c )
         {
           real_t px = Ua.at(iCell_c, Px);

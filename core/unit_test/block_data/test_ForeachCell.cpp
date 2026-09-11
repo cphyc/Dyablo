@@ -118,7 +118,8 @@ void run_test()
   foreach_cell.foreach_cell( "Stencil_U2", U, 
     KOKKOS_LAMBDA( const ForeachCell::CellIndex& iCell )
   {
-    ForeachCell::SearchMode_neighbor search_neighbor( cells.getLightOctree(), ForeachCell::SearchMode_neighbor::CLOSEST );
+    const auto& lmesh = cells.getLightOctree();
+    ForeachCell::SearchMode_neighbor search_neighbor( lmesh, ForeachCell::SearchMode_neighbor::CLOSEST );
 
     auto append_offset = [&]( ForeachCell::CellIndex::offset_t offset )
     {
@@ -147,7 +148,7 @@ void run_test()
         {
           // Mean of positions, shifted to center of bigger cell
           int n_smaller_neighbors = 
-            foreach_smaller_neighbor<ndim>( iCell_n, offset, search_neighbor,
+            foreach_smaller_neighbor_scattered( ndim, iCell_n, offset, lmesh,
             [&]( const ForeachCell::CellIndex& iCell_sn )
           {
             auto pos = cells.getCellCenter(iCell_sn);

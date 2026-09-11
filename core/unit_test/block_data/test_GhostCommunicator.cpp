@@ -107,7 +107,8 @@ void test_GhostCommunicator_partial_block()
   foreach_cell.reduce_cell( "test_neighbors", Ua.getShape(),
     KOKKOS_LAMBDA( ForeachCell::CellIndex& iCell, int& error_count )
   {
-    ForeachCell::SearchMode_neighbor search_neighbor( cells.getLightOctree(), ForeachCell::SearchMode_neighbor::CLOSEST );
+    const auto& lmesh = cells.getLightOctree();
+    ForeachCell::SearchMode_neighbor search_neighbor( lmesh, ForeachCell::SearchMode_neighbor::CLOSEST );
 
     auto check_value = [&](const CellIndex& iCell)
     {
@@ -149,7 +150,7 @@ void test_GhostCommunicator_partial_block()
         }
         else
         {
-          foreach_smaller_neighbor<3>( iCell_n, offset, search_neighbor,
+          foreach_smaller_neighbor_scattered( 3, iCell_n, offset, lmesh,
           [&]( const CellIndex& iCell_ns )
           {
             check_value(iCell_ns);
@@ -278,7 +279,7 @@ void run_test_reduce_partial_blocks()
         }
         else if( iCell_n.level_diff() == -1 ) // Neighbors are smaller
         {
-          foreach_smaller_neighbor<ndim>( iCell_n, offset, search_neighbor,
+          foreach_smaller_neighbor_scattered( ndim, iCell_n, offset, lmesh,
             [&]( const CellIndex& iCell_ns )
           {
             Kokkos::atomic_add(&Uin.at( iCell_ns, iVar ), 1);
@@ -497,7 +498,7 @@ void test_GhostCommunicator_subset()
         }
         else
         {
-          foreach_smaller_neighbor<3>( iCell_n, offset, search_neighbor,
+          foreach_smaller_neighbor_scattered( 3, iCell_n, offset, lmesh,
           [&]( const CellIndex& iCell_ns )
           {
             check_value(iCell_ns);

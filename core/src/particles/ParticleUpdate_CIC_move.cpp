@@ -64,7 +64,8 @@ public:
     foreach_particle.foreach_particle( "particles_update_position", Ppos,
       KOKKOS_LAMBDA( const ForeachParticle::ParticleIndex& iPart )
     {
-      ForeachCell::SearchMode_neighbor search_neighbor( cells.getLightOctree(), ForeachCell::SearchMode_neighbor::CLOSEST );
+      const auto& lmesh = cells.getLightOctree();
+      ForeachCell::SearchMode_neighbor search_neighbor( lmesh, ForeachCell::SearchMode_neighbor::CLOSEST );
 
       pos_t part_pos = {Ppos.pos(iPart, IX), Ppos.pos(iPart, IY), Ppos.pos(iPart, IZ)};
       ForeachCell::CellIndex iCell = cells.getCellFromPos( part_pos );
@@ -108,7 +109,7 @@ public:
           int dk_count = (ndim==3 && offset[IZ]==0)?2:1;
           int nneighbors = di_count*dj_count*dk_count;
 
-          foreach_smaller_neighbor<ndim>( iCell_neighbor, offset, search_neighbor,
+          foreach_smaller_neighbor_scattered( ndim, iCell_neighbor, offset, lmesh,
             [&]( const ForeachCell::CellIndex& iCell_sn )
           {
             gx += Uin.at( iCell_sn, IGX) * volume_fraction / nneighbors;

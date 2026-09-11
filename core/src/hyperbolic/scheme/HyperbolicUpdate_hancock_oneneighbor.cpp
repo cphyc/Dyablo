@@ -92,7 +92,8 @@ public:
     foreach_cell.foreach_cell("HyperbolicUpdate_hancock_oneneighbor::compute_slopes", Q, 
       KOKKOS_LAMBDA(const CellIndex& iCell_Q)
     { 
-      ForeachCell::SearchMode_neighbor search_neighbor( cellmetadata.getLightOctree(), ForeachCell::SearchMode_neighbor::CLOSEST );
+      const auto& lmesh = cellmetadata.getLightOctree();
+      ForeachCell::SearchMode_neighbor search_neighbor( lmesh, ForeachCell::SearchMode_neighbor::CLOSEST );
 
       PrimState qC = policy.getPrimState( Q, iCell_Q );
       auto compute_slope = [&](ComponentIndex3D dir)
@@ -115,7 +116,7 @@ public:
           else //if (level_diff < 0)
           {
             int subcell_count = 
-            foreach_smaller_neighbor(ndim, iCell_n0, offset, search_neighbor,
+            foreach_smaller_neighbor_scattered(ndim, iCell_n0, offset, lmesh,
               [&](const CellIndex& iCell_n) {
                 PrimState qloc = policy.getPrimState(Q, iCell_n);
                 q += qloc;

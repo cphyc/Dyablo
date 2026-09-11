@@ -107,8 +107,8 @@ real_t get_value(const Array_t& U, const CellIndex& iCell_U, VarIndex var, const
   {
     real_t sum = 0;
     int nbCells =
-    foreach_smaller_neighbor<ndim>(
-      iCell_U, offset, search_mode, 
+    foreach_smaller_neighbor_scattered(
+      ndim, iCell_U, offset, search_mode.getLightOctree(),
       [&](const ForeachCell::CellIndex& iCell_ghost)
     {
       sum += U.at(iCell_ghost, var);

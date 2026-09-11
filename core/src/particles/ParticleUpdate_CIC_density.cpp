@@ -58,7 +58,8 @@ public:
     foreach_particle.foreach_particle( "ParticleUpdate_CIC_density::projection", Ppos,
       KOKKOS_LAMBDA( const ForeachParticle::ParticleIndex& iPart )
     {
-      ForeachCell::SearchMode_neighbor search_neighbor( cells.getLightOctree(), ForeachCell::SearchMode_neighbor::CLOSEST );
+      const auto& lmesh = cells.getLightOctree();
+      ForeachCell::SearchMode_neighbor search_neighbor( lmesh, ForeachCell::SearchMode_neighbor::CLOSEST );
 
       real_t part_mass = Pdata.at( iPart, IMass );
       pos_t part_pos = {Ppos.pos(iPart, IX), Ppos.pos(iPart, IY), Ppos.pos(iPart, IZ)};
@@ -111,7 +112,7 @@ public:
           int dk_count = (ndim==3 && offset[IZ]==0)?2:1;
           real_t rho_contrib = 2*2*(ndim - 1)/(di_count*dj_count*dk_count) * (part_mass * volume_fraction) / Vcell;
 
-          foreach_smaller_neighbor<ndim>( iCell_neighbor, offset, search_neighbor,
+          foreach_smaller_neighbor_scattered( ndim, iCell_neighbor, offset, lmesh,
             [&]( const ForeachCell::CellIndex& iCell_sn )
           {
             Kokkos::atomic_add( &Uin.at( iCell_sn, IRhoG ), rho_contrib) ;

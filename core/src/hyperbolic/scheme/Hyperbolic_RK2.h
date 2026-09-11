@@ -132,7 +132,8 @@ public:
 
     PatchArray::Ref Qpatch_ = foreach_cell.reserve_patch_tmp("Qpatch", 2, 2, (ndim == 3)?2:0, State_traits<PrimState>::nvars);
 
-    ForeachCell::SearchMode_neighbor search_neighbor( this->foreach_cell.get_amr_mesh().getLightOctree(), ForeachCell::SearchMode_neighbor::ORIGIN );
+    const auto& lmesh = this->foreach_cell.get_amr_mesh().getLightOctree();
+    ForeachCell::SearchMode_neighbor search_neighbor( lmesh, ForeachCell::SearchMode_neighbor::ORIGIN );
     ForeachCell::SearchMode_local search_local( ForeachCell::SearchMode_local::ASSERT );
 
 
@@ -152,7 +153,7 @@ public:
           u = policy.getBoundaryValue(Uin, iCell_Uin, cellmetadata);
         else if (level_diff < 0) {
           int subcell_count = 
-          foreach_sibling(ndim, iCell_Uin, search_neighbor_origin,
+          foreach_sibling_scattered(ndim, iCell_Uin, lmesh,
             [&](const CellIndex& iCell_neigh) {
               ConsState uloc = policy.getConsState(Uin, iCell_neigh);
               u += uloc;

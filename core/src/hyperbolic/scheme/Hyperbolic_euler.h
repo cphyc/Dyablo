@@ -128,7 +128,7 @@ public:
         else if (level_diff < 0) { 
           CellIndex iCell_Uin = shape.convert_index<CellIndex::SMALLER>( iCell_Qpatch, search_neighbor_origin, CellIndex::SMALLER );
           int subcell_count = 
-          foreach_sibling(ndim, iCell_Uin, ForeachCell::SearchMode_local(ForeachCell::SearchMode_local::ASSERT),
+          foreach_sibling_gathered(ndim, iCell_Uin,
             [&](const CellIndex& iCell_neigh) {
               ConsState uloc = policy.getConsState(Uin, iCell_neigh);
               u += uloc;

@@ -94,7 +94,8 @@ public:
     if( ndim == 3 )
       SlopesZ_ = foreach_cell.reserve_patch_tmp("SlopesZ", 1, 1, 1, nbFields);
 
-    ForeachCell::SearchMode_neighbor search_neighbor( this->foreach_cell.get_amr_mesh().getLightOctree(), ForeachCell::SearchMode_neighbor::ORIGIN );
+    const auto& lmesh = this->foreach_cell.get_amr_mesh().getLightOctree();
+    ForeachCell::SearchMode_neighbor search_neighbor( lmesh, ForeachCell::SearchMode_neighbor::ORIGIN );
     ForeachCell::SearchMode_local search_local( ForeachCell::SearchMode_local::ASSERT );
 
     // Iterate over cells
@@ -114,7 +115,7 @@ public:
           u = policy.getBoundaryValue(Uin, iCell_Uin, cellmetadata);
         else if (level_diff < 0) {
           int subcell_count = 
-          foreach_sibling(ndim, iCell_Uin, search_neighbor_origin,
+          foreach_sibling_scattered(ndim, iCell_Uin, lmesh,
             [&](const CellIndex& iCell_neigh) {
               ConsState uloc = policy.getConsState(Uin, iCell_neigh);
               u += uloc;
