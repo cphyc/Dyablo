@@ -182,8 +182,9 @@ public:
           const PrimState qR = policy.getPrimState(Qpatch, iCell_Qpatch + off_p); 
         
           //!\ Neighbor cells in Qpatch are averaged cells -> size iCell_L != size iCell_Qpatch_L
-          CellIndex iCell_L = iCell_Uin.getNeighbor(off_m, search_neighbor);
-          CellIndex iCell_R = iCell_Uin.getNeighbor(off_p, search_neighbor);   
+          constexpr bool accept_ghosts = true; // We get the neighbor of a neighbor 
+          CellIndex iCell_L = iCell_Uin.getNeighbor<accept_ghosts>(off_m[IX],off_m[IY],off_m[IZ], search_neighbor);
+          CellIndex iCell_R = iCell_Uin.getNeighbor<accept_ghosts>(off_p[IX],off_p[IY],off_p[IZ], search_neighbor);   
 
           // Getting the length right and left
           // Smaller -> use averaged same-size cell -> 1*dx

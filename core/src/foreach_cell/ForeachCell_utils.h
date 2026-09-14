@@ -39,6 +39,7 @@ int foreach_smaller_neighbor( int ndim, const CellIndex& iCell_n, const CellInde
   for( int32_t dj=0; dj<dj_count; dj++ )
   for( int32_t di=0; di<di_count; di++ )
   {
+      constexpr bool allow_ghost = true;
       CellIndex iCell_ghost;
       if constexpr ( enable_different_block )
       {
@@ -46,13 +47,13 @@ int foreach_smaller_neighbor( int ndim, const CellIndex& iCell_n, const CellInde
         // neighbor can't be smaller (Assert if it is)
         ForeachCell::SearchMode_neighbor search_mode( lmesh, ForeachCell::SearchMode_neighbor::ASSERT );
         using StatusFilter_t = CellIndex::StatusFilter<CellIndex::LOCAL_TO_BLOCK, CellIndex::SAME_SIZE>;
-        iCell_ghost = iCell_n.getNeighbor<StatusFilter_t>( di, dj, dk, search_mode );
+        iCell_ghost = iCell_n.getNeighbor<StatusFilter_t, allow_ghost>( di, dj, dk, search_mode );
       }        
       else
       {
         // Looking for local cell (Assert if it's not)
         ForeachCell::SearchMode_local search_mode( ForeachCell::SearchMode_local::ASSERT );
-        iCell_ghost = iCell_n.getNeighbor<CellIndex::LOCAL_TO_BLOCK>( di, dj, dk, search_mode );
+        iCell_ghost = iCell_n.getNeighbor<CellIndex::LOCAL_TO_BLOCK, allow_ghost>( di, dj, dk, search_mode );
       }
       apply_neighbor(iCell_ghost);
   }
@@ -98,6 +99,7 @@ int foreach_sibling( int ndim, const CellIndex& iCell_n, const LightOctree& lmes
   for( int32_t dj=0; dj<2; dj++ )
   for( int32_t di=0; di<2; di++ )
   {
+      constexpr bool allow_ghost = true;
       CellIndex iCell_ghost;
       if constexpr ( enable_different_block )
       {
@@ -105,13 +107,13 @@ int foreach_sibling( int ndim, const CellIndex& iCell_n, const LightOctree& lmes
         // neighbor can't be smaller (Assert if it is)
         ForeachCell::SearchMode_neighbor search_mode( lmesh, ForeachCell::SearchMode_neighbor::ASSERT );
         using StatusFilter_t = CellIndex::StatusFilter<CellIndex::LOCAL_TO_BLOCK, CellIndex::SAME_SIZE>;
-        iCell_ghost = iCell_n.getNeighbor<StatusFilter_t>( di, dj, dk, search_mode );
+        iCell_ghost = iCell_n.getNeighbor<StatusFilter_t, allow_ghost>( di, dj, dk, search_mode );
       }        
       else
       {
         // Looking for local cell (Assert if it's not)
         ForeachCell::SearchMode_local search_mode( ForeachCell::SearchMode_local::ASSERT );
-        iCell_ghost = iCell_n.getNeighbor<CellIndex::LOCAL_TO_BLOCK>( di, dj, dk, search_mode );
+        iCell_ghost = iCell_n.getNeighbor<CellIndex::LOCAL_TO_BLOCK, allow_ghost>( di, dj, dk, search_mode );
       }
       apply_sibling(iCell_ghost);
   }

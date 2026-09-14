@@ -355,11 +355,16 @@ public:
    * 
    * Same as getNeighbor().status
    */
-  template<typename SearchMode>
+  template<bool accepts_ghosts = false, typename SearchMode>
   KOKKOS_INLINE_FUNCTION
   CellIndex::Status getNeighborStatus( int32_t offset_x, int32_t offset_y, int32_t offset_z, const SearchMode& search_mode ) const
   {
     DYABLO_ASSERT_KOKKOS_DEBUG(this->is_valid(), "Index needs to be valid to get neighbor");
+
+    if constexpr ( !accepts_ghosts )
+    {
+      DYABLO_ASSERT_KOKKOS_DEBUG(!this->iOct().isGhost, "getNeighborStatus : iOct is a ghost but ghosts are disabled");
+    }
 
     bool assume_local_oct = false;
     if constexpr( std::is_same_v<SearchMode, SearchMode_local> )
@@ -415,9 +420,9 @@ public:
 
         LightOctree::OctantIndex iOct_n;        
         if constexpr ( std::is_same_v<SearchMode, SearchMode_intermediates> )
-          iOct_n = lmesh.findNeighbor_intermediate(iOct, oct_offset_x, oct_offset_y, oct_offset_z);
+          iOct_n = lmesh.findNeighbor_intermediate<accepts_ghosts>(iOct, oct_offset_x, oct_offset_y, oct_offset_z);
         else //constexpr if( std::is_same_v<SearchMode, SearchMode_neighbor>  )
-          iOct_n = lmesh.findNeighbor(iOct, oct_offset_x, oct_offset_y, oct_offset_z);
+          iOct_n = lmesh.findNeighbor<accepts_ghosts>(iOct, oct_offset_x, oct_offset_y, oct_offset_z);
         // TODO : optimize level_diff with dedicated LightOctree method
         int level_diff = lmesh.getLevel(iOct) - lmesh.getLevel(iOct_n);
 
@@ -502,10 +507,15 @@ public:
    * NOTE: If offset >= 2 outside of the block, resulting cell is one of the subcells in same-size equivalent neighbor 
    * accessing octants that are not direcly contiguous to local octant is undefined behavior, so be careful with block size
    **/
-  template<typename StatusFilter_t = StatusFilter_all, typename SearchMode>
+  template<typename StatusFilter_t, bool accepts_ghosts = false, typename SearchMode>
   KOKKOS_INLINE_FUNCTION
   CellIndex getNeighbor( int32_t offset_x, int32_t offset_y, int32_t offset_z, const SearchMode& search_mode, CellIndex::Status status = CellIndex::Status::UNSET ) const
   {
+    if constexpr ( !accepts_ghosts )
+    {
+      DYABLO_ASSERT_KOKKOS_DEBUG(!this->iOct().isGhost, "getNeighborStatus : iOct is a ghost but ghosts are disabled");
+    }
+
     // Check if s == status, returns false if status is not enabled
     auto status_is = [&]( CellIndex::Status s )
     {
@@ -517,14 +527,14 @@ public:
       if constexpr( StatusFilter_t::count() == 1 )
         status = StatusFilter_t::first();
       else
-        status = getNeighborStatus( offset_x, offset_y, offset_z, search_mode );
+        status = getNeighborStatus<accepts_ghosts>( offset_x, offset_y, offset_z, search_mode );
     }
 
     DYABLO_ASSERT_KOKKOS_DEBUG( StatusFilter_t::status_is_enabled( status ), "getNeighbor : actual status not enabled" );
 
     DYABLO_ASSERT_KOKKOS_DEBUG( [&]()
       {
-        auto expected_status = getNeighborStatus( offset_x, offset_y, offset_z, search_mode );
+        auto expected_status = getNeighborStatus<accepts_ghosts>( offset_x, offset_y, offset_z, search_mode );
         return status == expected_status;
       }(),
       "getNeighbor : status should be same as getNeighborStatus()" );
@@ -585,9 +595,9 @@ public:
 
           LightOctree::OctantIndex iOct_n;        
           if constexpr ( std::is_same_v<SearchMode, SearchMode_intermediates> )
-            iOct_n = lmesh.findNeighbor_intermediate(iOct, oct_offset_x, oct_offset_y, oct_offset_z);
+            iOct_n = lmesh.findNeighbor_intermediate<accepts_ghosts>(iOct, oct_offset_x, oct_offset_y, oct_offset_z);
           else //constexpr if( std::is_same_v<SearchMode, SearchMode_neighbor>  )
-            iOct_n = lmesh.findNeighbor(iOct, oct_offset_x, oct_offset_y, oct_offset_z);
+            iOct_n = lmesh.findNeighbor<accepts_ghosts>(iOct, oct_offset_x, oct_offset_y, oct_offset_z);
 
           if( status_is(SAME_SIZE) )
           {
@@ -705,16 +715,23 @@ public:
     }
   }
 
+  template<bool accepts_ghosts = false, typename SearchMode>
+  KOKKOS_INLINE_FUNCTION
+  CellIndex getNeighbor( int32_t offset_x, int32_t offset_y, int32_t offset_z, const SearchMode& search_mode, CellIndex::Status status = CellIndex::Status::UNSET ) const
+  {
+    return getNeighbor<StatusFilter_all, accepts_ghosts>(offset_x,offset_y,offset_z,search_mode,status);
+  }
+
   /**
    * getNeighbor variant with only one possible status
    * Works like getNeighbor with only_status as the only status on StatusFilter_t,
    * `only_status` is used as status, it doesn not need to be recomputed.
    **/
-  template<CellIndex::Status only_status, typename SearchMode>
+  template<CellIndex::Status only_status, bool accepts_ghosts = false, typename SearchMode>
   KOKKOS_INLINE_FUNCTION
   CellIndex getNeighbor( int32_t offset_x, int32_t offset_y, int32_t offset_z, const SearchMode& search_mode ) const
   {
-    return getNeighbor< StatusFilter<only_status>, SearchMode >( offset_x, offset_y, offset_z, search_mode, only_status );
+    return getNeighbor< StatusFilter<only_status>, accepts_ghosts >( offset_x, offset_y, offset_z, search_mode, only_status );
   }
 
   /// Operator+ overload for getNeighbor with SeachMode_local

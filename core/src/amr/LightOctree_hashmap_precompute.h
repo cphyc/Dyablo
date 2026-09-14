@@ -169,8 +169,7 @@ public:
         }
         if( !accepts_ghosts )
         {
-            // TODO : Enable this ghost check (watch out for issue #275)
-            //DYABLO_ASSERT_KOKKOS_DEBUG(!iOct.isGhost, "LightOctree_hashmap_precompute::findNeighbor_aux : iOct is a ghost but ghosts are disabled");
+            DYABLO_ASSERT_KOKKOS_DEBUG(!iOct.isGhost, "LightOctree_hashmap_precompute::findNeighbor_aux : iOct is a ghost but ghosts are disabled");
         }
 
         uint32_t iOct_local;

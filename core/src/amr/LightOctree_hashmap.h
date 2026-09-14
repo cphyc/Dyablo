@@ -139,13 +139,7 @@ public:
 
         if constexpr ( !accepts_ghosts )
         {
-            // TODO : Enable this ghost check (watch out for issue #275)
-            //findNeighbor_aux_ASSERT_OR_FAIL(!iOct.isGhost, "LightOctree_hashmap::findNeighbor_aux : iOct is a ghost but ghosts are disabled");
-
-            if( !assert_on_failure && iOct.isGhost )
-            {
-                return LightOctree_base::NEIGHBOR_NOT_FOUND;
-            }
+            findNeighbor_aux_ASSERT_OR_FAIL(!iOct.isGhost, "LightOctree_hashmap::findNeighbor_aux : iOct is a ghost but ghosts are disabled");
         }
 
         findNeighbor_aux_ASSERT_OR_FAIL( !this->isBoundary(iOct, offset_x, offset_y, offset_z), "findNeighbor doesn't support boundaries." );

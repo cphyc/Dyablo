@@ -121,13 +121,14 @@ public:
           return policy.consToPrim(u);
         };
 
+        constexpr bool accept_ghosts = true;
         ConsState uC = policy.getConsState(Uin, iCell);
         const PrimState qC = policy.consToPrim( uC );
         offset_t off_m{}; off_m[dir] = -1;
-        CellIndex iCell_L = iCell.getNeighbor(off_m, search_neighbor);
+        CellIndex iCell_L = iCell.getNeighbor<accept_ghosts>(off_m[IX],off_m[IY],off_m[IZ], search_neighbor);
         const PrimState qL = get_neighbor_prim_value(iCell_L, off_m);
         offset_t off_p{}; off_p[dir] =  1;
-        CellIndex iCell_R = iCell.getNeighbor(off_p, search_neighbor);
+        CellIndex iCell_R = iCell.getNeighbor<accept_ghosts>(off_p[IX],off_p[IY],off_p[IZ], search_neighbor);
         const PrimState qR = get_neighbor_prim_value(iCell_R, off_p);    
 
         // Getting the length right and left
