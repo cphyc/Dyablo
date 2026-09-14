@@ -105,6 +105,8 @@ public:
      **/
     NeighborList findNeighbors( const OctantIndex& iOct, const offset_t& offset ) const;
 
+    
+    static constexpr bool ACCEPTS_GHOSTS_DEFAULT = false;
     /**
      * Same as findNeighbors but only returns first octant in list (with smallest morton)  
      * Note : works only if findNeighbors returns at least one octant (check for boundaries before)
@@ -115,7 +117,7 @@ public:
      *          (But don't use this to test if neighbor is present, there might be false positives!)
      *          when true, trying to fetch a non-existing neighbor is undefined behavior
      */
-    template< bool accepts_ghosts = false, bool assert_on_failure = true >
+    template< bool accepts_ghosts = ACCEPTS_GHOSTS_DEFAULT, bool assert_on_failure = true >
     NeighborList findNeighbor( const OctantIndex& iOct, const offset_t& offset ) const;
 
     /**
@@ -138,7 +140,7 @@ public:
      * Since intermediate octants are included only one same-size octant matches
      * If same-size octant doesn't exist (neighbor leaf is bigger), the bigger leaf is returned
      **/
-    template< bool accepts_ghosts = false, bool assert_on_failure = true >
+    template< bool accepts_ghosts = ACCEPTS_GHOSTS_DEFAULT, bool assert_on_failure = true >
     OctantIndex findNeighbor_intermediate( const OctantIndex& iOct, const offset_t& offset )  const;
 
     /**

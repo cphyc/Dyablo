@@ -350,12 +350,14 @@ public:
     offset = {i_offset, j_offset, k_offset};
   }
 
+  static constexpr bool ACCEPTS_GHOSTS_DEFAULT = LightOctree::ACCEPTS_GHOSTS_DEFAULT;
+  
   /**
    * Compute neighbor status
    * 
    * Same as getNeighbor().status
    */
-  template<bool accepts_ghosts = false, typename SearchMode>
+  template<bool accepts_ghosts = ACCEPTS_GHOSTS_DEFAULT, typename SearchMode>
   KOKKOS_INLINE_FUNCTION
   CellIndex::Status getNeighborStatus( int32_t offset_x, int32_t offset_y, int32_t offset_z, const SearchMode& search_mode ) const
   {
@@ -507,7 +509,7 @@ public:
    * NOTE: If offset >= 2 outside of the block, resulting cell is one of the subcells in same-size equivalent neighbor 
    * accessing octants that are not direcly contiguous to local octant is undefined behavior, so be careful with block size
    **/
-  template<typename StatusFilter_t, bool accepts_ghosts = false, typename SearchMode>
+  template<typename StatusFilter_t, bool accepts_ghosts = ACCEPTS_GHOSTS_DEFAULT, typename SearchMode>
   KOKKOS_INLINE_FUNCTION
   CellIndex getNeighbor( int32_t offset_x, int32_t offset_y, int32_t offset_z, const SearchMode& search_mode, CellIndex::Status status = CellIndex::Status::UNSET ) const
   {
@@ -715,7 +717,7 @@ public:
     }
   }
 
-  template<bool accepts_ghosts = false, typename SearchMode>
+  template<bool accepts_ghosts = ACCEPTS_GHOSTS_DEFAULT, typename SearchMode>
   KOKKOS_INLINE_FUNCTION
   CellIndex getNeighbor( int32_t offset_x, int32_t offset_y, int32_t offset_z, const SearchMode& search_mode, CellIndex::Status status = CellIndex::Status::UNSET ) const
   {
@@ -727,7 +729,7 @@ public:
    * Works like getNeighbor with only_status as the only status on StatusFilter_t,
    * `only_status` is used as status, it doesn not need to be recomputed.
    **/
-  template<CellIndex::Status only_status, bool accepts_ghosts = false, typename SearchMode>
+  template<CellIndex::Status only_status, bool accepts_ghosts = ACCEPTS_GHOSTS_DEFAULT, typename SearchMode>
   KOKKOS_INLINE_FUNCTION
   CellIndex getNeighbor( int32_t offset_x, int32_t offset_y, int32_t offset_z, const SearchMode& search_mode ) const
   {
