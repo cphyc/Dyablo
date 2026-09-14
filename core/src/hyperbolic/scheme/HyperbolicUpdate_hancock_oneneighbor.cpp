@@ -257,7 +257,8 @@ public:
           for( int32_t dj=0; dj<dj_count; dj++ )
           for( int32_t di=0; di<di_count; di++ )
           {            
-            CellIndex iCell_n = iCell_n0.getNeighbor({di,dj,dk}, search_neighbor);
+            constexpr bool accept_ghosts = true;
+            CellIndex iCell_n = iCell_n0.getNeighbor<accept_ghosts>(di,dj,dk, search_neighbor);
 
             // Reconstruct in state at center of neighbor cell's interface
             real_offset offset_c{
