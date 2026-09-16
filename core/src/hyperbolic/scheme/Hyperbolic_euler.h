@@ -116,6 +116,7 @@ public:
         CELL_LAMBDA( const CellIndex& iCell_Qpatch )
       {
         ForeachCell::SearchMode_neighbor search_neighbor_origin( cellmetadata.getLightOctree(), ForeachCell::SearchMode_neighbor::ORIGIN );
+        ForeachCell::SearchMode_local search_neighbor_local( ForeachCell::SearchMode_local::ASSERT );
         auto shape = Uin.getShape();
         CellIndex::Status iCell_Uin_status = shape.convert_index_status(iCell_Qpatch, search_neighbor_origin);
         int level_diff = CellIndex::level_diff(iCell_Uin_status);
@@ -126,6 +127,9 @@ public:
           u = policy.getBoundaryValue(Uin, iCell_Uin, cellmetadata);
         }
         else if (level_diff < 0) { 
+          // TODO : align with nopatch 
+          //        only first neighbor needed (smaller wil be skipped, 1 ghost is necessary for slopes only)
+          //        first neighbor is mean of 4 neighbors (instead of 8 siblings here)
           CellIndex iCell_Uin = shape.convert_index<CellIndex::Status::SMALLER>( iCell_Qpatch, search_neighbor_origin );
           int subcell_count = 
           foreach_sibling_gathered(ndim, iCell_Uin,
@@ -135,9 +139,40 @@ public:
             });
           u /= subcell_count;
         }
+        else if (level_diff > 0)
+        {
+          // If neighbor cell is bigger, store bigger cell value in first neighbor and second bigger neighbor value in second ghost
+          //  ___________
+          // |  a  |  b  |[c1]... -> [a][b][c1]...
+          // |_____|_____|[c2]...    [a][b][c2]...
+          // So we can compute the gradient a/b from Qpatch for slopes
+          CellIndex iCell_Uin = shape.convert_index<CellIndex::Status::BIGGER>( iCell_Qpatch, search_neighbor_origin );
+          int32_t gx = -nb_ghosts;
+          int32_t gy = -nb_ghosts;
+          int32_t gz = (ndim == 3)?-nb_ghosts:0;
+          int32_t i = (int32_t)iCell_Qpatch.i() + gx;
+          int32_t j = (int32_t)iCell_Qpatch.j() + gy;
+          int32_t k = (int32_t)iCell_Qpatch.k() + gz;
+          int32_t bx = (int32_t)iCell_Uin.bx(); 
+          int32_t by = (int32_t)iCell_Uin.by(); 
+          int32_t bz = (int32_t)iCell_Uin.bz(); 
+          int32_t offset_x = i<0 ? i : i>=bx ? i-(bx-1) : 0;
+          int32_t offset_y = j<0 ? j : j>=by ? j-(by-1) : 0;
+          int32_t offset_z = k<0 ? k : k>=bz ? k-(bz-1) : 0;
+          
+          bool out_x = offset_x==2 || offset_x==-2;
+          bool out_y = offset_y==2 || offset_y==-2;
+          bool out_z = offset_z==2 || offset_z==-2;
+          if( out_x + out_y + out_z == 1 ) // 2nd ghosts, skip corners
+          {
+            constexpr bool allow_ghost = true;
+            iCell_Uin = iCell_Uin.getNeighbor<CellIndex::Status::LOCAL_TO_BLOCK, allow_ghost>(offset_x/2,offset_y/2,offset_z/2,search_neighbor_local);
+          }
+          u = policy.getConsState(Uin, iCell_Uin);
+        }
         else
         {
-          using StatusFilter_t = CellIndex::StatusFilter<CellIndex::Status::LOCAL_TO_BLOCK, CellIndex::Status::SAME_SIZE, CellIndex::Status::BIGGER>;
+          using StatusFilter_t = CellIndex::StatusFilter<CellIndex::Status::LOCAL_TO_BLOCK, CellIndex::Status::SAME_SIZE>;
           CellIndex iCell_Uin = shape.convert_index<StatusFilter_t>( iCell_Qpatch, search_neighbor_origin, iCell_Uin_status );
           u = policy.getConsState(Uin, iCell_Uin);
         }
@@ -163,7 +198,7 @@ public:
           const PrimState qR = policy.getPrimState(Qpatch, iCell_Qpatch.getNeighbor(  (dir==IX),  (dir==IY),  (dir==IZ), search_local, CellIndex::Status::LOCAL_TO_BLOCK ));
         
           // Getting the length right and left
-          // Smaller -> use averaged same-size cell -> 1*dx
+          // Smaller -> use averaged same-size cell -> 1*dx /!\ difference with no-patch : here mean over 8 siblings vs mean over 4 neighbors in no-patch
           // Bigger -> same-size cell in Qpatch has vame value as actual bigger cell -> dx/2 + dx             
           const real_t dL = level_diff_L > 0 ? 1.5 : 1;
           const real_t dR = level_diff_R > 0 ? 1.5 : 1;
