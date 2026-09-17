@@ -106,7 +106,7 @@ public:
     NeighborList findNeighbors( const OctantIndex& iOct, const offset_t& offset ) const;
 
     
-    static constexpr bool ACCEPTS_GHOSTS_DEFAULT = false;
+    static constexpr bool ACCEPTS_GHOSTS_DEFAULT = true;
     /**
      * Same as findNeighbors but only returns first octant in list (with smallest morton)  
      * Note : works only if findNeighbors returns at least one octant (check for boundaries before)
