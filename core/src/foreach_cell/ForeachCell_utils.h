@@ -60,6 +60,8 @@ int foreach_smaller_neighbor( int ndim, const CellIndex& iCell_n, const CellInde
   return di_count*dj_count*dk_count;
 }
 
+/// Same as foreach_smaller_neighbor<enable_different_block=false>, lmesh is not needed
+/// When all smaller neighbor are gathered in the same octant (e.g. bx, by, bz are guaranteed to be even)
 template< typename Func>
 KOKKOS_INLINE_FUNCTION
 int foreach_smaller_neighbor_gathered( int ndim, const CellIndex& iCell_n, const CellIndex::offset_t& offset, const Func& apply_neighbor )
@@ -68,6 +70,8 @@ int foreach_smaller_neighbor_gathered( int ndim, const CellIndex& iCell_n, const
   return foreach_smaller_neighbor<false>(ndim, iCell_n, offset, *lmesh, apply_neighbor);
 }
 
+/// Same as foreach_smaller_neighbor<enable_different_block=false>
+/// When smaller neighbors can be scattered across different octants (e.g. cell based or odd block size are authorized)
 template< typename Func>
 KOKKOS_INLINE_FUNCTION
 int foreach_smaller_neighbor_scattered( int ndim, const CellIndex& iCell_n, const CellIndex::offset_t& offset, const LightOctree& lmesh, const Func& apply_neighbor )
@@ -121,6 +125,7 @@ int foreach_sibling( int ndim, const CellIndex& iCell_n, const LightOctree& lmes
 }
 
 /// foreach_sibling with enable_different_block = false, lmesh is not needed
+/// When all siblings are gathered in the same octant (e.g. bx, by, bz are guaranteed to be even)
 template< typename Func >
 KOKKOS_INLINE_FUNCTION
 int foreach_sibling_gathered( int ndim, const CellIndex& iCell_n, const Func& apply_sibling )
@@ -130,6 +135,7 @@ int foreach_sibling_gathered( int ndim, const CellIndex& iCell_n, const Func& ap
 }
 
 /// foreach_sibling with enable_different_block = true
+/// When siblings can be scattered across different octants (e.g. cell based or odd block size are authorized)
 template< typename Func >
 KOKKOS_INLINE_FUNCTION
 int foreach_sibling_scattered( int ndim, const CellIndex& iCell_n, const LightOctree& lmesh, const Func& apply_sibling )

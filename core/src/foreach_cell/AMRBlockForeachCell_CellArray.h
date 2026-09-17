@@ -493,6 +493,11 @@ public:
   /**
    * Compute neighbor cell index
    * 
+   * @tparam StatusFilter_t a specialization of CellIndex::StatusFilter<enabled_statuses...> listing 
+   *         the possible statuses that could be returned by getNeighbor().status this is for optimization
+   *         purpose only when you know some statuses are not possible and want to trim unused conditional branches 
+   *         Undefined Behavior when getNeighbor().status is not in the list
+   * @tparam accepts_ghosts specify if *this can be a ghost cell
    * @param offset_xyz offsets in each dimension from the original cell
    * @param search_mode configures how to search when neighbor cell is outside of local block
    * - SearchMode_local : does not look for neighbor octs
@@ -717,6 +722,7 @@ public:
     }
   }
 
+  /// Same as getNeighbor() except all statuses in StatusFilter_t are enabled
   template<bool accepts_ghosts = ACCEPTS_GHOSTS_DEFAULT, typename SearchMode>
   KOKKOS_INLINE_FUNCTION
   CellIndex getNeighbor( int32_t offset_x, int32_t offset_y, int32_t offset_z, const SearchMode& search_mode, CellIndex::Status status = CellIndex::Status::UNSET ) const
@@ -891,6 +897,7 @@ struct CellArray_shape
   }
 
   /**
+   * @tparam StatusFilter_t a specialization of CellIndex::StatusFilter<enabled_statuses...> as in getNeighbor()
    * Convert cell index used for another array into an index compatible with current shape. 
    * What happens when *in* is outside of current block depends on search_mode
    * - SearchMode_local : does not look for neighbor octs
