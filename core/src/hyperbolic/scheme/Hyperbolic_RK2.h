@@ -132,7 +132,8 @@ public:
 
     PatchArray::Ref Qpatch_ = foreach_cell.reserve_patch_tmp("Qpatch", 2, 2, (ndim == 3)?2:0, State_traits<PrimState>::nvars);
 
-    ForeachCell::SearchMode_neighbor search_neighbor( this->foreach_cell.get_amr_mesh().getLightOctree(), ForeachCell::SearchMode_neighbor::ORIGIN );
+    const auto& lmesh = this->foreach_cell.get_amr_mesh().getLightOctree();
+    ForeachCell::SearchMode_neighbor search_neighbor( lmesh, ForeachCell::SearchMode_neighbor::ORIGIN );
     ForeachCell::SearchMode_local search_local( ForeachCell::SearchMode_local::ASSERT );
 
 
@@ -152,7 +153,7 @@ public:
           u = policy.getBoundaryValue(Uin, iCell_Uin, cellmetadata);
         else if (level_diff < 0) {
           int subcell_count = 
-          foreach_sibling(ndim, iCell_Uin, search_neighbor_origin,
+          foreach_sibling_scattered(ndim, iCell_Uin, lmesh,
             [&](const CellIndex& iCell_neigh) {
               ConsState uloc = policy.getConsState(Uin, iCell_neigh);
               u += uloc;
@@ -181,8 +182,9 @@ public:
           const PrimState qR = policy.getPrimState(Qpatch, iCell_Qpatch + off_p); 
         
           //!\ Neighbor cells in Qpatch are averaged cells -> size iCell_L != size iCell_Qpatch_L
-          CellIndex iCell_L = iCell_Uin.getNeighbor(off_m, search_neighbor);
-          CellIndex iCell_R = iCell_Uin.getNeighbor(off_p, search_neighbor);   
+          constexpr bool accept_ghosts = true; // We get the neighbor of a neighbor 
+          CellIndex iCell_L = iCell_Uin.getNeighbor<accept_ghosts>(off_m[IX],off_m[IY],off_m[IZ], search_neighbor);
+          CellIndex iCell_R = iCell_Uin.getNeighbor<accept_ghosts>(off_p[IX],off_p[IY],off_p[IZ], search_neighbor);   
 
           // Getting the length right and left
           // Smaller -> use averaged same-size cell -> 1*dx

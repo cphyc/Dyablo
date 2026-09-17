@@ -340,7 +340,7 @@ void run_test_reduce()
       }
       else if( iCell_n.level_diff() == -1 ) // Neighbors are smaller
       {
-        foreach_smaller_neighbor<ndim>( iCell_n, offset, search_neighbor,
+        foreach_smaller_neighbor_scattered( ndim, iCell_n, offset, lmesh,
           [&]( const CellIndex& iCell_ns )
         {
           Kokkos::atomic_add(&U.at( iCell_ns, iVar ), 1);

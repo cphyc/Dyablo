@@ -91,7 +91,8 @@ public:
       Uout.getShape(),
       KOKKOS_LAMBDA(const CellIndex &iCell)
     {
-      ForeachCell::SearchMode_neighbor search_neighbor( cellmetadata.getLightOctree(), ForeachCell::SearchMode_neighbor::CLOSEST );
+      const auto& lmesh = cellmetadata.getLightOctree();
+      ForeachCell::SearchMode_neighbor search_neighbor( lmesh, ForeachCell::SearchMode_neighbor::CLOSEST );
 
       // Return Slope at position iCell
       auto get_slope = [&](const CellIndex &iCell, ComponentIndex3D dir) { 
@@ -107,7 +108,7 @@ public:
             u = policy.getBoundaryValue(Uin, iCell_n, cellmetadata);
           else if (level_diff < 0) {
             int subcell_count = 
-            foreach_smaller_neighbor(ndim, iCell_n, off, search_neighbor,
+            foreach_smaller_neighbor_scattered(ndim, iCell_n, off, lmesh,
               [&](const CellIndex& iCell_neigh) {
                 ConsState uloc = policy.getConsState(Uin, iCell_neigh);
                 u += uloc;
@@ -120,13 +121,14 @@ public:
           return policy.consToPrim(u);
         };
 
+        constexpr bool accept_ghosts = true;
         ConsState uC = policy.getConsState(Uin, iCell);
         const PrimState qC = policy.consToPrim( uC );
         offset_t off_m{}; off_m[dir] = -1;
-        CellIndex iCell_L = iCell.getNeighbor(off_m, search_neighbor);
+        CellIndex iCell_L = iCell.getNeighbor<accept_ghosts>(off_m[IX],off_m[IY],off_m[IZ], search_neighbor);
         const PrimState qL = get_neighbor_prim_value(iCell_L, off_m);
         offset_t off_p{}; off_p[dir] =  1;
-        CellIndex iCell_R = iCell.getNeighbor(off_p, search_neighbor);
+        CellIndex iCell_R = iCell.getNeighbor<accept_ghosts>(off_p[IX],off_p[IY],off_p[IZ], search_neighbor);
         const PrimState qR = get_neighbor_prim_value(iCell_R, off_p);    
 
         // Getting the length right and left

@@ -111,6 +111,43 @@ private:
   BiggerNeighborMode _bigger_neighbor_mode;
 };
 
+enum class CellIndex_Status 
+{
+  UNSET,
+  LOCAL_TO_BLOCK, // neighbor is inside local block
+  SAME_SIZE, // Outside of local block, same size
+  SMALLER, // Outside of local block, smaller
+  BIGGER, // Outside of local block, bigger
+  BOUNDARY, // Outside of domain
+  INVALID 
+};
+
+
+template< CellIndex_Status... enabled_status >
+struct CellIndex_StatusFilter
+{
+  KOKKOS_INLINE_FUNCTION
+  static constexpr int count()
+  {
+    return sizeof...(enabled_status);
+  }
+
+  KOKKOS_INLINE_FUNCTION
+  static constexpr CellIndex_Status first()
+  {
+    return ((enabled_status),...);
+  }
+
+  KOKKOS_INLINE_FUNCTION
+  static constexpr bool status_is_enabled( const CellIndex_Status& s )
+  {
+    bool res = ( sizeof...(enabled_status) == 0 ) // All status enabled when no enabled_status is given
+            || ( (s == enabled_status) || ... );  // If a list is given, s must be in the list
+
+    return res;
+  }
+};
+
 // Define this to have a separate member in CellIndex
 // for linearized iCell index 
 #define DYABLO_SEPARATE_ICELL_IJK
@@ -118,15 +155,19 @@ private:
 class CellIndex
 {
 public:
-  enum Status {
-    UNSET,
-    LOCAL_TO_BLOCK, // neighbor is inside local block
-    SAME_SIZE, // Outside of local block, same size
-    SMALLER, // Outside of local block, smaller
-    BIGGER, // Outside of local block, bigger
-    BOUNDARY, // Outside of domain
-    INVALID 
-  };
+  using Status = CellIndex_Status;
+  using Status::UNSET;
+  using Status::LOCAL_TO_BLOCK;
+  using Status::SAME_SIZE;
+  using Status::SMALLER;
+  using Status::BIGGER;
+  using Status::BOUNDARY;
+  using Status::INVALID;
+  
+  template< CellIndex_Status... enabled_status >
+  using StatusFilter = CellIndex_StatusFilter<enabled_status...>;
+  using StatusFilter_all = CellIndex_StatusFilter<>;
+
 private:
   LightOctree::OctantIndex _iOct;
   #ifdef DYABLO_SEPARATE_ICELL_IJK
@@ -309,23 +350,23 @@ public:
     offset = {i_offset, j_offset, k_offset};
   }
 
-  template<typename SearchMode>
-  KOKKOS_INLINE_FUNCTION
-  CellIndex::Status getNeighborStatus( const offset_t& offset, const SearchMode& search_mode ) const
-  {
-    return getNeighborStatus(offset[IX], offset[IY], offset[IZ], search_mode);
-  }
-
+  static constexpr bool ACCEPTS_GHOSTS_DEFAULT = LightOctree::ACCEPTS_GHOSTS_DEFAULT;
+  
   /**
    * Compute neighbor status
    * 
    * Same as getNeighbor().status
    */
-  template<typename SearchMode>
+  template<bool accepts_ghosts = ACCEPTS_GHOSTS_DEFAULT, typename SearchMode>
   KOKKOS_INLINE_FUNCTION
   CellIndex::Status getNeighborStatus( int32_t offset_x, int32_t offset_y, int32_t offset_z, const SearchMode& search_mode ) const
   {
     DYABLO_ASSERT_KOKKOS_DEBUG(this->is_valid(), "Index needs to be valid to get neighbor");
+
+    if constexpr ( !accepts_ghosts )
+    {
+      DYABLO_ASSERT_KOKKOS_DEBUG(!this->iOct().isGhost, "getNeighborStatus : iOct is a ghost but ghosts are disabled");
+    }
 
     bool assume_local_oct = false;
     if constexpr( std::is_same_v<SearchMode, SearchMode_local> )
@@ -381,9 +422,9 @@ public:
 
         LightOctree::OctantIndex iOct_n;        
         if constexpr ( std::is_same_v<SearchMode, SearchMode_intermediates> )
-          iOct_n = lmesh.findNeighbor_intermediate(iOct, oct_offset_x, oct_offset_y, oct_offset_z);
+          iOct_n = lmesh.findNeighbor_intermediate<accepts_ghosts>(iOct, oct_offset_x, oct_offset_y, oct_offset_z);
         else //constexpr if( std::is_same_v<SearchMode, SearchMode_neighbor>  )
-          iOct_n = lmesh.findNeighbor(iOct, oct_offset_x, oct_offset_y, oct_offset_z);
+          iOct_n = lmesh.findNeighbor<accepts_ghosts>(iOct, oct_offset_x, oct_offset_y, oct_offset_z);
         // TODO : optimize level_diff with dedicated LightOctree method
         int level_diff = lmesh.getLevel(iOct) - lmesh.getLevel(iOct_n);
 
@@ -447,12 +488,17 @@ public:
         static_assert( !std::is_same_v<SearchMode, SearchMode>, "Unsupported search mode" );
       }
     }
-  }
+  }  
 
   /**
    * Compute neighbor cell index
    * 
-   * @param offset offset from the original cell
+   * @tparam StatusFilter_t a specialization of CellIndex::StatusFilter<enabled_statuses...> listing 
+   *         the possible statuses that could be returned by getNeighbor().status this is for optimization
+   *         purpose only when you know some statuses are not possible and want to trim unused conditional branches 
+   *         Undefined Behavior when getNeighbor().status is not in the list
+   * @tparam accepts_ghosts specify if *this can be a ghost cell
+   * @param offset_xyz offsets in each dimension from the original cell
    * @param search_mode configures how to search when neighbor cell is outside of local block
    * - SearchMode_local : does not look for neighbor octs
    * - SearchMode_neighbor : search cell in neighbor octants
@@ -468,45 +514,34 @@ public:
    * NOTE: If offset >= 2 outside of the block, resulting cell is one of the subcells in same-size equivalent neighbor 
    * accessing octants that are not direcly contiguous to local octant is undefined behavior, so be careful with block size
    **/
-  template<typename SearchMode>
-  KOKKOS_INLINE_FUNCTION
-  CellIndex getNeighbor( const offset_t& offset, const SearchMode& search_mode, CellIndex::Status status = CellIndex::Status::UNSET ) const
-  {
-    return getNeighbor(offset[IX], offset[IY], offset[IZ], search_mode, status);
-  }
-
-  template<CellIndex::Status... enabled_status, typename SearchMode>
+  template<typename StatusFilter_t, bool accepts_ghosts = ACCEPTS_GHOSTS_DEFAULT, typename SearchMode>
   KOKKOS_INLINE_FUNCTION
   CellIndex getNeighbor( int32_t offset_x, int32_t offset_y, int32_t offset_z, const SearchMode& search_mode, CellIndex::Status status = CellIndex::Status::UNSET ) const
   {
-    auto status_is_enabled = []( CellIndex::Status s )
+    if constexpr ( !accepts_ghosts )
     {
-      bool res = 
-           ( sizeof...(enabled_status) == 0 ) // All status enabled when no enabled_status is given
-        || ( (s == enabled_status) || ... );  // If a list is given, s must be in the list
-
-      return res;
-    };
+      DYABLO_ASSERT_KOKKOS_DEBUG(!this->iOct().isGhost, "getNeighborStatus : iOct is a ghost but ghosts are disabled");
+    }
 
     // Check if s == status, returns false if status is not enabled
     auto status_is = [&]( CellIndex::Status s )
     {
-      return status_is_enabled(s) && (s == status);
+      return StatusFilter_t::status_is_enabled(s) && (s == status);
     };
     
     if( status == UNSET )
     {
-      if constexpr( sizeof...(enabled_status) == 1 )
-        status = ((enabled_status, ...));
+      if constexpr( StatusFilter_t::count() == 1 )
+        status = StatusFilter_t::first();
       else
-        status = getNeighborStatus( offset_x, offset_y, offset_z, search_mode );
+        status = getNeighborStatus<accepts_ghosts>( offset_x, offset_y, offset_z, search_mode );
     }
 
-    DYABLO_ASSERT_KOKKOS_DEBUG( status_is_enabled( status ), "getNeighbor : actual status not enabled" );
+    DYABLO_ASSERT_KOKKOS_DEBUG( StatusFilter_t::status_is_enabled( status ), "getNeighbor : actual status not enabled" );
 
     DYABLO_ASSERT_KOKKOS_DEBUG( [&]()
       {
-        auto expected_status = getNeighborStatus( offset_x, offset_y, offset_z, search_mode );
+        auto expected_status = getNeighborStatus<accepts_ghosts>( offset_x, offset_y, offset_z, search_mode );
         return status == expected_status;
       }(),
       "getNeighbor : status should be same as getNeighborStatus()" );
@@ -567,9 +602,9 @@ public:
 
           LightOctree::OctantIndex iOct_n;        
           if constexpr ( std::is_same_v<SearchMode, SearchMode_intermediates> )
-            iOct_n = lmesh.findNeighbor_intermediate(iOct, oct_offset_x, oct_offset_y, oct_offset_z);
+            iOct_n = lmesh.findNeighbor_intermediate<accepts_ghosts>(iOct, oct_offset_x, oct_offset_y, oct_offset_z);
           else //constexpr if( std::is_same_v<SearchMode, SearchMode_neighbor>  )
-            iOct_n = lmesh.findNeighbor(iOct, oct_offset_x, oct_offset_y, oct_offset_z);
+            iOct_n = lmesh.findNeighbor<accepts_ghosts>(iOct, oct_offset_x, oct_offset_y, oct_offset_z);
 
           if( status_is(SAME_SIZE) )
           {
@@ -687,10 +722,42 @@ public:
     }
   }
 
+  /// Same as getNeighbor() except all statuses in StatusFilter_t are enabled
+  template<bool accepts_ghosts = ACCEPTS_GHOSTS_DEFAULT, typename SearchMode>
+  KOKKOS_INLINE_FUNCTION
+  CellIndex getNeighbor( int32_t offset_x, int32_t offset_y, int32_t offset_z, const SearchMode& search_mode, CellIndex::Status status = CellIndex::Status::UNSET ) const
+  {
+    return getNeighbor<StatusFilter_all, accepts_ghosts>(offset_x,offset_y,offset_z,search_mode,status);
+  }
+
+  /**
+   * getNeighbor variant with only one possible status
+   * Works like getNeighbor with only_status as the only status on StatusFilter_t,
+   * `only_status` is used as status, it doesn not need to be recomputed.
+   **/
+  template<CellIndex::Status only_status, bool accepts_ghosts = ACCEPTS_GHOSTS_DEFAULT, typename SearchMode>
+  KOKKOS_INLINE_FUNCTION
+  CellIndex getNeighbor( int32_t offset_x, int32_t offset_y, int32_t offset_z, const SearchMode& search_mode ) const
+  {
+    return getNeighbor< StatusFilter<only_status>, accepts_ghosts >( offset_x, offset_y, offset_z, search_mode, only_status );
+  }
+
+  /// Operator+ overload for getNeighbor with SeachMode_local
   KOKKOS_INLINE_FUNCTION
   CellIndex operator+( const offset_t& offset ) const
   {
-    return getNeighbor(offset, SearchMode_local(SearchMode_local::INVALID));
+    return getNeighbor(offset[IX], offset[IY], offset[IZ], SearchMode_local(SearchMode_local::INVALID));
+  }
+
+  /**
+   * Like getNeighbor(x,y,z) for backward compatibility but with 3D array as offset
+   * This is deprecated, use getNeighbor(x,y,z) instead
+   **/
+  template<typename SearchMode>
+  KOKKOS_INLINE_FUNCTION
+  CellIndex getNeighbor( const offset_t& offset, const SearchMode& search_mode ) const
+  {
+    return getNeighbor(offset[IX], offset[IY], offset[IZ], search_mode, CellIndex::Status::UNSET);
   }
 
   /**
@@ -830,13 +897,14 @@ struct CellArray_shape
   }
 
   /**
+   * @tparam StatusFilter_t a specialization of CellIndex::StatusFilter<enabled_statuses...> as in getNeighbor()
    * Convert cell index used for another array into an index compatible with current shape. 
    * What happens when *in* is outside of current block depends on search_mode
    * - SearchMode_local : does not look for neighbor octs
    * - SearchMode_neighbor : search cell in neighbor octants
    * (Read SearchMode_* doc for more detail on how to configure them)
    **/
-  template<CellIndex::Status... enabled_status, typename SearchMode>
+  template<typename StatusFilter_t = CellIndex::StatusFilter_all, typename SearchMode>
   KOKKOS_INLINE_FUNCTION
   CellIndex convert_index(const CellIndex& in, const SearchMode& search_mode, CellIndex::Status status = CellIndex::Status::UNSET) const
   {
@@ -849,30 +917,21 @@ struct CellArray_shape
       return in;
     }
 
-    auto status_is_enabled = []( CellIndex::Status s )
-    {
-      bool res = 
-           ( sizeof...(enabled_status) == 0 ) // All status enabled when no enabled_status is given
-        || ( (s == enabled_status) || ... );  // If a list is given, s must be in the list
-
-      return res;
-    };
-
     // Check if s == status, returns false if status is not enabled
     auto status_is = [&]( CellIndex::Status s )
     {
-      return status_is_enabled(s) && (s == status);
+      return StatusFilter_t::status_is_enabled(s) && (s == status);
     };
     
     if( status == CellIndex::Status::UNSET )
     {
-      if constexpr( sizeof...(enabled_status) == 1 )
-        status = ((enabled_status, ...));
+      if constexpr( StatusFilter_t::count() == 1 )
+        status = StatusFilter_t::first();
       else
         status = convert_index_status( in, search_mode );
     }
 
-    DYABLO_ASSERT_KOKKOS_DEBUG( status_is_enabled( status ), "convert_index : actual status not enabled" );
+    DYABLO_ASSERT_KOKKOS_DEBUG( StatusFilter_t::status_is_enabled( status ), "convert_index : actual status not enabled" );
 
     DYABLO_ASSERT_KOKKOS_DEBUG( status == convert_index_status( in, search_mode ), "convert_index : status mismatch" );
 
@@ -897,10 +956,19 @@ struct CellArray_shape
     { 
       // Neighbor search
       CellIndex iCell_in{in.iOct(), 0, 0, 0, (uint32_t)bx, (uint32_t)by, (uint32_t)bz};
-      CellIndex iCell_out = iCell_in.getNeighbor<enabled_status...>( i, j, k, search_mode, status );
+      CellIndex iCell_out = iCell_in.getNeighbor<StatusFilter_t>( i, j, k, search_mode, status );
       return iCell_out;
     }
   }
+
+  template<CellIndex::Status only_status, typename SearchMode>
+  KOKKOS_INLINE_FUNCTION
+  CellIndex convert_index(const CellIndex& in, const SearchMode& search_mode) const
+  {
+    return convert_index<CellIndex::StatusFilter<only_status>>(in, search_mode, only_status);
+  }
+
+
 };
 
 /**

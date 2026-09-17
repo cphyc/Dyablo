@@ -83,7 +83,7 @@ public:
     }
 
     //! @copydoc LightOctree_base::findNeighbor()
-    template< bool accepts_ghosts = false, bool assert_on_failure = true >
+    template< bool accepts_ghosts = ACCEPTS_GHOSTS_DEFAULT, bool assert_on_failure = true >
     KOKKOS_INLINE_FUNCTION
     OctantIndex findNeighbor(const OctantIndex& iOct, const offset_t& offset) const
     {
@@ -91,7 +91,7 @@ public:
     }
 
     //! @copydoc LightOctree_base::findNeighbor_intermediate()
-    template< bool accepts_ghosts = false, bool assert_on_failure = true >
+    template< bool accepts_ghosts = ACCEPTS_GHOSTS_DEFAULT, bool assert_on_failure = true >
     KOKKOS_INLINE_FUNCTION 
     OctantIndex findNeighbor_intermediate( const OctantIndex& iOct, const offset_t& offset )  const
     {
@@ -99,7 +99,7 @@ public:
     }
 
     //! @copydoc LightOctree_base::findNeighbor()
-    template< bool accepts_ghosts = false, bool assert_on_failure = true >
+    template< bool accepts_ghosts = ACCEPTS_GHOSTS_DEFAULT, bool assert_on_failure = true >
     KOKKOS_INLINE_FUNCTION
     OctantIndex findNeighbor(const OctantIndex& iOct, int32_t offset_x, int32_t offset_y, int32_t offset_z) const
     {
@@ -107,7 +107,7 @@ public:
     }
 
     //! @copydoc LightOctree_base::findNeighbor_intermediate()
-    template< bool accepts_ghosts = false, bool assert_on_failure = true >
+    template< bool accepts_ghosts = ACCEPTS_GHOSTS_DEFAULT, bool assert_on_failure = true >
     KOKKOS_INLINE_FUNCTION 
     OctantIndex findNeighbor_intermediate( const OctantIndex& iOct, int32_t offset_x, int32_t offset_y, int32_t offset_z)  const
     {
@@ -139,7 +139,7 @@ public:
 
         if constexpr ( !accepts_ghosts )
         {
-           findNeighbor_aux_ASSERT_OR_FAIL(!iOct.isGhost, "LightOctree_hashmap::findNeighbor_aux : iOct is a ghost but ghosts are disabled");
+            findNeighbor_aux_ASSERT_OR_FAIL(!iOct.isGhost, "LightOctree_hashmap::findNeighbor_aux : iOct is a ghost but ghosts are disabled");
         }
 
         findNeighbor_aux_ASSERT_OR_FAIL( !this->isBoundary(iOct, offset_x, offset_y, offset_z), "findNeighbor doesn't support boundaries." );

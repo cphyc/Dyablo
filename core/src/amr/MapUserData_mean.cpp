@@ -3,6 +3,7 @@
 #include "amr/CellIndexRemapper.h"
 #include "user_data/UserData.h"
 #include "user_data/FieldAccessor.h"
+#include "foreach_cell/ForeachCell_utils.h"
 
 namespace dyablo {
 
@@ -37,6 +38,7 @@ public:
     foreach_cell.foreach_cell( "MapUserData_mean::remap", Uout.getShape(),
       KOKKOS_LAMBDA( const CellIndex& iCell_Uout )
     {
+      const auto& lmesh = cellmetadata_in.getLightOctree();
       ForeachCell::SearchMode_neighbor search_neighbor_in( cellmetadata_in.getLightOctree(), ForeachCell::SearchMode_neighbor::CLOSEST );
 
       CellIndex iCell_Uin = remapper.get_old_cell( iCell_Uout );
@@ -52,14 +54,12 @@ public:
           Uout.at_ivar( iCell_Uout, ivar ) = 0;
 
         int nsubcells = (ndim-1) * 2 * 2;
-        for(int32_t dz=0; dz<(ndim-1); dz++)
-          for(int32_t dy=0; dy<2; dy++)
-            for(int32_t dx=0; dx<2; dx++)
-            {
-              CellIndex iCell_Uin_n = iCell_Uin.getNeighbor({dx,dy,dz}, search_neighbor_in);
-              for(int ivar=0; ivar<nbfields; ivar++)
-                Uout.at_ivar( iCell_Uout, ivar ) += Uin.at_ivar( iCell_Uin_n, ivar ) / nsubcells;
-            }
+        foreach_sibling_scattered( ndim, iCell_Uin, lmesh,
+            [&](const CellIndex& iCell_Uin_n)
+        {
+          for(int ivar=0; ivar<nbfields; ivar++)
+            Uout.at_ivar( iCell_Uout, ivar ) += Uin.at_ivar( iCell_Uin_n, ivar ) / nsubcells;
+        });
       }
     });
   }
