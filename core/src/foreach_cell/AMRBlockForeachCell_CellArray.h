@@ -11,7 +11,7 @@ namespace AMRBlockForeachCell_CellArray_impl{
 struct  CellArray_shape;
 
 /// Invalid index to rreturn as error value, use CellIndex::is_valid() to check for validity
-#define CELLINDEX_INVALID CellIndex{{0,true},0,0,0,0,0,0,CellIndex::INVALID}
+#define CELLINDEX_INVALID CellIndex{{0,true},0,0,0,0,0,0,CellIndex::Status::INVALID}
 
 /**
  * Search mode for neighbors : don't search outside of local block
@@ -156,13 +156,6 @@ class CellIndex
 {
 public:
   using Status = CellIndex_Status;
-  using Status::UNSET;
-  using Status::LOCAL_TO_BLOCK;
-  using Status::SAME_SIZE;
-  using Status::SMALLER;
-  using Status::BIGGER;
-  using Status::BOUNDARY;
-  using Status::INVALID;
   
   template< CellIndex_Status... enabled_status >
   using StatusFilter = CellIndex_StatusFilter<enabled_status...>;
@@ -175,7 +168,7 @@ private:
   #endif
   uint32_t _i,_j,_k;
   uint32_t _bx,_by,_bz;
-  Status _status = LOCAL_TO_BLOCK;
+  Status _status = Status::LOCAL_TO_BLOCK;
 
 public:
   KOKKOS_INLINE_FUNCTION
@@ -186,7 +179,7 @@ public:
   CellIndex& operator=(const CellIndex&) = default;
 
   KOKKOS_INLINE_FUNCTION
-  CellIndex( LightOctree::OctantIndex iOct, uint32_t i, uint32_t j, uint32_t k, uint32_t bx, uint32_t by, uint32_t bz, Status status = LOCAL_TO_BLOCK )
+  CellIndex( LightOctree::OctantIndex iOct, uint32_t i, uint32_t j, uint32_t k, uint32_t bx, uint32_t by, uint32_t bz, Status status = Status::LOCAL_TO_BLOCK )
   : _iOct(iOct),
   #ifdef DYABLO_SEPARATE_ICELL_IJK
     _iCell( i + bx * ( j + k*by ) ),
@@ -197,7 +190,7 @@ public:
   {}
 
   KOKKOS_INLINE_FUNCTION
-  CellIndex( LightOctree::OctantIndex iOct, uint32_t iCell, uint32_t i, uint32_t j, uint32_t k, uint32_t bx, uint32_t by, uint32_t bz, Status status = LOCAL_TO_BLOCK )
+  CellIndex( LightOctree::OctantIndex iOct, uint32_t iCell, uint32_t i, uint32_t j, uint32_t k, uint32_t bx, uint32_t by, uint32_t bz, Status status = Status::LOCAL_TO_BLOCK )
   : _iOct(iOct),
   #ifdef DYABLO_SEPARATE_ICELL_IJK
     _iCell(iCell),
@@ -245,7 +238,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   static int level_diff( Status status )
   {
-    return (status==BIGGER)-(status==SMALLER);
+    return (status==Status::BIGGER)-(status==Status::SMALLER);
   }
 
   KOKKOS_INLINE_FUNCTION
@@ -261,7 +254,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   static bool is_valid( Status status )
   {
-    return (status!=INVALID) && (status!=BOUNDARY);
+    return (status!=Status::INVALID) && (status!=Status::BOUNDARY);
   }
 
   KOKKOS_INLINE_FUNCTION
@@ -276,7 +269,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   static bool is_boundary( Status status )
   {
-    return status==BOUNDARY;
+    return status==Status::BOUNDARY;
   }
 
   KOKKOS_INLINE_FUNCTION
@@ -293,7 +286,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   static bool is_local(Status status)
   {
-    return status==LOCAL_TO_BLOCK;
+    return status==Status::LOCAL_TO_BLOCK;
   }
 
   KOKKOS_INLINE_FUNCTION
@@ -345,7 +338,7 @@ public:
       this->iOct(),
       i_inside,j_inside,k_inside,
       bx, by, bz,
-      CellIndex::LOCAL_TO_BLOCK 
+      CellIndex::Status::LOCAL_TO_BLOCK 
     );
     offset = {i_offset, j_offset, k_offset};
   }
@@ -394,7 +387,7 @@ public:
     {
       // Index is inside block
       // non-local cells keep their non-local status, but not their level difference
-      CellIndex::Status cell_status = CellIndex::LOCAL_TO_BLOCK;
+      CellIndex::Status cell_status = CellIndex::Status::LOCAL_TO_BLOCK;
       return cell_status;
     }
     else
@@ -402,7 +395,7 @@ public:
       // Index is outside of block : find neighbor?
       if constexpr (std::is_same_v<SearchMode, SearchMode_local>)
       { 
-        return CellIndex::INVALID;
+        return CellIndex::Status::INVALID;
       }
       else if constexpr (  std::is_same_v<SearchMode, SearchMode_neighbor> 
                         || std::is_same_v<SearchMode, SearchMode_intermediates> )
@@ -417,7 +410,7 @@ public:
         const LightOctree::OctantIndex& iOct = this->iOct();
         if( lmesh.isBoundary( iOct, oct_offset_x, oct_offset_y, oct_offset_z ) )
         {
-          return CellIndex::BOUNDARY;
+          return CellIndex::Status::BOUNDARY;
         }
 
         LightOctree::OctantIndex iOct_n;        
@@ -461,26 +454,26 @@ public:
 
         if( (!can_be_bigger && !can_be_smaller) || level_diff==0 )
         {
-          return CellIndex::SAME_SIZE;
+          return CellIndex::Status::SAME_SIZE;
         }
         else if( can_be_smaller && level_diff==-1 )
         { 
           if(smaller_returns_invalid)
-            return CellIndex::INVALID;
+            return CellIndex::Status::INVALID;
           else
-            return CellIndex::SMALLER;
+            return CellIndex::Status::SMALLER;
         }
         else if( can_be_bigger && level_diff==1 )
         {
           if(bigger_returns_invalid)
-            return CellIndex::INVALID;
+            return CellIndex::Status::INVALID;
           else
-            return CellIndex::BIGGER;
+            return CellIndex::Status::BIGGER;
         }
         else
         {
           DYABLO_ASSERT_KOKKOS_DEBUG(false, "unexpected level_diff");
-          return CellIndex::INVALID;
+          return CellIndex::Status::INVALID;
         }
       }
       else
@@ -529,7 +522,7 @@ public:
       return StatusFilter_t::status_is_enabled(s) && (s == status);
     };
     
-    if( status == UNSET )
+    if( status == Status::UNSET )
     {
       if constexpr( StatusFilter_t::count() == 1 )
         status = StatusFilter_t::first();
@@ -546,7 +539,7 @@ public:
       }(),
       "getNeighbor : status should be same as getNeighborStatus()" );
 
-    if( status_is(INVALID) )
+    if( status_is(Status::INVALID) )
     {
       return CELLINDEX_INVALID;
     }
@@ -557,14 +550,14 @@ public:
       auto by = this->by();
       auto bz = this->bz();
 
-      if( status_is(BOUNDARY) )
+      if( status_is(Status::BOUNDARY) )
       {
         uint32_t i = this->i() + offset_x;
         uint32_t j = this->j() + offset_y;
         uint32_t k = this->k() + offset_z;
-        return CellIndex{iOct,i+bx,j+by,k+bz,bx,by,bz, CellIndex::BOUNDARY};
+        return CellIndex{iOct,i+bx,j+by,k+bz,bx,by,bz, Status::BOUNDARY};
       }
-      else if( status_is(LOCAL_TO_BLOCK) )
+      else if( status_is(Status::LOCAL_TO_BLOCK) )
       {
         uint32_t iCell = this->iCell() + offset_x + bx*offset_y + bx*by*offset_z;
         uint32_t i = this->i() + offset_x;
@@ -606,7 +599,7 @@ public:
           else //constexpr if( std::is_same_v<SearchMode, SearchMode_neighbor>  )
             iOct_n = lmesh.findNeighbor<accepts_ghosts>(iOct, oct_offset_x, oct_offset_y, oct_offset_z);
 
-          if( status_is(SAME_SIZE) )
+          if( status_is(Status::SAME_SIZE) )
           {
             uint32_t iCell_same = this->iCell() + cell_offset_x + bx*cell_offset_y + bx*by*cell_offset_z;
             return CellIndex{
@@ -614,10 +607,10 @@ public:
               iCell_same,
               i_same, j_same, k_same,
               bx, by, bz,
-              CellIndex::SAME_SIZE
+              Status::SAME_SIZE
             };
           }
-          else if( status_is(SMALLER) )
+          else if( status_is(Status::SMALLER) )
           {
             // Compute cell position in neighbor meta-bloc of size {2*bx, 2*by, 2*bz}
             // Pick same-size cell origin for smaller_neighbor_mode() == ORIGIN
@@ -674,9 +667,9 @@ public:
               suboctant, 
               (uint32_t)i_smaller, (uint32_t)j_smaller, (uint32_t)k_smaller,
               bx, by, bz,
-              CellIndex::SMALLER};
+              Status::SMALLER};
           }
-          else if( status_is(BIGGER) )
+          else if( status_is(Status::BIGGER) )
           {
             // Compute suboctant where target cell is located in larger neighbor
             auto coord_n = lmesh.get_logical_coords(iOct);
@@ -702,7 +695,7 @@ public:
               iOct_n, 
               i_larger, j_larger, k_larger,
               bx, by, bz,
-              CellIndex::BIGGER
+              Status::BIGGER
             }; 
 
             return res; 
@@ -793,7 +786,7 @@ public:
     uint32_t j_c = (2*j) - by*quadrant_y;
     uint32_t k_c = (2*k) - bz*quadrant_z;
 
-    return CellIndex{iOct_c, i_c,j_c,k_c, bx,by,bz, CellIndex::SMALLER};
+    return CellIndex{iOct_c, i_c,j_c,k_c, bx,by,bz, Status::SMALLER};
   }
 
   KOKKOS_INLINE_FUNCTION
@@ -823,7 +816,7 @@ public:
     const uint32_t j_p = ( j + by * quadrant_y ) >> 1;
     const uint32_t k_p = ( k + bz * quadrant_z ) >> 1;
 
-    return CellIndex{iOct_p, i_p, j_p, k_p, bx,by,bz, CellIndex::BIGGER};
+    return CellIndex{iOct_p, i_p, j_p, k_p, bx,by,bz, Status::BIGGER};
   }
 
 
@@ -881,7 +874,7 @@ struct CellArray_shape
     {
       // Index is inside block
       // non-local cells keep their non-local status, but not their level difference
-      CellIndex::Status cell_status = CellIndex::LOCAL_TO_BLOCK;
+      CellIndex::Status cell_status = CellIndex::Status::LOCAL_TO_BLOCK;
       return cell_status;
     }  
     else
