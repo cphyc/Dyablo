@@ -144,7 +144,7 @@ void test_GhostCommunicator_partial_block()
           // Check other neighbors (in same block)
           for( int i=1; i<ghost_width; i++ )
           {
-            CellIndex iCell_nn = iCell_n.getNeighbor<CellIndex::LOCAL_TO_BLOCK, allow_ghosts>( offset[IX]*i, offset[IY]*i, offset[IZ]*i, searchmode_local ) ;
+            CellIndex iCell_nn = iCell_n.getNeighbor<CellIndex::Status::LOCAL_TO_BLOCK, allow_ghosts>( offset[IX]*i, offset[IY]*i, offset[IZ]*i, searchmode_local ) ;
 
             check_value(iCell_nn);
           }
@@ -159,7 +159,7 @@ void test_GhostCommunicator_partial_block()
             // Check other neighbors (in same block)
             for( int i=1; i<ghost_width; i++ )
             {
-              CellIndex iCell_nn = iCell_ns.getNeighbor<CellIndex::LOCAL_TO_BLOCK, allow_ghosts>( offset[IX]*i, offset[IY]*i, offset[IZ]*i, searchmode_local ) ;
+              CellIndex iCell_nn = iCell_ns.getNeighbor<CellIndex::Status::LOCAL_TO_BLOCK, allow_ghosts>( offset[IX]*i, offset[IY]*i, offset[IZ]*i, searchmode_local ) ;
 
               check_value(iCell_nn);
             }
@@ -492,7 +492,7 @@ void test_GhostCommunicator_subset()
           // Check other neighbors (in same block)
           for( int i=1; i<ghost_width; i++ )
           {
-            CellIndex iCell_nn = iCell_n.getNeighbor<CellIndex::LOCAL_TO_BLOCK, allow_ghosts>( offset[IX]*i, offset[IY]*i, offset[IZ]*i, searchmode_local ) ;
+            CellIndex iCell_nn = iCell_n.getNeighbor<CellIndex::Status::LOCAL_TO_BLOCK, allow_ghosts>( offset[IX]*i, offset[IY]*i, offset[IZ]*i, searchmode_local ) ;
 
             check_value(iCell_nn);
           }
@@ -507,7 +507,7 @@ void test_GhostCommunicator_subset()
             // Check other neighbors (in same block)
             for( int i=1; i<ghost_width; i++ )
             {
-              CellIndex iCell_nn = iCell_ns.getNeighbor<CellIndex::LOCAL_TO_BLOCK, allow_ghosts>( offset[IX]*i, offset[IY]*i, offset[IZ]*i, searchmode_local ) ;
+              CellIndex iCell_nn = iCell_ns.getNeighbor<CellIndex::Status::LOCAL_TO_BLOCK, allow_ghosts>( offset[IX]*i, offset[IY]*i, offset[IZ]*i, searchmode_local ) ;
 
               check_value(iCell_nn);
             }

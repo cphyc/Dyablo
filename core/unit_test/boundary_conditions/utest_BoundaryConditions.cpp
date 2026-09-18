@@ -90,7 +90,7 @@ CellIndex make_boundary_cellindex(int i, int j, int k, int di, int dj, int dk, i
                    (uint32_t)bx, 
                    (uint32_t)by, 
                    (uint32_t)bz, 
-                   CellIndex::BOUNDARY};
+                   CellIndex::Status::BOUNDARY};
 }
 
 /**
