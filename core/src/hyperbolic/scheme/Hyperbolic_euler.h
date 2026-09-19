@@ -115,32 +115,76 @@ public:
       patch.foreach_cell( Qpatch, 
         CELL_LAMBDA( const CellIndex& iCell_Qpatch )
       {
-        ForeachCell::SearchMode_neighbor search_neighbor_origin( cellmetadata.getLightOctree(), ForeachCell::SearchMode_neighbor::ORIGIN );
+        ForeachCell::SearchMode_neighbor search_neighbor_closest( cellmetadata.getLightOctree(), ForeachCell::SearchMode_neighbor::CLOSEST);
+        ForeachCell::SearchMode_local search_neighbor_local( ForeachCell::SearchMode_local::ASSERT );
         auto shape = Uin.getShape();
-        CellIndex::Status iCell_Uin_status = shape.convert_index_status(iCell_Qpatch, search_neighbor_origin);
+        CellIndex::Status iCell_Uin_status = shape.convert_index_status(iCell_Qpatch, search_neighbor_closest);
         int level_diff = CellIndex::level_diff(iCell_Uin_status);
         ConsState u = {};
         if (CellIndex::is_boundary(iCell_Uin_status))
         {
-          CellIndex iCell_Uin = shape.convert_index<CellIndex::Status::BOUNDARY>( iCell_Qpatch, search_neighbor_origin );
+          CellIndex iCell_Uin = shape.convert_index<CellIndex::Status::BOUNDARY>( iCell_Qpatch, search_neighbor_closest );
           u = policy.getBoundaryValue(Uin, iCell_Uin, cellmetadata);
         }
-        else if (level_diff < 0) { 
-          CellIndex iCell_Uin = shape.convert_index<CellIndex::Status::SMALLER>( iCell_Qpatch, search_neighbor_origin );
-          int subcell_count = 
-          foreach_sibling_gathered(ndim, iCell_Uin,
-            [&](const CellIndex& iCell_neigh) {
-              ConsState uloc = policy.getConsState(Uin, iCell_neigh);
-              u += uloc;
-            });
-          u /= subcell_count;
-        }
-        else
+        else if( level_diff==0 )
         {
-          using StatusFilter_t = CellIndex::StatusFilter<CellIndex::Status::LOCAL_TO_BLOCK, CellIndex::Status::SAME_SIZE, CellIndex::Status::BIGGER>;
-          CellIndex iCell_Uin = shape.convert_index<StatusFilter_t>( iCell_Qpatch, search_neighbor_origin, iCell_Uin_status );
+          using StatusFilter_t = CellIndex::StatusFilter<CellIndex::Status::LOCAL_TO_BLOCK, CellIndex::Status::SAME_SIZE>;
+          CellIndex iCell_Uin = shape.convert_index<StatusFilter_t>( iCell_Qpatch, search_neighbor_closest, iCell_Uin_status );
           u = policy.getConsState(Uin, iCell_Uin);
         }
+        else 
+        {
+          int32_t gx = -nb_ghosts;
+          int32_t gy = -nb_ghosts;
+          int32_t gz = (ndim == 3)?-nb_ghosts:0;
+          int32_t i = (int32_t)iCell_Qpatch.i() + gx;
+          int32_t j = (int32_t)iCell_Qpatch.j() + gy;
+          int32_t k = (int32_t)iCell_Qpatch.k() + gz;
+          int32_t bx = (int32_t)Uin.getShape().bx; 
+          int32_t by = (int32_t)Uin.getShape().by; 
+          int32_t bz = (int32_t)Uin.getShape().bz; 
+          int32_t offset_x = i<0 ? i : i>=bx ? i-(bx-1) : 0;
+          int32_t offset_y = j<0 ? j : j>=by ? j-(by-1) : 0;
+          int32_t offset_z = k<0 ? k : k>=bz ? k-(bz-1) : 0;
+          bool second_ghost_x = offset_x==2 || offset_x==-2;
+          bool second_ghost_y = offset_y==2 || offset_y==-2;
+          bool second_ghost_z = offset_z==2 || offset_z==-2;
+          if (level_diff < 0)
+          {
+            // Only first ghosts
+            // Second ghosts are not needed because we skip big->small flux, we need 1st ghost for slopes
+            // corners are skipped
+            bool first_ghost_x = offset_x==1 || offset_x==-1;
+            bool first_ghost_y = offset_y==1 || offset_y==-1;
+            bool first_ghost_z = offset_z==1 || offset_z==-1;
+            if( first_ghost_x + first_ghost_y + first_ghost_z == 1 && !second_ghost_x && !second_ghost_y && !second_ghost_z ) 
+            {
+              CellIndex iCell_Uin = shape.convert_index<CellIndex::Status::SMALLER>( iCell_Qpatch, search_neighbor_closest );
+              int neighbor_count = 
+              foreach_smaller_neighbor_gathered(ndim, iCell_Uin, {offset_x,offset_y,offset_z},
+                [&](const CellIndex& iCell_neigh) {
+                  ConsState uloc = policy.getConsState(Uin, iCell_neigh);
+                  u += uloc;
+                });
+              u /= neighbor_count;
+            }
+          }
+          else //if (level_diff > 0)
+          {
+            CellIndex iCell_Uin = shape.convert_index<CellIndex::Status::BIGGER>( iCell_Qpatch, search_neighbor_closest );
+            // If neighbor cell is bigger, store bigger cell value in first neighbor and second bigger neighbor value in second ghost
+            //  ___________
+            // |  a  |  b  |[c1]... -> [a][b][c1]...
+            // |_____|_____|[c2]...    [a][b][c2]...
+            // So we can compute the gradient a/b from Qpatch for slopes
+            if( second_ghost_x + second_ghost_y + second_ghost_z == 1 ) // 2nd ghosts, skip corners
+            {
+              constexpr bool allow_ghost = true;
+              iCell_Uin = iCell_Uin.getNeighbor<CellIndex::Status::LOCAL_TO_BLOCK, allow_ghost>(offset_x/2,offset_y/2,offset_z/2,search_neighbor_local);
+            }
+            u = policy.getConsState(Uin, iCell_Uin);
+          }
+        }       
         
         const PrimState q = policy.consToPrim( u );
         policy.setPrimState( Qpatch, iCell_Qpatch, q );
@@ -163,10 +207,10 @@ public:
           const PrimState qR = policy.getPrimState(Qpatch, iCell_Qpatch.getNeighbor(  (dir==IX),  (dir==IY),  (dir==IZ), search_local, CellIndex::Status::LOCAL_TO_BLOCK ));
         
           // Getting the length right and left
-          // Smaller -> use averaged same-size cell -> 1*dx
+          // Smaller -> use averaged 4 neighbors -> dx/2 + dx/4
           // Bigger -> same-size cell in Qpatch has vame value as actual bigger cell -> dx/2 + dx             
-          const real_t dL = level_diff_L > 0 ? 1.5 : 1;
-          const real_t dR = level_diff_R > 0 ? 1.5 : 1;
+          const real_t dL = level_diff_L > 0 ? 1.5 : level_diff_L< 0 ? 0.75 : 1;
+          const real_t dR = level_diff_R > 0 ? 1.5 : level_diff_R< 0 ? 0.75 : 1;
 
           // Computing minmod slope for the direction
           PrimState slope = policy.compute_slope( qL, qC, qR, dL, dR);
