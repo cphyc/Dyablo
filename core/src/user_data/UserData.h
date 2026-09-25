@@ -45,47 +45,55 @@ public:
    * names should not be already present
    * WARNING : Invalidates all field accessors if reallocation happens
    ***/
+  template<typename T = real_t>
   void new_fields( const std::set<std::string>& names);
 
   /***
    * @brief Allocate intermediate octants for existing field
    * WARNING : Invalidates all field accessors that have intermediates if reallocation happens
    ***/
+  template<typename T = real_t>
   void new_intermediate_fields(const std::set<std::string>& names);
 
   /***
    * @brief Check if field exists
    ***/
+  template<typename T = real_t>
   bool has_field(const std::string& name) const;
 
   /***
    * @brief Get identifier strings for all enabled fields
    ***/
+  template<typename T = real_t>
   std::set<std::string> getEnabledFields() const;
 
   /***
    * @brief Get View associated with field name
    * Note : this creates a copy, you can't update fields that way
    ***/
-  const ForeachCell::CellArray_global getFieldCopy(const std::string& name) const;
+  template<typename T = real_t>
+  const ForeachCell::CellArray_global_t<T> getFieldCopy(const std::string& name) const;
 
   /***
    * @brief Change name of a field from `src` to `dest`
    * NOTE : order of parameters is dest, src like in Kokkos deep_copy
    * WARNING : Invalidates all accessors containing source field
    ***/
+  template<typename T = real_t>
   void move_field( const std::string& dest, const std::string& src );
 
   /***
    * @brief Delete a field
    * WARNING : Invalidates all accessors containing this field
    ***/
+  template<typename T = real_t>
   void delete_field( const std::string& name );
 
   /***
    * @brief Delete an intermediate field
    * WARNING : Invalidates all accessors containing this field
    ***/
+  template<typename T = real_t>
   void clear_intermediates();
 
   void exchange_loadbalance( const ViewCommunicator& ghost_comm );
@@ -93,6 +101,7 @@ public:
   /***
    * @brief Get the number of active fields in UserData
    ***/
+  template<typename T = real_t>
   int nbFields() const;
 
   using FieldAccessor_FieldInfo = UserData_Impl::UserData_FieldAccessor_FieldInfo;

@@ -22,6 +22,7 @@ void FieldAccessor_init(const UserData_Fields_Pdata& user_data, const std::vecto
                         ForeachCell::CellArray_global_ghosted_t<T>& fields_intermediates
                       );
 
+template<typename T>
 void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_data, const std::vector<UserData_FieldAccessor_FieldInfo>& fields_info,
                         int max_field_count, bool has_intermediates,
                         int& _nbFields,
@@ -29,7 +30,7 @@ void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_d
                         int* ivar_to_arrayindex
                       );
 
-template< int _MAX_FIELD_COUNT >
+template< int _MAX_FIELD_COUNT, typename T >
 class FieldAccessor_FieldManager
 {
 private:
@@ -49,7 +50,7 @@ public:
 
     FieldAccessor_FieldManager(const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates)
     {
-        FieldAccessor_FieldManager_init_static( user_data, fields_info, 
+        FieldAccessor_FieldManager_init_static<T>( user_data, fields_info, 
                                                 MAX_FIELD_COUNT, has_intermediates,
                                                 this->_nbFields,
                                                 this->var_to_arrayindex.data(),
@@ -80,8 +81,8 @@ public:
     }
 };
 
-template<>
-class FieldAccessor_FieldManager<-1>
+template<typename T>
+class FieldAccessor_FieldManager<-1, T>
 {
 private:
     static constexpr int MAX_FIELD_COUNT = 3;
@@ -133,7 +134,7 @@ public:
     static constexpr int MAX_FIELD_COUNT = _MAX_FIELD_COUNT;
     using FieldInfo = UserData_FieldAccessor_FieldInfo;
     using FieldView_t = ForeachCell::CellArray_global_ghosted_t<T>;
-    using FieldManager = FieldAccessor_FieldManager<MAX_FIELD_COUNT>;
+    using FieldManager = FieldAccessor_FieldManager<MAX_FIELD_COUNT, T>;
 
     UserData_FieldAccessor_impl() = default;
     UserData_FieldAccessor_impl(const UserData_FieldAccessor_impl& ) = default;
@@ -236,8 +237,8 @@ private:
         return fm_intermediates.get_index_from_varindex(var);
     }
 protected:
-    FieldAccessor_FieldManager<_MAX_FIELD_COUNT> fm;
-    FieldAccessor_FieldManager<_MAX_FIELD_COUNT> fm_intermediates;
+    FieldAccessor_FieldManager<_MAX_FIELD_COUNT, T> fm;
+    FieldAccessor_FieldManager<_MAX_FIELD_COUNT, T> fm_intermediates;
 
     KOKKOS_INLINE_FUNCTION
     int get_index_from_ivar_device(int ivar) const
