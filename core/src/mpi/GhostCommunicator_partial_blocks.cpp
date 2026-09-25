@@ -322,6 +322,7 @@ template< typename CellArray_t >
 void exchange_ghosts_aux( const GhostCommunicator_partial_blocks::Pdata& pdata, const CellArray_t& U)
 {
   using CellIndex = ForeachCell::CellIndex;
+  using value_t = std::decay_t<decltype( U.at_ivar( std::declval<CellIndex>(), 0 ) )>; // Field type (double or float)
 
   MpiBufferPool& mpi_pool = DyabloSession::get_MpiBufferPool();
 
@@ -343,7 +344,7 @@ void exchange_ghosts_aux( const GhostCommunicator_partial_blocks::Pdata& pdata, 
   uint32_t total_send_size = send_iOct.size(), total_recv_size = recv_iOct.size(); // send/recv buffer size (number of cells)    
   uint32_t bx=U.getShape().bx, by=U.getShape().by, bz=U.getShape().bz ; // Block size
 
-  Kokkos::View< real_t* > send_buffer = mpi_pool.MPI_Alloc_view<Kokkos::View< real_t* >>( "exchange_ghosts::send_buffer", num_vars*total_send_size );
+  Kokkos::View< value_t* > send_buffer = mpi_pool.MPI_Alloc_view<Kokkos::View< value_t* >>( "exchange_ghosts::send_buffer", num_vars*total_send_size );
 
   Kokkos::parallel_for("exchange_ghosts::pack", total_send_size*num_vars,
     KOKKOS_LAMBDA( uint32_t ipack )
@@ -361,7 +362,7 @@ void exchange_ghosts_aux( const GhostCommunicator_partial_blocks::Pdata& pdata, 
     send_buffer( ipack ) = U.at_ivar( cell_index, ivar );
   });
 
-  Kokkos::View< real_t* > recv_buffer = mpi_pool.MPI_Alloc_view<Kokkos::View< real_t* >>( "exchange_ghosts::recv_buffer", num_vars*total_recv_size );
+  Kokkos::View< value_t* > recv_buffer = mpi_pool.MPI_Alloc_view<Kokkos::View< value_t* >>( "exchange_ghosts::recv_buffer", num_vars*total_recv_size );
 #ifdef MPI_IS_CUDA_AWARE 
   Kokkos::fence();
   pdata.mpi_comm.MPI_Alltoallv( send_buffer.data(), send_sizes.data(), recv_buffer.data(), recv_sizes.data() );
@@ -402,6 +403,7 @@ template< typename CellArray_t >
 void reduce_ghosts_aux( const GhostCommunicator_partial_blocks::Pdata& pdata, CellArray_t& U)
 {
   using CellIndex = ForeachCell::CellIndex;
+  using value_t = std::decay_t<decltype( U.at_ivar( std::declval<CellIndex>(), 0 ) )>; // Field type (double or float)
 
   bool intermediates = pdata.intermediates;
   uint32_t num_vars = U.nbFields(); // number of vars for each cell
@@ -423,7 +425,7 @@ void reduce_ghosts_aux( const GhostCommunicator_partial_blocks::Pdata& pdata, Ce
   uint32_t total_send_size = send_iOct.size(), total_recv_size = recv_iOct.size(); // send/recv buffer size (number of cells)    
   uint32_t bx=U.getShape().bx, by=U.getShape().by, bz=U.getShape().bz ; // Block size
 
-  Kokkos::View< real_t*, Kokkos::LayoutLeft > send_buffer("reduce_ghosts::send_buffer", num_vars*total_send_size );
+  Kokkos::View< value_t*, Kokkos::LayoutLeft > send_buffer("reduce_ghosts::send_buffer", num_vars*total_send_size );
 
   Kokkos::parallel_for("reduce_ghosts::pack", total_send_size*num_vars,
     KOKKOS_LAMBDA( uint32_t ipack )
@@ -441,7 +443,7 @@ void reduce_ghosts_aux( const GhostCommunicator_partial_blocks::Pdata& pdata, Ce
     send_buffer( ipack ) = U.at_ivar( cell_index, ivar );
   });
   
-  Kokkos::View< real_t* > recv_buffer("exchange_ghosts::recv_buffer", num_vars*total_recv_size ); 
+  Kokkos::View< value_t* > recv_buffer("exchange_ghosts::recv_buffer", num_vars*total_recv_size ); 
 #ifdef MPI_IS_CUDA_AWARE 
   Kokkos::fence();
   pdata.mpi_comm.MPI_Alltoallv( send_buffer.data(), send_sizes.data(), recv_buffer.data(), recv_sizes.data() );
@@ -861,37 +863,18 @@ void GhostCommunicator_partial_blocks::reduce_ghosts_subset( UserData::FieldAcce
   subset.pdata->comm_subset.reduce_ghosts(U);
 }
 
-template void GhostCommunicator_partial_blocks::exchange_ghosts<real_t>(const UserData::FieldAccessor_t<real_t>&) const;
-template void GhostCommunicator_partial_blocks::exchange_ghosts<float>(const UserData::FieldAccessor_t<float>&) const;
-template void GhostCommunicator_partial_blocks::exchange_ghosts<int32_t>(const UserData::FieldAccessor_t<int32_t>&) const;
-template void GhostCommunicator_partial_blocks::exchange_ghosts<int64_t>(const UserData::FieldAccessor_t<int64_t>&) const;
-template void GhostCommunicator_partial_blocks::exchange_ghosts<real_t>(const UserData::FieldAccessor_fulltree_t<real_t>&) const;
-template void GhostCommunicator_partial_blocks::exchange_ghosts<float>(const UserData::FieldAccessor_fulltree_t<float>&) const;
-template void GhostCommunicator_partial_blocks::exchange_ghosts<int32_t>(const UserData::FieldAccessor_fulltree_t<int32_t>&) const;
-template void GhostCommunicator_partial_blocks::exchange_ghosts<int64_t>(const UserData::FieldAccessor_fulltree_t<int64_t>&) const;
-template void GhostCommunicator_partial_blocks::reduce_ghosts<real_t>(UserData::FieldAccessor_t<real_t>&) const;
-template void GhostCommunicator_partial_blocks::reduce_ghosts<float>(UserData::FieldAccessor_t<float>&) const;
-template void GhostCommunicator_partial_blocks::reduce_ghosts<int32_t>(UserData::FieldAccessor_t<int32_t>&) const;
-template void GhostCommunicator_partial_blocks::reduce_ghosts<int64_t>(UserData::FieldAccessor_t<int64_t>&) const;
-template void GhostCommunicator_partial_blocks::reduce_ghosts<real_t>(UserData::FieldAccessor_fulltree_t<real_t>&) const;
-template void GhostCommunicator_partial_blocks::reduce_ghosts<float>(UserData::FieldAccessor_fulltree_t<float>&) const;
-template void GhostCommunicator_partial_blocks::reduce_ghosts<int32_t>(UserData::FieldAccessor_fulltree_t<int32_t>&) const;
-template void GhostCommunicator_partial_blocks::reduce_ghosts<int64_t>(UserData::FieldAccessor_fulltree_t<int64_t>&) const;
-template void GhostCommunicator_partial_blocks::exchange_ghosts_subset<real_t>(const UserData::FieldAccessor_t<real_t>&, const OctSubset&) const;
-template void GhostCommunicator_partial_blocks::exchange_ghosts_subset<float>(const UserData::FieldAccessor_t<float>&, const OctSubset&) const;
-template void GhostCommunicator_partial_blocks::exchange_ghosts_subset<int32_t>(const UserData::FieldAccessor_t<int32_t>&, const OctSubset&) const;
-template void GhostCommunicator_partial_blocks::exchange_ghosts_subset<int64_t>(const UserData::FieldAccessor_t<int64_t>&, const OctSubset&) const;
-template void GhostCommunicator_partial_blocks::exchange_ghosts_subset<real_t>(const UserData::FieldAccessor_fulltree_t<real_t>&, const OctSubset&) const;
-template void GhostCommunicator_partial_blocks::exchange_ghosts_subset<float>(const UserData::FieldAccessor_fulltree_t<float>&, const OctSubset&) const;
-template void GhostCommunicator_partial_blocks::exchange_ghosts_subset<int32_t>(const UserData::FieldAccessor_fulltree_t<int32_t>&, const OctSubset&) const;
-template void GhostCommunicator_partial_blocks::exchange_ghosts_subset<int64_t>(const UserData::FieldAccessor_fulltree_t<int64_t>&, const OctSubset&) const;
-template void GhostCommunicator_partial_blocks::reduce_ghosts_subset<real_t>(UserData::FieldAccessor_t<real_t>&, const OctSubset&) const;
-template void GhostCommunicator_partial_blocks::reduce_ghosts_subset<float>(UserData::FieldAccessor_t<float>&, const OctSubset&) const;
-template void GhostCommunicator_partial_blocks::reduce_ghosts_subset<int32_t>(UserData::FieldAccessor_t<int32_t>&, const OctSubset&) const;
-template void GhostCommunicator_partial_blocks::reduce_ghosts_subset<int64_t>(UserData::FieldAccessor_t<int64_t>&, const OctSubset&) const;
-template void GhostCommunicator_partial_blocks::reduce_ghosts_subset<real_t>(UserData::FieldAccessor_fulltree_t<real_t>&, const OctSubset&) const;
-template void GhostCommunicator_partial_blocks::reduce_ghosts_subset<float>(UserData::FieldAccessor_fulltree_t<float>&, const OctSubset&) const;
-template void GhostCommunicator_partial_blocks::reduce_ghosts_subset<int32_t>(UserData::FieldAccessor_fulltree_t<int32_t>&, const OctSubset&) const;
-template void GhostCommunicator_partial_blocks::reduce_ghosts_subset<int64_t>(UserData::FieldAccessor_fulltree_t<int64_t>&, const OctSubset&) const;
+// real_t is double or float : instantiating both covers it without duplicates
+#define DYABLO_INSTANTIATE_FIELD_TYPE(T) \
+template void GhostCommunicator_partial_blocks::exchange_ghosts<T>(const UserData::FieldAccessor_t<T>&) const; \
+template void GhostCommunicator_partial_blocks::exchange_ghosts<T>(const UserData::FieldAccessor_fulltree_t<T>&) const; \
+template void GhostCommunicator_partial_blocks::reduce_ghosts<T>(UserData::FieldAccessor_t<T>&) const; \
+template void GhostCommunicator_partial_blocks::reduce_ghosts<T>(UserData::FieldAccessor_fulltree_t<T>&) const; \
+template void GhostCommunicator_partial_blocks::exchange_ghosts_subset<T>(const UserData::FieldAccessor_t<T>&, const OctSubset&) const; \
+template void GhostCommunicator_partial_blocks::exchange_ghosts_subset<T>(const UserData::FieldAccessor_fulltree_t<T>&, const OctSubset&) const; \
+template void GhostCommunicator_partial_blocks::reduce_ghosts_subset<T>(UserData::FieldAccessor_t<T>&, const OctSubset&) const; \
+template void GhostCommunicator_partial_blocks::reduce_ghosts_subset<T>(UserData::FieldAccessor_fulltree_t<T>&, const OctSubset&) const;
+DYABLO_INSTANTIATE_FIELD_TYPE(double)
+DYABLO_INSTANTIATE_FIELD_TYPE(float)
+#undef DYABLO_INSTANTIATE_FIELD_TYPE
 
 } // namespace dyablo

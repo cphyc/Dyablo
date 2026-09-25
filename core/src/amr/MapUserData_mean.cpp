@@ -49,30 +49,24 @@ public:
         for(int ivar=0; ivar<nbfields; ivar++)
           Uout.at_ivar( iCell_Uout, ivar ) = Uin.at_ivar( iCell_Uin, ivar );
       }
-
       else
       {
         for(int ivar=0; ivar<nbfields; ivar++)
           Uout.at_ivar( iCell_Uout, ivar ) = 0;
 
         int nsubcells = (ndim-1) * 2 * 2;
-        real_t sums[20] = {};
         foreach_sibling_scattered( ndim, iCell_Uin, lmesh,
             [&](const CellIndex& iCell_Uin_n)
         {
           for(int ivar=0; ivar<nbfields; ivar++)
-            sums[ivar] += static_cast<real_t>(Uin.at_ivar( iCell_Uin_n, ivar ));
+            Uout.at_ivar( iCell_Uout, ivar ) += Uin.at_ivar( iCell_Uin_n, ivar ) / nsubcells;
         });
-        for(int ivar=0; ivar<nbfields; ivar++)
-          Uout.at_ivar( iCell_Uout, ivar ) = static_cast<T>(sums[ivar] / nsubcells);
       }
-
     });
   }
-  void remap_aux( const UserData::FieldAccessor_t<real_t>& a, const UserData::FieldAccessor_t<real_t>& b, const CellIndexRemapper& c ) override { remap_aux_t(a,b,c); }
+
+  void remap_aux( const UserData::FieldAccessor_t<double>& a, const UserData::FieldAccessor_t<double>& b, const CellIndexRemapper& c ) override { remap_aux_t(a,b,c); }
   void remap_aux( const UserData::FieldAccessor_t<float>& a, const UserData::FieldAccessor_t<float>& b, const CellIndexRemapper& c ) override { remap_aux_t(a,b,c); }
-  void remap_aux( const UserData::FieldAccessor_t<int32_t>& a, const UserData::FieldAccessor_t<int32_t>& b, const CellIndexRemapper& c ) override { remap_aux_t(a,b,c); }
-  void remap_aux( const UserData::FieldAccessor_t<int64_t>& a, const UserData::FieldAccessor_t<int64_t>& b, const CellIndexRemapper& c ) override { remap_aux_t(a,b,c); }
 protected:
   std::unique_ptr<ForeachCell::CellMetaData> cellmetadata_old;
 };

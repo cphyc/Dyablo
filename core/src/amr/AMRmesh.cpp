@@ -1054,10 +1054,7 @@ void AMRmesh::loadBalance_userdata( int compact_levels, UserData& userData )
 {
   auto ghostmap = this->loadBalance(compact_levels);
   ViewCommunicator lb_comm(ghostmap.to_send_leaves.send_sizes, ghostmap.to_send_leaves.send_iOcts);  
-  userData.exchange_loadbalance<real_t>( lb_comm );
-  userData.exchange_loadbalance<float>( lb_comm );
-  userData.exchange_loadbalance<int32_t>( lb_comm );
-  userData.exchange_loadbalance<int64_t>( lb_comm );
+  userData.exchange_loadbalance( lb_comm );
 }
 
 void AMRmesh::setMarker(uint32_t iOct, int marker)

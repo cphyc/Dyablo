@@ -22,7 +22,6 @@ template<> [[maybe_unused]] hid_t get_hdf5_type<double>()    { return H5T_NATIVE
 template<> [[maybe_unused]] hid_t get_hdf5_type<float>()     { return H5T_NATIVE_FLOAT; }
 template<> [[maybe_unused]] hid_t get_hdf5_type<uint32_t>()  { return H5T_NATIVE_UINT32; }
 template<> [[maybe_unused]] hid_t get_hdf5_type<int32_t>()   { return H5T_NATIVE_INT32; }
-template<> [[maybe_unused]] hid_t get_hdf5_type<int64_t>()   { return H5T_NATIVE_INT64; }
 
 
 class restart_file{
@@ -65,53 +64,15 @@ public:
     return res;
   }
 
-  std::vector<std::string> list_datasets( const std::string& hdf5_path )
+  /// True if dataset `hdf5_path` is stored as 32-bit floats
+  bool is_float( const std::string& hdf5_path )
   {
-    std::vector<std::string> result;
-    hid_t group_id = m_hdf5_file;
-    if( !hdf5_path.empty() )
-      group_id = H5Gopen(m_hdf5_file, hdf5_path.c_str(), H5P_DEFAULT);
-    if( group_id < 0 )
-      return result;
-    H5G_info_t group_info;
-    H5Gget_info(group_id, &group_info);
-    for( hsize_t i = 0; i < group_info.nlinks; ++i )
-    {
-      char name[1024];
-      ssize_t length = H5Lget_name_by_idx(group_id, ".", H5_INDEX_NAME,
-                                          H5_ITER_NATIVE, i, name,
-                                          sizeof(name), H5P_DEFAULT);
-      if( length <= 0 )
-        continue;
-      H5O_info_t object_info;
-      if( H5Oget_info_by_name(group_id, name, &object_info, H5O_INFO_BASIC, H5P_DEFAULT) >= 0 &&
-          object_info.type == H5O_TYPE_DATASET )
-        result.emplace_back(name, static_cast<size_t>(length));
-    }
-    if( group_id != m_hdf5_file )
-      H5Gclose(group_id);
-    return result;
-  }
-
-  UserData::FieldType field_type( const std::string& name )
-  {
-    hid_t dataset = H5Dopen2(m_hdf5_file, name.c_str(), H5P_DEFAULT);
-    DYABLO_ASSERT_HOST_RELEASE(dataset >= 0, "Unable to open restart field " << name);
+    hid_t dataset = H5Dopen2(m_hdf5_file, hdf5_path.c_str(), H5P_DEFAULT);
     hid_t type = H5Dget_type(dataset);
-    UserData::FieldType result;
-    if( H5Tequal(type, H5T_NATIVE_DOUBLE) > 0 )
-      result = UserData::FieldType::real;
-    else if( H5Tequal(type, H5T_NATIVE_FLOAT) > 0 )
-      result = UserData::FieldType::float32;
-    else if( H5Tequal(type, H5T_NATIVE_INT32) > 0 )
-      result = UserData::FieldType::int32;
-    else if( H5Tequal(type, H5T_NATIVE_INT64) > 0 )
-      result = UserData::FieldType::int64;
-    else
-      DYABLO_ASSERT_HOST_RELEASE(false, "Unsupported datatype in restart field " << name);
+    bool res = H5Tequal(type, H5T_NATIVE_FLOAT) > 0;
     H5Tclose(type);
     H5Dclose(dataset);
-    return result;
+    return res;
   }
 
   std::vector<hsize_t> get_field_layout( std::string hdf5_path )
@@ -230,6 +191,27 @@ public:
   }
 };
 
+/// Create field `field` with type T and fill it from the restart file
+template< typename T >
+void load_field( restart_file& file, ForeachCell& foreach_cell, UserData& U, const std::string& field )
+{
+  U.new_fields<T>({field});
+  enum VarIndex_single { Ifield };
+  UserData::FieldAccessor_t<T> Ufield = U.getAccessor<T>({{field, Ifield}});
+
+  auto shape = Ufield.getShape();
+  shape.nbGhosts = 0;
+  ForeachCell::CellArray_global_t<T> field_view(field + "_read", shape);
+  
+  file.read_view( std::string("fields/") + field, field_view._U);        
+
+  foreach_cell.foreach_cell( "restart_copy_field", Ufield.getShape(),
+    KOKKOS_LAMBDA( const ForeachCell::CellIndex& iCell )
+  {
+    Ufield.at( iCell, Ifield ) = field_view.at(iCell, 0);
+  });
+}
+
 } // namspace
 
 
@@ -332,30 +314,16 @@ public:
 
     // Reallocate and fill U
     {
-      auto load_field = [&](const std::string& field, UserData::FieldType type)
+      auto fields = restart_file.list_fields("fields/");
+      
+      for( std::string field : fields )
       {
-        auto load = [&](auto scalar_tag)
-        {
-          using T = decltype(scalar_tag);
-          U.new_fields<T>({field});
-          UserData::FieldAccessor_t<T> Ufield = U.getAccessor<T>({{field, 0}});
-          auto shape = Ufield.getShape();
-          shape.nbGhosts = 0;
-          ForeachCell::CellArray_global_t<T> field_view(field + "_read", shape);
-          restart_file.read_view("fields/" + field, field_view._U);
-          foreach_cell.foreach_cell( "restart_copy_field", U.getShape(),
-            KOKKOS_LAMBDA( const ForeachCell::CellIndex& iCell )
-          {
-            Ufield.at( iCell, 0 ) = field_view.at(iCell, 0);
-          });
-        };
-        if( type == UserData::FieldType::real ) load(real_t{});
-        else if( type == UserData::FieldType::float32 ) load(float{});
-        else if( type == UserData::FieldType::int32 ) load(int32_t{});
-        else load(int64_t{});
-      };
-      for( const std::string& field : restart_file.list_datasets("fields/") )
-        load_field(field, restart_file.field_type("fields/" + field));
+        // Only float32 datasets become float fields : real_t fields are read in the current precision
+        if( restart_file.is_float( std::string("fields/") + field ) )
+          load_field<float>( restart_file, foreach_cell, U, field );
+        else
+          load_field<real_t>( restart_file, foreach_cell, U, field );
+      }      
     }
 
     {     
