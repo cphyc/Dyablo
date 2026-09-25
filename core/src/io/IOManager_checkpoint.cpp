@@ -53,10 +53,19 @@ public:
     {
       HDF5ViewWriter hdf5_file(filename.str()+".h5");
       
-      for( std::string field_name : U.getEnabledFields() )
+      std::set<std::string> written_fields;
+      for( const auto& field : U.getEnabledFieldsAll() )
       {
-        // TODO save collective_write hint to avoid allreduce for sizes each time
-        hdf5_file.collective_write( std::string("fields/")+field_name, U.getFieldCopy(field_name)._U );
+        DYABLO_ASSERT_HOST_RELEASE(written_fields.insert(field.name).second,
+          "Cannot checkpoint fields with the same name in different typed stores: " << field.name);
+        if( field.type == UserData::FieldType::real )
+          hdf5_file.collective_write("fields/" + field.name, U.getFieldCopy<real_t>(field.name)._U);
+        else if( field.type == UserData::FieldType::float32 )
+          hdf5_file.collective_write("fields/" + field.name, U.getFieldCopy<float>(field.name)._U);
+        else if( field.type == UserData::FieldType::int32 )
+          hdf5_file.collective_write("fields/" + field.name, U.getFieldCopy<int32_t>(field.name)._U);
+        else
+          hdf5_file.collective_write("fields/" + field.name, U.getFieldCopy<int64_t>(field.name)._U);
       }
 
       for( const std::string& particle_array : U.getEnabledParticleArrays() )
@@ -109,4 +118,3 @@ private:
 
 
 FACTORY_REGISTER( dyablo::IOManagerFactory, dyablo::IOManager_checkpoint, "IOManager_checkpoint" );
-

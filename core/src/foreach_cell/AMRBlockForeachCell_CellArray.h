@@ -1071,7 +1071,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   decltype(auto) at_ivar( const CellIndex& iCell, int ivar0, VarIndex_s... ivars ) const
   {
-    real_t* origin = this->at(iCell);
+    T* origin = this->at(iCell);
 
     auto value = [&](int ivar) -> T&
     {

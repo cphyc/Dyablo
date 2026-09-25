@@ -402,6 +402,20 @@ std::set<std::string> UserData::getEnabledFields() const
   return this->fields.pdata->getEnabledFields<T>();
 }
 
+std::vector<UserData::FieldDescriptor> UserData::getEnabledFieldsAll() const
+{
+  std::vector<UserData::FieldDescriptor> fields;
+  for( const auto& name : this->getEnabledFields<real_t>() )
+    fields.push_back({name, UserData::FieldType::real});
+  for( const auto& name : this->getEnabledFields<float>() )
+    fields.push_back({name, UserData::FieldType::float32});
+  for( const auto& name : this->getEnabledFields<int32_t>() )
+    fields.push_back({name, UserData::FieldType::int32});
+  for( const auto& name : this->getEnabledFields<int64_t>() )
+    fields.push_back({name, UserData::FieldType::int64});
+  return fields;
+}
+
 template<typename T>
 const ForeachCell::CellArray_global_t<T> UserData::getFieldCopy(const std::string& name) const
 {

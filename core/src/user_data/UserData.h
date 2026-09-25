@@ -1,6 +1,7 @@
 #pragma once
 
 #include <set>
+#include <vector>
 
 #include "foreach_cell/ForeachCell.h"
 #include "particles/ParticleArray.h"
@@ -22,6 +23,13 @@ namespace UserData_Impl{
 class UserData
 {
 public:
+  enum class FieldType { real, float32, int32, int64 };
+  struct FieldDescriptor
+  {
+    std::string name;
+    FieldType type;
+  };
+
   UserData( ConfigMap& configMap, ForeachCell& foreach_cell )
   : fields(configMap, foreach_cell),
     particles(configMap, foreach_cell)
@@ -66,6 +74,9 @@ public:
    ***/
   template<typename T = real_t>
   std::set<std::string> getEnabledFields() const;
+
+  /** Return all fields, including fields stored in non-default scalar stores. */
+  std::vector<FieldDescriptor> getEnabledFieldsAll() const;
 
   /***
    * @brief Get View associated with field name

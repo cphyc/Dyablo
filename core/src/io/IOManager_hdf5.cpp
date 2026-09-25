@@ -209,6 +209,7 @@ private:
   OutputRealType output_real_type;
 
   std::vector<std::unique_ptr<DerivedFields>> derived_fields;
+  std::map<std::string, UserData::FieldType> field_types;
 };
 
 namespace{
@@ -232,6 +233,14 @@ template<> [[maybe_unused]] std::string xmf_type_attr<double>    () { return R"x
 template <typename output_real_t>
 void IOManager_hdf5::save_snapshot_aux( const UserData& U_, ScalarSimulationData& scalar_data )
 {
+  field_types.clear();
+  for( const auto& field : U_.getEnabledFieldsAll() )
+  {
+    DYABLO_ASSERT_HOST_RELEASE(field_types.emplace(field.name, field.type).second,
+      "Cannot output fields with the same name in different typed stores: " << field.name);
+    write_varnames.insert(field.name);
+  }
+
   int iter = scalar_data.get<int>( "iter" );
   real_t time = scalar_data.get<real_t>( "time" );
 
@@ -302,7 +311,8 @@ R"xml(<?xml version="1.0" ?>
       base_filename.c_str()
     );
 
-    auto output_attr_xml = [&]( const std::string& type_str, const std::string &var_name )
+    auto output_attr_xml = [&]( const std::string& type_str, const std::string &var_name,
+                                const std::string& data_path = "" )
       {
         fprintf(fd, 
 R"xml(
@@ -313,7 +323,7 @@ R"xml(
       </Attribute>)xml",
           var_name.c_str(),
           global_num_cells, type_str.c_str(),
-          base_filename.c_str(), var_name.c_str()
+          base_filename.c_str(), (data_path.empty() ? var_name : data_path).c_str()
         );
       };
 
@@ -331,9 +341,13 @@ R"xml(
       {
         output_attr_xml(xmf_type_attr<int>(), var_name);       
       }
-      else if( U_.has_field(var_name) )
+      else if( field_types.count(var_name) )
       {
-        output_attr_xml(xmf_type_attr<output_real_t>(), var_name);
+        const auto type = field_types.at(var_name);
+        const auto type_xml = type == UserData::FieldType::real ? xmf_type_attr<real_t>() :
+          type == UserData::FieldType::float32 ? xmf_type_attr<float>() :
+          type == UserData::FieldType::int32 ? xmf_type_attr<int32_t>() : xmf_type_attr<int64_t>();
+        output_attr_xml(type_xml, var_name, "fields/" + var_name);
       }
       else
       {
@@ -480,18 +494,29 @@ R"xml(
       }
       else
       {
-        if( U_.has_field(var_name) )
+        if( field_types.count(var_name) )
         { 
-          Kokkos::View< output_real_t*, Kokkos::LayoutLeft > tmp_view(var_name, local_num_cells);
-          
-          auto field_view = U_.getAccessor({{ var_name,0}} );
-          foreach_cell.foreach_cell( "compute_node_coordinates", field_view.getShape(),
-          KOKKOS_LAMBDA( const ForeachCell::CellIndex& iCell )
+          auto write_field = [&](auto scalar_tag)
           {
-            uint64_t iCell_lin = linearize_iCell( iCell );
-            tmp_view(iCell_lin) = static_cast<output_real_t>(field_view.at_ivar(iCell, 0));
-          });
-          hdf5_writer.collective_write( var_name, tmp_view );
+            using T = decltype(scalar_tag);
+            Kokkos::View<T*, Kokkos::LayoutLeft> tmp_view(var_name, local_num_cells);
+            auto field_view = U_.getAccessor<T>({{ var_name,0}} );
+            foreach_cell.foreach_cell( "compute_node_coordinates", field_view.getShape(),
+            KOKKOS_LAMBDA( const ForeachCell::CellIndex& iCell )
+            {
+              uint64_t iCell_lin = linearize_iCell( iCell );
+              tmp_view(iCell_lin) = field_view.at_ivar(iCell, 0);
+            });
+            hdf5_writer.collective_write("fields/" + var_name, tmp_view);
+          };
+          if( field_types.at(var_name) == UserData::FieldType::real )
+            write_field(real_t{});
+          else if( field_types.at(var_name) == UserData::FieldType::float32 )
+            write_field(float{});
+          else if( field_types.at(var_name) == UserData::FieldType::int32 )
+            write_field(int32_t{});
+          else
+            write_field(int64_t{});
         }
       }
     }   
@@ -669,4 +694,3 @@ R"xml(
 
 
 FACTORY_REGISTER( dyablo::IOManagerFactory, dyablo::IOManager_hdf5, "IOManager_hdf5" );
-
