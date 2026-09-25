@@ -9,7 +9,8 @@ Kokkos::View<uint32_t*> GhostCommunicator_full_blocks::iOcts_send() const
   return this->send_iOcts;
 }
 
-void GhostCommunicator_full_blocks::exchange_ghosts( const UserData::FieldAccessor& U ) const
+template<typename T>
+void GhostCommunicator_full_blocks::exchange_ghosts( const UserData::FieldAccessor_t<T>& U ) const
 {
   DYABLO_ASSERT_HOST_DEBUG( !this->intermediates, "Trying to echange intermediate ghosts but FieldAccessor don't have intermediates" );
   auto &fields = U.fields;
@@ -24,7 +25,8 @@ void GhostCommunicator_full_blocks::exchange_ghosts( const UserData::FieldAccess
   }
 }
 
-void GhostCommunicator_full_blocks::exchange_ghosts( const UserData::FieldAccessor_fulltree& U ) const
+template<typename T>
+void GhostCommunicator_full_blocks::exchange_ghosts( const UserData::FieldAccessor_fulltree_t<T>& U ) const
 {
   auto &fields = this->intermediates?U.fields_intermediates:U.fields;
 
@@ -233,7 +235,8 @@ GhostCommunicator_full_blocks::OctSubset::OctSubset(const GhostCommunicator_full
    );
 }
 
-void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::FieldAccessor& U, const OctSubset& subset ) const
+template<typename T>
+void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::FieldAccessor_t<T>& U, const OctSubset& subset ) const
 {
   DYABLO_ASSERT_HOST_DEBUG( !this->intermediates, "Trying to echange intermediate ghosts but FieldAccessor don't have intermediates" );
   auto &fields = U.fields;
@@ -241,7 +244,7 @@ void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::Fiel
   int nbCells = fields.getShape().bx * fields.getShape().by * fields.getShape().bz;
   int nbFields = U.nbFields();
 
-  Kokkos::View<real_t***, Kokkos::LayoutLeft> Ughost_subset( "Ughost_subset", nbCells, nbFields, subset.nbGhosts() );
+  Kokkos::View<T***, Kokkos::LayoutLeft> Ughost_subset( "Ughost_subset", nbCells, nbFields, subset.nbGhosts() );
   for(int i=0; i<U.nbFields(); i++)
   {
     int iVar = U.get_index_from_ivar_host(i);
@@ -268,7 +271,8 @@ void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::Fiel
   });      
 }
 
-void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::FieldAccessor_fulltree& U, const OctSubset& subset ) const
+template<typename T>
+void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::FieldAccessor_fulltree_t<T>& U, const OctSubset& subset ) const
 {
   auto &fields = this->intermediates?U.fields_intermediates:U.fields;
 
@@ -276,7 +280,7 @@ void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::Fiel
   int nbFields = U.nbFields();
   const bool isIntermediate = this->intermediates;
 
-  Kokkos::View<real_t***, Kokkos::LayoutLeft> Ughost_subset( "Ughost_subset", nbCells, nbFields, subset.nbGhosts() );
+  Kokkos::View<T***, Kokkos::LayoutLeft> Ughost_subset( "Ughost_subset", nbCells, nbFields, subset.nbGhosts() );
   for(int i=0; i<U.nbFields(); i++)
   {
     int iVar = this->intermediates?U.get_index_from_ivar_host_intermediates(i):U.get_index_from_ivar_host(i);
@@ -304,7 +308,8 @@ void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::Fiel
 }
 
 
-void GhostCommunicator_full_blocks::reduce_ghosts( UserData::FieldAccessor_fulltree& U ) const
+template<typename T>
+void GhostCommunicator_full_blocks::reduce_ghosts( UserData::FieldAccessor_fulltree_t<T>& U ) const
 {
   auto &fields = this->intermediates?U.fields_intermediates:U.fields;
 
@@ -318,7 +323,8 @@ void GhostCommunicator_full_blocks::reduce_ghosts( UserData::FieldAccessor_fullt
   }
 }
 
-void GhostCommunicator_full_blocks::reduce_ghosts( UserData::FieldAccessor& U ) const
+template<typename T>
+void GhostCommunicator_full_blocks::reduce_ghosts( UserData::FieldAccessor_t<T>& U ) const
 {
   for(int i=0; i<U.nbFields(); i++)
   {
@@ -335,7 +341,8 @@ void GhostCommunicator_full_blocks::reduce_ghosts( ForeachCell::CellArray_global
   ViewCommunicator::reduce_ghosts<2>(U.subview_U(), U.subview_Ughost());
 }  
 
-void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccessor_fulltree& U, const OctSubset& subset ) const
+template<typename T>
+void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccessor_fulltree_t<T>& U, const OctSubset& subset ) const
 {
   auto &fields = this->intermediates?U.fields_intermediates:U.fields;
 
@@ -343,7 +350,7 @@ void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccesso
   int nbFields = U.nbFields();
   const bool isIntermediate = this->intermediates;
 
-  Kokkos::View<real_t***, Kokkos::LayoutLeft> Ughost_subset( "Ughost_subset", nbCells, nbFields, subset.nbGhosts() );
+  Kokkos::View<T***, Kokkos::LayoutLeft> Ughost_subset( "Ughost_subset", nbCells, nbFields, subset.nbGhosts() );
   auto subview_Ughost = fields.subview_Ughost();
 
   auto& subset_iOcts = subset.subset_iOcts;
@@ -370,14 +377,15 @@ void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccesso
   }
 }
 
-void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccessor& U, const OctSubset& subset ) const
+template<typename T>
+void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccessor_t<T>& U, const OctSubset& subset ) const
 {
   auto &fields = U.fields;
 
   int nbCells = fields.getShape().bx * fields.getShape().by * fields.getShape().bz;
   int nbFields = U.nbFields();
 
-  Kokkos::View<real_t***, Kokkos::LayoutLeft> Ughost_subset( "Ughost_subset", nbCells, nbFields, subset.nbGhosts() );
+  Kokkos::View<T***, Kokkos::LayoutLeft> Ughost_subset( "Ughost_subset", nbCells, nbFields, subset.nbGhosts() );
   auto subview_Ughost = fields.subview_Ughost();
 
   auto& subset_iOcts = subset.subset_iOcts;
@@ -403,5 +411,19 @@ void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccesso
     subset.partial_comm->reduce_ghosts<2>( U_subview, Ughost_subview );
   }
 }
+
+// real_t is double or float : instantiating both covers it without duplicates
+#define DYABLO_INSTANTIATE_FIELD_TYPE(T) \
+template void GhostCommunicator_full_blocks::exchange_ghosts<T>(const UserData::FieldAccessor_t<T>&) const; \
+template void GhostCommunicator_full_blocks::exchange_ghosts<T>(const UserData::FieldAccessor_fulltree_t<T>&) const; \
+template void GhostCommunicator_full_blocks::reduce_ghosts<T>(UserData::FieldAccessor_t<T>&) const; \
+template void GhostCommunicator_full_blocks::reduce_ghosts<T>(UserData::FieldAccessor_fulltree_t<T>&) const; \
+template void GhostCommunicator_full_blocks::exchange_ghosts_subset<T>(const UserData::FieldAccessor_t<T>&, const OctSubset&) const; \
+template void GhostCommunicator_full_blocks::exchange_ghosts_subset<T>(const UserData::FieldAccessor_fulltree_t<T>&, const OctSubset&) const; \
+template void GhostCommunicator_full_blocks::reduce_ghosts_subset<T>(UserData::FieldAccessor_t<T>&, const OctSubset&) const; \
+template void GhostCommunicator_full_blocks::reduce_ghosts_subset<T>(UserData::FieldAccessor_fulltree_t<T>&, const OctSubset&) const;
+DYABLO_INSTANTIATE_FIELD_TYPE(double)
+DYABLO_INSTANTIATE_FIELD_TYPE(float)
+#undef DYABLO_INSTANTIATE_FIELD_TYPE
 
 } // namespace dyablo

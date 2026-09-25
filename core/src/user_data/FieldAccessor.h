@@ -15,20 +15,22 @@ struct UserData_FieldAccessor_FieldInfo
   VarIndex id; /// id to use to access with at()
 };
 
-void FieldAccessor_init(const UserData_Fields_Pdata& user_data, const std::vector<UserData_FieldAccessor_FieldInfo>& fields_info,
+template<typename T>
+void FieldAccessor_init(const UserData_Fields_Pdata<T>& user_data, const std::vector<UserData_FieldAccessor_FieldInfo>& fields_info,
                         int max_field_count, bool has_intermediates,
-                        UserData::FieldView_t& fields,
-                        UserData::FieldView_t& fields_intermediates
+                        ForeachCell::CellArray_global_ghosted_t<T>& fields,
+                        ForeachCell::CellArray_global_ghosted_t<T>& fields_intermediates
                       );
 
-void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_data, const std::vector<UserData_FieldAccessor_FieldInfo>& fields_info,
+template<typename T>
+void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata<T>& user_data, const std::vector<UserData_FieldAccessor_FieldInfo>& fields_info,
                         int max_field_count, bool has_intermediates,
                         int& _nbFields,
                         int* var_to_arrayindex,
                         int* ivar_to_arrayindex
                       );
 
-template< int _MAX_FIELD_COUNT >
+template< int _MAX_FIELD_COUNT, typename T >
 class FieldAccessor_FieldManager
 {
 private:
@@ -46,9 +48,9 @@ public:
     FieldAccessor_FieldManager& operator=(const FieldAccessor_FieldManager& ) = default;
     FieldAccessor_FieldManager& operator=(FieldAccessor_FieldManager& ) = default;
 
-    FieldAccessor_FieldManager(const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates)
+    FieldAccessor_FieldManager(const UserData_Fields_Pdata<T>& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates)
     {
-        FieldAccessor_FieldManager_init_static( user_data, fields_info, 
+        FieldAccessor_FieldManager_init_static<T>( user_data, fields_info, 
                                                 MAX_FIELD_COUNT, has_intermediates,
                                                 this->_nbFields,
                                                 this->var_to_arrayindex.data(),
@@ -79,8 +81,8 @@ public:
     }
 };
 
-template<>
-class FieldAccessor_FieldManager<-1>
+template<typename T>
+class FieldAccessor_FieldManager<-1, T>
 {
 private:
     static constexpr int MAX_FIELD_COUNT = 3;
@@ -97,7 +99,7 @@ public:
     FieldAccessor_FieldManager& operator=(const FieldAccessor_FieldManager& ) = default;
     FieldAccessor_FieldManager& operator=(FieldAccessor_FieldManager& ) = default;
 
-    FieldAccessor_FieldManager(const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates);
+    FieldAccessor_FieldManager(const UserData_Fields_Pdata<T>& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates);
 
     KOKKOS_INLINE_FUNCTION
     int nbFields() const
@@ -123,16 +125,16 @@ public:
     }
 };
 
-template< bool has_intermediates, int _MAX_FIELD_COUNT >
+template< bool has_intermediates, int _MAX_FIELD_COUNT, typename T >
 class UserData_FieldAccessor_impl
 {
 friend GhostCommunicator_full_blocks;
-friend UserData_Fields_Pdata;
+template< typename > friend struct UserData_Fields_Pdata;
 public:
     static constexpr int MAX_FIELD_COUNT = _MAX_FIELD_COUNT;
     using FieldInfo = UserData_FieldAccessor_FieldInfo;
-    using FieldView_t = UserData::FieldView_t;
-    using FieldManager = FieldAccessor_FieldManager<MAX_FIELD_COUNT>;
+    using FieldView_t = ForeachCell::CellArray_global_ghosted_t<T>;
+    using FieldManager = FieldAccessor_FieldManager<MAX_FIELD_COUNT, T>;
 
     UserData_FieldAccessor_impl() = default;
     UserData_FieldAccessor_impl(const UserData_FieldAccessor_impl& ) = default;
@@ -146,7 +148,7 @@ public:
         return fm.nbFields();
     }
 
-    UserData_FieldAccessor_impl(const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info)
+    UserData_FieldAccessor_impl(const UserData_Fields_Pdata<T>& user_data, const std::vector<FieldInfo>& fields_info)
         : fm( user_data, fields_info, false )
     {
         if constexpr (has_intermediates)
@@ -165,8 +167,8 @@ public:
     {
         bool is_intermediate = has_intermediates && iCell.iOct().isIntermediate;
 
-        real_t* origin = this->at( iCell );
-        auto value = [&]( VarIndex varindex ) -> real_t&
+        T* origin = this->at( iCell );
+        auto value = [&]( VarIndex varindex ) -> T&
         {
             auto offset = is_intermediate ?
                   fields_intermediates.get_offset_ivar( get_index_from_varindex_intermediates(varindex) )
@@ -187,8 +189,8 @@ public:
     {
         bool is_intermediate = has_intermediates && iCell.iOct().isIntermediate;
 
-        real_t* origin = this->at( iCell );
-        auto value = [&]( int ivar ) -> real_t&
+        T* origin = this->at( iCell );
+        auto value = [&]( int ivar ) -> T&
         {
             auto offset = is_intermediate ?
                   fields_intermediates.get_offset_ivar( get_index_from_ivar_device_intermediates(ivar) )
@@ -205,12 +207,12 @@ public:
     
 
     KOKKOS_INLINE_FUNCTION
-    FieldView_t::Shape_t getShape() const
+    typename FieldView_t::Shape_t getShape() const
     {
         DYABLO_ASSERT_KOKKOS_DEBUG(nbFields() > 0, "Cannot getShape() of an empty UserData_fields" );
         auto iter_space = fields.getShape();
         auto iter_space_inter = fields_intermediates.getShape();
-        return FieldView_t::Shape_t{
+        return typename FieldView_t::Shape_t{
             .bx = iter_space.bx,
             .by = iter_space.by,
             .bz = iter_space.bz,
@@ -235,8 +237,8 @@ private:
         return fm_intermediates.get_index_from_varindex(var);
     }
 protected:
-    FieldAccessor_FieldManager<_MAX_FIELD_COUNT> fm;
-    FieldAccessor_FieldManager<_MAX_FIELD_COUNT> fm_intermediates;
+    FieldAccessor_FieldManager<_MAX_FIELD_COUNT, T> fm;
+    FieldAccessor_FieldManager<_MAX_FIELD_COUNT, T> fm_intermediates;
 
     KOKKOS_INLINE_FUNCTION
     int get_index_from_ivar_device(int ivar) const
@@ -261,7 +263,7 @@ protected:
     FieldView_t fields_intermediates;
 
     KOKKOS_INLINE_FUNCTION
-    real_t* at( const ForeachCell::CellIndex& iCell ) const
+    T* at( const ForeachCell::CellIndex& iCell ) const
     {
         if constexpr ( has_intermediates )
         {

@@ -28,7 +28,8 @@ public:
     this->cellmetadata_old = std::make_unique<ForeachCell::CellMetaData>(foreach_cell.getCellMetaData());
   }
 
-  void remap_aux( const UserData::FieldAccessor& Uin, const UserData::FieldAccessor& Uout, const CellIndexRemapper& remapper ) override
+  template<typename T>
+  void remap_aux_t( const UserData::FieldAccessor_t<T>& Uin, const UserData::FieldAccessor_t<T>& Uout, const CellIndexRemapper& remapper )
   {
     using CellIndex = ForeachCell::CellIndex;
     using pos_t = ForeachCell::CellMetaData::pos_t;
@@ -152,6 +153,9 @@ public:
 
     remap();
   }
+
+  void remap_aux( const UserData::FieldAccessor_t<double>& a, const UserData::FieldAccessor_t<double>& b, const CellIndexRemapper& c ) override { remap_aux_t(a,b,c); }
+  void remap_aux( const UserData::FieldAccessor_t<float>& a, const UserData::FieldAccessor_t<float>& b, const CellIndexRemapper& c ) override { remap_aux_t(a,b,c); }
 
 protected:
   std::unique_ptr<ForeachCell::CellMetaData> cellmetadata_old;

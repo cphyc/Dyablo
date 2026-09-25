@@ -10,6 +10,7 @@ namespace dyablo {
 
 namespace UserData_Impl{
 
+template<typename T>
 struct UserData_Fields_Pdata
 {
   struct field_index_t
@@ -17,7 +18,7 @@ struct UserData_Fields_Pdata
       int index;
   };
 public:
-    using FieldView_t = ForeachCell::CellArray_global_ghosted;
+    using FieldView_t = ForeachCell::CellArray_global_ghosted_t<T>;
 
     UserData_Fields_Pdata( const UserData_Fields_Pdata& ) = default;
     UserData_Fields_Pdata( UserData_Fields_Pdata&& ) = default;
@@ -32,7 +33,7 @@ public:
      * UserData_fields must have at least one active field
      * WARNING : resulting shape doesn't account for intermediates
      ***/
-    const FieldView_t::Shape_t getShape() const
+    const typename FieldView_t::Shape_t getShape() const
     {
         DYABLO_ASSERT_HOST_RELEASE( field_index.size() > 0, "Cannot getShape() of an empty UserData_fields" );
         return fields.getShape();
@@ -63,7 +64,7 @@ public:
     static void extend_fields_aux( ForeachCell& foreach_cell, FieldView_t& fields, uint32_t nbOcts, uint32_t nbGhosts, uint32_t max_field_count )
     {
         int allocated_field_count = fields.nbfields();
-        FieldView_t::Shape_t shape{
+        typename FieldView_t::Shape_t shape{
           .bx = foreach_cell.blockSize()[IX],
           .by = foreach_cell.blockSize()[IY],
           .bz = foreach_cell.blockSize()[IZ],
@@ -181,7 +182,7 @@ public:
     } 
     
     // Get View associated with field name
-    const ForeachCell::CellArray_global getFieldCopy(const std::string& name) const
+    const ForeachCell::CellArray_global_t<T> getFieldCopy(const std::string& name) const
     {
         if( !this->has_field(name)  )
             throw std::runtime_error(std::string("UserData_fields::getFieldCopy() - field doesn't exist : ") + name);
@@ -189,7 +190,7 @@ public:
         int index = field_index.at(name).index;
 
         ForeachCell::CellArray_global::Shape_t shape{this->getShape().bx, this->getShape().by, this->getShape().bz, 1, this->getShape().nbOcts};
-        ForeachCell::CellArray_global res( name+"_copy", shape);
+        ForeachCell::CellArray_global_t<T> res( name+"_copy", shape);
 
         Kokkos::deep_copy( 
             res.subview_U(),
@@ -211,6 +212,11 @@ public:
     void delete_field( const std::string& name )
     {
         field_index.erase( name );
+        if( field_index.empty() ) // Release storage : types without fields are skipped when the mesh changes
+        {
+            fields = FieldView_t();
+            max_field_count = 0;
+        }
     }
 
     void clear_intermediates()
@@ -232,9 +238,11 @@ public:
 
     void exchange_loadbalance( const ViewCommunicator& ghost_comm )
     {
+      if( nbFields() == 0 ) // No storage (see delete_field())
+        return;
       DYABLO_ASSERT_HOST_RELEASE( 0 == nbFields_intermediates(), "UserData::exchange_loadbalance : Keeping intermediates between interations is not supported yet" );
       {  
-        UserData::FieldAccessor fields_old = this->backup_and_realloc();
+        UserData::FieldAccessor_t<T> fields_old = this->backup_and_realloc();
         int nb_fields = this->nbFields();
         auto old_fields_View = Kokkos::subview( fields_old.fields.subview_U(), 
                                                 Kokkos::ALL(),
@@ -251,28 +259,28 @@ public:
       this->extend_fields();
     }
 
-    UserData::FieldAccessor getAccessor( const std::vector<UserData::FieldAccessor_FieldInfo>& fields_info ) const
+    UserData::FieldAccessor_t<T> getAccessor( const std::vector<UserData::FieldAccessor_FieldInfo>& fields_info ) const
     {
-      return UserData::FieldAccessor(*this, fields_info);
+      return UserData::FieldAccessor_t<T>(*this, fields_info);
     }
 
-    UserData::FieldAccessor_fulltree getAccessor_fulltree( const std::vector<UserData::FieldAccessor_FieldInfo>& fields_info ) const
+    UserData::FieldAccessor_fulltree_t<T> getAccessor_fulltree( const std::vector<UserData::FieldAccessor_FieldInfo>& fields_info ) const
     {
-      return UserData::FieldAccessor_fulltree(*this, fields_info);
+      return UserData::FieldAccessor_fulltree_t<T>(*this, fields_info);
     }
 
-    UserData::FieldAccessor backup_and_realloc()
+    UserData::FieldAccessor_t<T> backup_and_realloc()
     {
       DYABLO_ASSERT_HOST_RELEASE( 0 == nbFields_intermediates(), "UserData::backup_and_realloc : Keeping intermediates between interations is not supported yet" );
 
-      using FieldAccessor = UserData::FieldAccessor;
-      std::vector<FieldAccessor::FieldInfo> all_fields;
+      using FieldAccessor = UserData::FieldAccessor_t<T>;
+      std::vector<typename FieldAccessor::FieldInfo> all_fields;
       int i=0;
       for( const std::string& field : this->getEnabledFields() )
         all_fields.push_back({field, i++});
       FieldAccessor fields_old = this->getAccessor( all_fields );
 
-      this->fields = foreach_cell.allocate_ghosted_array( "UserData_fields", this->field_index.size() );
+      this->fields = foreach_cell.allocate_ghosted_array<T>( "UserData_fields", this->field_index.size() );
       // Reorder fields to reduce fragmentation
       std::map<std::string, field_index_t> field_index_new;
       {
@@ -303,13 +311,15 @@ public:
 
 namespace {
 
-using Pdata = UserData_Impl::UserData_Fields_Pdata;
+template<typename T>
+using Pdata = UserData_Impl::UserData_Fields_Pdata<T>;
 using FieldView_t = UserData::FieldView_t;
 
 }
 
 UserData::Fields::Fields(ConfigMap& configMap, ForeachCell& foreach_cell)
-  : pdata( std::make_unique<Pdata>(configMap, foreach_cell) )
+  : pdata_double( std::make_unique<Pdata<double>>(configMap, foreach_cell) ),
+    pdata_float( std::make_unique<Pdata<float>>(configMap, foreach_cell) )
 {}
 
 UserData::Fields::~Fields()
@@ -317,67 +327,84 @@ UserData::Fields::~Fields()
 
 const FieldView_t::Shape_t UserData::getShape() const
 {
-  return this->fields.pdata->getShape();
+  return this->fields.pdata<real_t>().getShape();
 }
 
+template<typename T>
 void UserData::new_fields( const std::set<std::string>& names)
 {
-  this->fields.pdata->new_fields(names);
+  for( const std::string& name : names ) // Names are unique across types
+    if( has_field<double>(name) || has_field<float>(name) )
+      throw std::runtime_error(std::string("UserData::new_fields() - field already exists : ") + name);
+  this->fields.pdata<T>().new_fields(names);
 }
 
+template<typename T>
 void UserData::new_intermediate_fields( const std::set<std::string>& names)
 {
-  this->fields.pdata->new_intermediate_fields(names);
+  this->fields.pdata<T>().new_intermediate_fields(names);
 }
 
+template<typename T>
 bool UserData::has_field(const std::string& name) const
 {
-  return this->fields.pdata->has_field(name);
+  return this->fields.pdata<T>().has_field(name);
 }
 
+template<typename T>
 std::set<std::string> UserData::getEnabledFields() const
 {
-  return this->fields.pdata->getEnabledFields();
+  return this->fields.pdata<T>().getEnabledFields();
 }
 
-const ForeachCell::CellArray_global UserData::getFieldCopy(const std::string& name) const
+template<typename T>
+const ForeachCell::CellArray_global_t<T> UserData::getFieldCopy(const std::string& name) const
 {
-  return this->fields.pdata->getFieldCopy(name);
+  return this->fields.pdata<T>().getFieldCopy(name);
 }
 
+template<typename T>
 void UserData::move_field( const std::string& dest, const std::string& src )
 {
-  this->fields.pdata->move_field(dest, src);
+  DYABLO_ASSERT_HOST_RELEASE( has_field<T>(dest) || !(has_field<double>(dest) || has_field<float>(dest)),
+                              "UserData::move_field() - field exists with another type : " << dest );
+  this->fields.pdata<T>().move_field(dest, src);
 }
 
+template<typename T>
 void UserData::delete_field( const std::string& name )
 {
-  this->fields.pdata->delete_field(name);
+  this->fields.pdata<T>().delete_field(name);
 }
 
+template<typename T>
 void UserData::clear_intermediates()
 {
-  this->fields.pdata->clear_intermediates();
+  this->fields.pdata<T>().clear_intermediates();
 }
 
 void UserData::exchange_loadbalance( const ViewCommunicator& ghost_comm )
 {
-  this->fields.pdata->exchange_loadbalance(ghost_comm);
+  this->fields.pdata<double>().exchange_loadbalance(ghost_comm);
+  this->fields.pdata<float>().exchange_loadbalance(ghost_comm);
 }
 
+template<typename T>
 int UserData::nbFields() const
 {
-  return this->fields.pdata->nbFields();
+  return this->fields.pdata<T>().nbFields();
 }
 
-UserData::FieldAccessor UserData::backup_and_realloc()
+template<typename T>
+UserData::FieldAccessor_t<T> UserData::backup_and_realloc()
 {
-  return this->fields.pdata->backup_and_realloc();
+  return this->fields.pdata<T>().backup_and_realloc();
 }
 
+template<typename T>
 void UserData::extend_fields()
 {
-  this->fields.pdata->extend_fields();
+  this->fields.pdata<T>().extend_fields();
 }
 
 [[deprecated]] UserData::FieldAccessor_fulltree UserData::getAccessor_intermediates( const std::vector<UserData::FieldAccessor_FieldInfo>& fields_info ) const
@@ -389,10 +416,11 @@ namespace UserData_Impl {
 
 using FieldInfo = UserData_FieldAccessor_FieldInfo;
 
-void FieldAccessor_init( const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info,
+template<typename T>
+void FieldAccessor_init( const UserData_Fields_Pdata<T>& user_data, const std::vector<FieldInfo>& fields_info,
                         int max_field_count, bool has_intermediates,
-                        FieldView_t& fields,
-                        FieldView_t& fields_intermediates
+                        ForeachCell::CellArray_global_ghosted_t<T>& fields,
+                        ForeachCell::CellArray_global_ghosted_t<T>& fields_intermediates
                       )
 {
   fields = user_data.fields;
@@ -403,7 +431,8 @@ void FieldAccessor_init( const UserData_Fields_Pdata& user_data, const std::vect
 }
 
 
-void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info,
+template<typename T>
+void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata<T>& user_data, const std::vector<FieldInfo>& fields_info,
                         int max_field_count, bool has_intermediates,
                         int& _nbFields,
                         int* var_to_arrayindex,
@@ -453,7 +482,8 @@ void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_d
     }
 }
 
-FieldAccessor_FieldManager<-1>::FieldAccessor_FieldManager( const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates )
+template<typename T>
+FieldAccessor_FieldManager<-1, T>::FieldAccessor_FieldManager( const UserData_Fields_Pdata<T>& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates )
   : var_to_arrayindex("var_to_arrayindex", fields_info.size()),
     ivar_to_arrayindex_device("ivar_to_arrayindex", fields_info.size()),
     ivar_to_arrayindex_host( Kokkos::create_mirror_view(ivar_to_arrayindex_device) )
@@ -469,7 +499,33 @@ FieldAccessor_FieldManager<-1>::FieldAccessor_FieldManager( const UserData_Field
   Kokkos::deep_copy( ivar_to_arrayindex_device, ivar_to_arrayindex_host );
 }
 
+// real_t is double or float : instantiating both covers it without duplicates
+#define DYABLO_INSTANTIATE_FIELD_TYPE(T) \
+template void FieldAccessor_init<T>( const UserData_Fields_Pdata<T>&, const std::vector<FieldInfo>&, int, bool, \
+                                     ForeachCell::CellArray_global_ghosted_t<T>&, ForeachCell::CellArray_global_ghosted_t<T>& ); \
+template void FieldAccessor_FieldManager_init_static<T>( const UserData_Fields_Pdata<T>&, const std::vector<FieldInfo>&, int, bool, int&, int*, int* ); \
+template class FieldAccessor_FieldManager<-1, T>;
+DYABLO_INSTANTIATE_FIELD_TYPE(double)
+DYABLO_INSTANTIATE_FIELD_TYPE(float)
+#undef DYABLO_INSTANTIATE_FIELD_TYPE
+
 
 } // namespace UserData_Impl
 } // namespace dyablo
+
+#define DYABLO_INSTANTIATE_FIELD_TYPE(T) \
+template void dyablo::UserData::new_fields<T>( const std::set<std::string>& ); \
+template void dyablo::UserData::new_intermediate_fields<T>( const std::set<std::string>& ); \
+template bool dyablo::UserData::has_field<T>( const std::string& ) const; \
+template std::set<std::string> dyablo::UserData::getEnabledFields<T>() const; \
+template const dyablo::ForeachCell::CellArray_global_t<T> dyablo::UserData::getFieldCopy<T>( const std::string& ) const; \
+template void dyablo::UserData::move_field<T>( const std::string&, const std::string& ); \
+template void dyablo::UserData::delete_field<T>( const std::string& ); \
+template void dyablo::UserData::clear_intermediates<T>(); \
+template int dyablo::UserData::nbFields<T>() const; \
+template dyablo::UserData::FieldAccessor_t<T> dyablo::UserData::backup_and_realloc<T>(); \
+template void dyablo::UserData::extend_fields<T>();
+DYABLO_INSTANTIATE_FIELD_TYPE(double)
+DYABLO_INSTANTIATE_FIELD_TYPE(float)
+#undef DYABLO_INSTANTIATE_FIELD_TYPE
 

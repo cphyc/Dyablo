@@ -844,6 +844,13 @@ public:
         for (auto field : U.getEnabledFields())
           all_fields.push_back(field);
         communicate_ghosts( all_fields );
+        if( !std::is_same_v<real_t, float> && U.nbFields<float>() > 0 ) // float fields also need ghosts to be remapped (MapUserData_linear)
+        {
+          std::vector<UserData::FieldAccessor::FieldInfo> float_fields;
+          for (auto field : U.getEnabledFields<float>())
+            float_fields.push_back( {field, (int)float_fields.size()} );
+          ghost_comm.exchange_ghosts( U.getAccessor<float>(float_fields) );
+        }
         timers.get("MPI ghosts").stop();
 
         timers.get("AMR: Mark cells").start();

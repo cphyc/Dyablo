@@ -54,8 +54,13 @@ public:
   void save_old_mesh(UserData& user_data) override;
 
   void remap( UserData& user_data ) override;
+
+  /// Remap fields of type T (public : nvcc forbids device lambdas in non-public members)
+  template< typename T >
+  void remap_fields( UserData& user_data );
     
-  virtual void remap_aux( const UserData::FieldAccessor& Uin, const UserData::FieldAccessor& Uout, const CellIndexRemapper& remapper ) = 0;
+  virtual void remap_aux( const UserData::FieldAccessor_t<double>&, const UserData::FieldAccessor_t<double>&, const CellIndexRemapper& ) = 0;
+  virtual void remap_aux( const UserData::FieldAccessor_t<float>&, const UserData::FieldAccessor_t<float>&, const CellIndexRemapper& ) = 0;
 
 protected:
   ForeachCell& foreach_cell;

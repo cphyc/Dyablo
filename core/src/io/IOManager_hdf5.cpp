@@ -227,6 +227,20 @@ template<> [[maybe_unused]] std::string xmf_type_attr<uint64_t>  () { return R"x
 template<> [[maybe_unused]] std::string xmf_type_attr<float>     () { return R"xml(NumberType="Float" Precision="4")xml"; }
 template<> [[maybe_unused]] std::string xmf_type_attr<double>    () { return R"xml(NumberType="Float" Precision="8")xml"; }
 
+/// Copy field `name` (of type T) to `out`, converted to output_real_t
+template< typename T, typename output_real_t, typename Linearize_t >
+void copy_field( ForeachCell& foreach_cell, const UserData& U, const std::string& name,
+                 const Linearize_t& linearize_iCell, const Kokkos::View< output_real_t*, Kokkos::LayoutLeft >& out )
+{
+  auto field_view = U.getAccessor<T>({{ name,0}} );
+  foreach_cell.foreach_cell( "compute_node_coordinates", field_view.getShape(),
+  KOKKOS_LAMBDA( const ForeachCell::CellIndex& iCell )
+  {
+    uint64_t iCell_lin = linearize_iCell( iCell );
+    out(iCell_lin) = static_cast<output_real_t>(field_view.at_ivar(iCell, 0));
+  });
+}
+
 } // namespace
 
 template <typename output_real_t>
@@ -331,7 +345,7 @@ R"xml(
       {
         output_attr_xml(xmf_type_attr<int>(), var_name);       
       }
-      else if( U_.has_field(var_name) )
+      else if( U_.has_field<double>(var_name) || U_.has_field<float>(var_name) )
       {
         output_attr_xml(xmf_type_attr<output_real_t>(), var_name);
       }
@@ -480,17 +494,14 @@ R"xml(
       }
       else
       {
-        if( U_.has_field(var_name) )
+        if( U_.has_field<double>(var_name) || U_.has_field<float>(var_name) )
         { 
           Kokkos::View< output_real_t*, Kokkos::LayoutLeft > tmp_view(var_name, local_num_cells);
           
-          auto field_view = U_.getAccessor({{ var_name,0}} );
-          foreach_cell.foreach_cell( "compute_node_coordinates", field_view.getShape(),
-          KOKKOS_LAMBDA( const ForeachCell::CellIndex& iCell )
-          {
-            uint64_t iCell_lin = linearize_iCell( iCell );
-            tmp_view(iCell_lin) = static_cast<output_real_t>(field_view.at_ivar(iCell, 0));
-          });
+          if( U_.has_field<double>(var_name) )
+            copy_field<double>( foreach_cell, U_, var_name, linearize_iCell, tmp_view );
+          else
+            copy_field<float>( foreach_cell, U_, var_name, linearize_iCell, tmp_view );
           hdf5_writer.collective_write( var_name, tmp_view );
         }
       }
@@ -508,7 +519,7 @@ R"xml(
         
         // Checking var names are not in U
         for (auto name: var_names)
-          DYABLO_ASSERT_HOST_RELEASE(!U_.has_field(name), "ERROR ! Derived field " << name << " is already present as an active field");
+          DYABLO_ASSERT_HOST_RELEASE(!(U_.has_field<double>(name) || U_.has_field<float>(name)), "ERROR ! Derived field " << name << " is already present as an active field");
         
         uint32_t nfields = var_names.size();
         CellArray_global df_data( std::string("DerivedData_")+var_names.at(0), CellArray_global::Shape_t{bx, by, bz, nfields, nbOcts_local});

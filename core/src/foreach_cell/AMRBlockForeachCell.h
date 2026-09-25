@@ -179,6 +179,10 @@ public:
   using CellArray_global = AMRBlockForeachCell_CellArray_impl::CellArray_global;
   using CellArray_shape = AMRBlockForeachCell_CellArray_impl::CellArray_shape;
   using CellArray_global_ghosted = AMRBlockForeachCell_CellArray_impl::CellArray_global_ghosted;
+  template<typename T = real_t>
+  using CellArray_global_t = AMRBlockForeachCell_CellArray_impl::CellArray_global_t<T>;
+  template<typename T = real_t>
+  using CellArray_global_ghosted_t = AMRBlockForeachCell_CellArray_impl::CellArray_global_ghosted_t<T>;
   using SearchMode_local = AMRBlockForeachCell_CellArray_impl::SearchMode_local;
   using SearchMode_neighbor = AMRBlockForeachCell_CellArray_impl::SearchMode_neighbor;
   using SearchMode_intermediates = AMRBlockForeachCell_CellArray_impl::SearchMode_intermediates;
@@ -277,7 +281,8 @@ public:
   //   return CellArray_global{U, bx, by, bz, (uint32_t)U.extent(2), fm};
   // }
 
-  CellArray_global_ghosted allocate_ghosted_array( const std::string& name, uint32_t nbFields )
+  template< typename T = real_t >
+  CellArray_global_ghosted_t<T> allocate_ghosted_array( const std::string& name, uint32_t nbFields )
   {
     const CData& cdata = this->cdata;
     uint32_t bx = cdata.bx;
@@ -288,7 +293,7 @@ public:
 
     DYABLO_ASSERT_HOST_RELEASE( cdata.ndim != 2 || bz==1, "bz should be 1 in 2D" );
 
-    return CellArray_global_ghosted(name, CellArray_global_ghosted::Shape_t{bx, by, bz, (uint32_t)nbFields, (uint32_t)nbOcts, (uint32_t)nbGhosts, (uint32_t)0});
+    return CellArray_global_ghosted_t<T>(name, CellArray_global_ghosted::Shape_t{bx, by, bz, (uint32_t)nbFields, (uint32_t)nbOcts, (uint32_t)nbGhosts, (uint32_t)0});
   }
   /**
    * Reserve a new temporary ghosted cell array local to each patch. 

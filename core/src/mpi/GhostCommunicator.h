@@ -51,7 +51,8 @@ public:
    * Cells at a distance greater than ghost_count from the local domain have undefined value
    * (they may be exchanged or not depending on the backend)
    ***/
-  void exchange_ghosts( const UserData::FieldAccessor& U ) const
+  template<typename T = real_t>
+  void exchange_ghosts( const UserData::FieldAccessor_t<T>& U ) const
   {
     Impl::exchange_ghosts(U);
   }
@@ -66,7 +67,8 @@ public:
     Impl::exchange_ghosts(U);
   }
 
-  void exchange_ghosts_subset( const UserData::FieldAccessor& U, const OctSubset& subset ) const
+  template<typename T = real_t>
+  void exchange_ghosts_subset( const UserData::FieldAccessor_t<T>& U, const OctSubset& subset ) const
   {
     Impl::exchange_ghosts_subset(U, subset);
   }
@@ -80,7 +82,8 @@ public:
    * Ghost Cells un neighboring blocks at a distance greater than ghost_count from 
    * the local domain may or may not be exchanged depending on the backend, be sure to set them to zero
    ***/
-  void reduce_ghosts( UserData::FieldAccessor& U ) const
+  template<typename T = real_t>
+  void reduce_ghosts( UserData::FieldAccessor_t<T>& U ) const
   {
     Impl::reduce_ghosts(U);
   }

@@ -53,11 +53,13 @@ public:
     {
       HDF5ViewWriter hdf5_file(filename.str()+".h5");
       
-      for( std::string field_name : U.getEnabledFields() )
+      for( std::string field_name : U.getEnabledFields<double>() )
       {
         // TODO save collective_write hint to avoid allreduce for sizes each time
-        hdf5_file.collective_write( std::string("fields/")+field_name, U.getFieldCopy(field_name)._U );
+        hdf5_file.collective_write( std::string("fields/")+field_name, U.getFieldCopy<double>(field_name)._U );
       }
+      for( std::string field_name : U.getEnabledFields<float>() )
+        hdf5_file.collective_write( std::string("fields/")+field_name, U.getFieldCopy<float>(field_name)._U );
 
       for( const std::string& particle_array : U.getEnabledParticleArrays() )
       {

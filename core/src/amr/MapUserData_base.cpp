@@ -14,16 +14,27 @@ void MapUserData_base::save_old_mesh( UserData& U )
 
 void MapUserData_base::remap( UserData& user_data )
 { 
+  // real_t is one of these two
+  remap_fields<double>( user_data );
+  remap_fields<float>( user_data );
+}
+
+template< typename T >
+void MapUserData_base::remap_fields( UserData& user_data )
+{ 
+  if( user_data.nbFields<T>() == 0 ) // No storage (see UserData::delete_field())
+    return;
+
   CellIndexRemapper remapper( this->lmesh_old, this->foreach_cell );
 
-  UserData::FieldAccessor Uin = user_data.backup_and_realloc();
-  UserData::FieldAccessor Uout;
+  UserData::FieldAccessor_t<T> Uin = user_data.backup_and_realloc<T>();
+  UserData::FieldAccessor_t<T> Uout;
   {
     std::vector<UserData::FieldAccessor::FieldInfo> all_fields;
     int i=0;
-    for( const std::string& field : user_data.getEnabledFields() )
+    for( const std::string& field : user_data.getEnabledFields<T>() )
       all_fields.push_back({field, i++});
-    Uout = user_data.getAccessor( all_fields );
+    Uout = user_data.getAccessor<T>( all_fields );
   }
 
   using OctantIndex = LightOctree::OctantIndex;
@@ -113,9 +124,9 @@ void MapUserData_base::remap( UserData& user_data )
   remap_aux( Uin, Uout, remapper );
 
   // Deallocate fields_old before reallocating empty fields
-  Uin = UserData::FieldAccessor();
+  Uin = UserData::FieldAccessor_t<T>();
 
-  user_data.extend_fields();
+  user_data.extend_fields<T>();
 }
 
 

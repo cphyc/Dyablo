@@ -375,8 +375,9 @@ void unpack_reduce( const Kokkos::View<uint32_t*>& send_iOcts, const U_t& U, con
 
     uint32_t iOct_local = send_iOcts(iOct_ghost);
     
-    real_t& local_cell_value = get_U<iOct_pos>(U, iOct_local, i);
-    real_t  ghost_cell_value = get_U<U_t::rank-1>(unpack_buffer, iOct_ghost, i);
+    using value_type = typename U_t::value_type;
+    value_type& local_cell_value = get_U<iOct_pos>(U, iOct_local, i);
+    value_type  ghost_cell_value = get_U<U_t::rank-1>(unpack_buffer, iOct_ghost, i);
     Kokkos::atomic_add( &local_cell_value, ghost_cell_value );
   });
 }

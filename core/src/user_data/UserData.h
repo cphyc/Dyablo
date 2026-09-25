@@ -9,8 +9,9 @@
 namespace dyablo {
 
 namespace UserData_Impl{
+  template< typename T >
   struct UserData_Fields_Pdata;
-  template< bool has_intermediates, int _MAX_FIELD_COUNT >
+  template< bool has_intermediates, int _MAX_FIELD_COUNT, typename T >
   class UserData_FieldAccessor_impl;
   struct UserData_FieldAccessor_FieldInfo;
 
@@ -42,50 +43,59 @@ public:
 
   /***
    * @brief Add new fields with unique identifiers 
-   * names should not be already present
+   * names should not be already present, whatever the type of the existing field
+   * T is double or float (real_t is one of them)
    * WARNING : Invalidates all field accessors if reallocation happens
    ***/
+  template<typename T = real_t>
   void new_fields( const std::set<std::string>& names);
 
   /***
    * @brief Allocate intermediate octants for existing field
    * WARNING : Invalidates all field accessors that have intermediates if reallocation happens
    ***/
+  template<typename T = real_t>
   void new_intermediate_fields(const std::set<std::string>& names);
 
   /***
    * @brief Check if field exists
    ***/
+  template<typename T = real_t>
   bool has_field(const std::string& name) const;
 
   /***
    * @brief Get identifier strings for all enabled fields
    ***/
+  template<typename T = real_t>
   std::set<std::string> getEnabledFields() const;
 
   /***
    * @brief Get View associated with field name
    * Note : this creates a copy, you can't update fields that way
    ***/
-  const ForeachCell::CellArray_global getFieldCopy(const std::string& name) const;
+  template<typename T = real_t>
+  const ForeachCell::CellArray_global_t<T> getFieldCopy(const std::string& name) const;
 
   /***
    * @brief Change name of a field from `src` to `dest`
    * NOTE : order of parameters is dest, src like in Kokkos deep_copy
    * WARNING : Invalidates all accessors containing source field
    ***/
+  template<typename T = real_t>
   void move_field( const std::string& dest, const std::string& src );
 
   /***
    * @brief Delete a field
    * WARNING : Invalidates all accessors containing this field
    ***/
+  template<typename T = real_t>
   void delete_field( const std::string& name );
 
   /***
    * @brief Delete an intermediate field
    * WARNING : Invalidates all accessors containing this field
    ***/
+  template<typename T = real_t>
   void clear_intermediates();
 
   void exchange_loadbalance( const ViewCommunicator& ghost_comm );
@@ -93,17 +103,22 @@ public:
   /***
    * @brief Get the number of active fields in UserData
    ***/
+  template<typename T = real_t>
   int nbFields() const;
 
   using FieldAccessor_FieldInfo = UserData_Impl::UserData_FieldAccessor_FieldInfo;
 
-  template< int _MAX_FIELD_COUNT > 
-  using FieldAccessor_impl = UserData_Impl::UserData_FieldAccessor_impl<false, _MAX_FIELD_COUNT>;
+  template< int _MAX_FIELD_COUNT, typename T = real_t>
+  using FieldAccessor_impl = UserData_Impl::UserData_FieldAccessor_impl<false, _MAX_FIELD_COUNT, T>;
+  template<typename T = real_t>
+  using FieldAccessor_t = FieldAccessor_impl<20, T>;
   using FieldAccessor = FieldAccessor_impl<20>; /// FieldAccessor with only leaves
   using FieldAccessor_leaves = FieldAccessor; /// FieldAccessor with only leaves
 
-  template< int _MAX_FIELD_COUNT >
-  using FieldAccessor_fulltree_impl = UserData_Impl::UserData_FieldAccessor_impl<true, _MAX_FIELD_COUNT>;
+  template< int _MAX_FIELD_COUNT, typename T = real_t >
+  using FieldAccessor_fulltree_impl = UserData_Impl::UserData_FieldAccessor_impl<true, _MAX_FIELD_COUNT, T>;
+  template< typename T = real_t >
+  using FieldAccessor_fulltree_t = FieldAccessor_fulltree_impl<20, T>;
   using FieldAccessor_fulltree = FieldAccessor_fulltree_impl<20>; /// FieldAccessor with leaves and intermediates  
   using FieldAccessor_intermediates [[deprecated]] = FieldAccessor_fulltree; /// Replaced by FieldAccessor_fulltree
 
@@ -112,19 +127,19 @@ public:
    * NOTE : Accessors may be invalidated by some methods from UserData (e.g. deleting or moving a field, reallocating, ...)
    * Do not keep invalidated accessors since live accessors may prevent Kokkos::View deallocation and create memory leaks
    ***/
-  template< int MAX_FIELD_COUNT = 20 >
-  FieldAccessor_impl<MAX_FIELD_COUNT> getAccessor( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const
+  template< typename T = real_t, int MAX_FIELD_COUNT = 20 >
+  FieldAccessor_impl<MAX_FIELD_COUNT, T> getAccessor( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const
   {
-    return FieldAccessor_impl<MAX_FIELD_COUNT>( *(this->fields.pdata), fields_info );
+    return FieldAccessor_impl<MAX_FIELD_COUNT, T>( this->fields.pdata<T>(), fields_info );
   }
 
   /***
    * @brief create a FieldAccessor to access fields listed in `fields_info` and allow access to intermediate cells
    ***/
-  template< int MAX_FIELD_COUNT = 20 >
-  FieldAccessor_fulltree_impl<MAX_FIELD_COUNT> getAccessor_fulltree( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const
+  template< typename T = real_t, int MAX_FIELD_COUNT = 20 >
+  FieldAccessor_fulltree_impl<MAX_FIELD_COUNT, T> getAccessor_fulltree( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const
   {
-    return FieldAccessor_fulltree_impl<MAX_FIELD_COUNT>( *(this->fields.pdata), fields_info );
+    return FieldAccessor_fulltree_impl<MAX_FIELD_COUNT, T>( this->fields.pdata<T>(), fields_info );
   }
 
   /***
@@ -139,8 +154,10 @@ public:
    * AMRmesh is contained in ForeachCell instance that was used to construct this UserData
    * Old data will be deallocated when the returned FieldAccessor is destroyed
    ***/
-  FieldAccessor backup_and_realloc();
+  template<typename T = real_t>
+  FieldAccessor_t<T> backup_and_realloc();
 
+  template<typename T = real_t>
   void extend_fields();
 
   //########################
@@ -237,7 +254,16 @@ private:
   {
     Fields(ConfigMap& configMap, ForeachCell& foreach_cell);
     ~Fields();
-    std::unique_ptr<UserData_Impl::UserData_Fields_Pdata> pdata;
+    // One store per type, real_t is one of them
+    std::unique_ptr<UserData_Impl::UserData_Fields_Pdata<double>> pdata_double;
+    std::unique_ptr<UserData_Impl::UserData_Fields_Pdata<float>> pdata_float;
+    template< typename T >
+    UserData_Impl::UserData_Fields_Pdata<T>& pdata() const
+    {
+      static_assert( std::is_same_v<T, double> || std::is_same_v<T, float>, "UserData fields are double or float" );
+      if constexpr ( std::is_same_v<T, double> ) return *pdata_double.get();
+      else return *pdata_float.get();
+    }
   };
   Fields fields;
   struct Particles
