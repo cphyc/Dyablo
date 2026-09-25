@@ -27,7 +27,8 @@ public:
     this->cellmetadata_old = std::make_unique<ForeachCell::CellMetaData>(foreach_cell.getCellMetaData());
   }
 
-  void remap_aux( const UserData::FieldAccessor& Uin, const UserData::FieldAccessor& Uout, const CellIndexRemapper& remapper ) override
+  template<typename T>
+  void remap_aux_t( const UserData::FieldAccessor_t<T>& Uin, const UserData::FieldAccessor_t<T>& Uout, const CellIndexRemapper& remapper )
   {
     using CellIndex = ForeachCell::CellIndex;
     int nbfields = Uin.nbFields();
@@ -48,21 +49,30 @@ public:
         for(int ivar=0; ivar<nbfields; ivar++)
           Uout.at_ivar( iCell_Uout, ivar ) = Uin.at_ivar( iCell_Uin, ivar );
       }
+
       else
       {
         for(int ivar=0; ivar<nbfields; ivar++)
           Uout.at_ivar( iCell_Uout, ivar ) = 0;
 
         int nsubcells = (ndim-1) * 2 * 2;
+        real_t sums[20] = {};
         foreach_sibling_scattered( ndim, iCell_Uin, lmesh,
             [&](const CellIndex& iCell_Uin_n)
         {
           for(int ivar=0; ivar<nbfields; ivar++)
-            Uout.at_ivar( iCell_Uout, ivar ) += Uin.at_ivar( iCell_Uin_n, ivar ) / nsubcells;
+            sums[ivar] += static_cast<real_t>(Uin.at_ivar( iCell_Uin_n, ivar ));
         });
+        for(int ivar=0; ivar<nbfields; ivar++)
+          Uout.at_ivar( iCell_Uout, ivar ) = static_cast<T>(sums[ivar] / nsubcells);
       }
+
     });
   }
+  void remap_aux( const UserData::FieldAccessor_t<real_t>& a, const UserData::FieldAccessor_t<real_t>& b, const CellIndexRemapper& c ) override { remap_aux_t(a,b,c); }
+  void remap_aux( const UserData::FieldAccessor_t<float>& a, const UserData::FieldAccessor_t<float>& b, const CellIndexRemapper& c ) override { remap_aux_t(a,b,c); }
+  void remap_aux( const UserData::FieldAccessor_t<int32_t>& a, const UserData::FieldAccessor_t<int32_t>& b, const CellIndexRemapper& c ) override { remap_aux_t(a,b,c); }
+  void remap_aux( const UserData::FieldAccessor_t<int64_t>& a, const UserData::FieldAccessor_t<int64_t>& b, const CellIndexRemapper& c ) override { remap_aux_t(a,b,c); }
 protected:
   std::unique_ptr<ForeachCell::CellMetaData> cellmetadata_old;
 };

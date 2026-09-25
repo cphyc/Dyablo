@@ -48,6 +48,9 @@ public:
    ***/
   const FieldView_t::Shape_t getShape() const;
 
+  template<typename T>
+  const typename ForeachCell::CellArray_global_ghosted_t<T>::Shape_t getShape() const;
+
   /***
    * @brief Add new fields with unique identifiers 
    * names should not be already present
@@ -168,6 +171,7 @@ public:
   template<typename T = real_t>
   FieldAccessor_t<T> backup_and_realloc();
 
+  template<typename T = real_t>
   void extend_fields();
 
   //########################

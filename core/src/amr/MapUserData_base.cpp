@@ -9,22 +9,34 @@ namespace dyablo {
 void MapUserData_base::save_old_mesh( UserData& U )
 {
   this->lmesh_old = this->foreach_cell.get_amr_mesh().getLightOctree();
-  this->ghost_comm_full = std::make_unique<GhostCommunicator_full_blocks>( this->foreach_cell.get_amr_mesh(), U.getShape(), -1 );
+  UserData::FieldView_t::Shape_t shape;
+  if( U.nbFields<real_t>() > 0 ) shape = U.getShape<real_t>();
+  else if( U.nbFields<float>() > 0 ) shape = U.getShape<float>();
+  else if( U.nbFields<int32_t>() > 0 ) shape = U.getShape<int32_t>();
+  else
+  {
+    DYABLO_ASSERT_HOST_RELEASE(U.nbFields<int64_t>() > 0,
+      "MapUserData_base::save_old_mesh requires at least one UserData field");
+    shape = U.getShape<int64_t>();
+  }
+  this->ghost_comm_full = std::make_unique<GhostCommunicator_full_blocks>( this->foreach_cell.get_amr_mesh(), shape, -1 );
 }
 
 void MapUserData_base::remap( UserData& user_data )
 { 
   CellIndexRemapper remapper( this->lmesh_old, this->foreach_cell );
 
-  UserData::FieldAccessor Uin = user_data.backup_and_realloc();
-  UserData::FieldAccessor Uout;
-  {
+  auto remap_type = [&]<typename T>() {
+    if( user_data.nbFields<T>() == 0 )
+      return;
+
+    UserData::FieldAccessor_t<T> Uin = user_data.backup_and_realloc<T>();
+    UserData::FieldAccessor_t<T> Uout;
     std::vector<UserData::FieldAccessor::FieldInfo> all_fields;
     int i=0;
-    for( const std::string& field : user_data.getEnabledFields() )
+    for( const std::string& field : user_data.getEnabledFields<T>() )
       all_fields.push_back({field, i++});
-    Uout = user_data.getAccessor( all_fields );
-  }
+    Uout = user_data.getAccessor<T>( all_fields );
 
   using OctantIndex = LightOctree::OctantIndex;
   int ndim = foreach_cell.getDim();   
@@ -108,14 +120,18 @@ void MapUserData_base::remap( UserData& user_data )
 
     GhostCommunicator_full_blocks::OctSubset subset(*ghost_comm_full, coarsened_ghosts);
     this->ghost_comm_full->exchange_ghosts_subset(Uin, subset);
-  }
+    }
 
-  remap_aux( Uin, Uout, remapper );
+    remap_aux( Uin, Uout, remapper );
 
-  // Deallocate fields_old before reallocating empty fields
-  Uin = UserData::FieldAccessor();
+    Uin = UserData::FieldAccessor_t<T>();
+    user_data.extend_fields<T>();
+  };
 
-  user_data.extend_fields();
+  remap_type.template operator()<real_t>();
+  remap_type.template operator()<float>();
+  remap_type.template operator()<int32_t>();
+  remap_type.template operator()<int64_t>();
 }
 
 

@@ -379,6 +379,12 @@ const FieldView_t::Shape_t UserData::getShape() const
 }
 
 template<typename T>
+const typename ForeachCell::CellArray_global_ghosted_t<T>::Shape_t UserData::getShape() const
+{
+  return this->fields.pdata->getShape<T>();
+}
+
+template<typename T>
 void UserData::new_fields( const std::set<std::string>& names)
 {
   this->fields.pdata->new_fields<T>(names);
@@ -458,9 +464,10 @@ UserData::FieldAccessor_t<T> UserData::backup_and_realloc()
   return this->fields.pdata->backup_and_realloc<T>();
 }
 
+template<typename T>
 void UserData::extend_fields()
 {
-  this->fields.pdata->extend_fields();
+  this->fields.pdata->extend_fields<T>();
 }
 
 template<typename T>
@@ -630,6 +637,14 @@ template std::set<std::string> dyablo::UserData::getEnabledFields<real_t>() cons
 template std::set<std::string> dyablo::UserData::getEnabledFields<float>() const;
 template std::set<std::string> dyablo::UserData::getEnabledFields<int32_t>() const;
 template std::set<std::string> dyablo::UserData::getEnabledFields<int64_t>() const;
+template const dyablo::ForeachCell::CellArray_global_ghosted_t<real_t>::Shape_t dyablo::UserData::getShape<real_t>() const;
+template const dyablo::ForeachCell::CellArray_global_ghosted_t<float>::Shape_t dyablo::UserData::getShape<float>() const;
+template const dyablo::ForeachCell::CellArray_global_ghosted_t<int32_t>::Shape_t dyablo::UserData::getShape<int32_t>() const;
+template const dyablo::ForeachCell::CellArray_global_ghosted_t<int64_t>::Shape_t dyablo::UserData::getShape<int64_t>() const;
+template void dyablo::UserData::extend_fields<real_t>();
+template void dyablo::UserData::extend_fields<float>();
+template void dyablo::UserData::extend_fields<int32_t>();
+template void dyablo::UserData::extend_fields<int64_t>();
 template const dyablo::ForeachCell::CellArray_global_t<real_t>
 dyablo::UserData::getFieldCopy<real_t>( const std::string& ) const;
 template const dyablo::ForeachCell::CellArray_global_t<float>

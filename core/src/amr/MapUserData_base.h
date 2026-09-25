@@ -55,7 +55,10 @@ public:
 
   void remap( UserData& user_data ) override;
     
-  virtual void remap_aux( const UserData::FieldAccessor& Uin, const UserData::FieldAccessor& Uout, const CellIndexRemapper& remapper ) = 0;
+  virtual void remap_aux( const UserData::FieldAccessor_t<real_t>&, const UserData::FieldAccessor_t<real_t>&, const CellIndexRemapper& ) = 0;
+  virtual void remap_aux( const UserData::FieldAccessor_t<float>&, const UserData::FieldAccessor_t<float>&, const CellIndexRemapper& ) = 0;
+  virtual void remap_aux( const UserData::FieldAccessor_t<int32_t>&, const UserData::FieldAccessor_t<int32_t>&, const CellIndexRemapper& ) = 0;
+  virtual void remap_aux( const UserData::FieldAccessor_t<int64_t>&, const UserData::FieldAccessor_t<int64_t>&, const CellIndexRemapper& ) = 0;
 
 protected:
   ForeachCell& foreach_cell;

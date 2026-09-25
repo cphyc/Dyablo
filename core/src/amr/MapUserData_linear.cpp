@@ -28,7 +28,8 @@ public:
     this->cellmetadata_old = std::make_unique<ForeachCell::CellMetaData>(foreach_cell.getCellMetaData());
   }
 
-  void remap_aux( const UserData::FieldAccessor& Uin, const UserData::FieldAccessor& Uout, const CellIndexRemapper& remapper ) override
+  template<typename T>
+  void remap_aux_t( const UserData::FieldAccessor_t<T>& Uin, const UserData::FieldAccessor_t<T>& Uout, const CellIndexRemapper& remapper )
   {
     using CellIndex = ForeachCell::CellIndex;
     using pos_t = ForeachCell::CellMetaData::pos_t;
@@ -117,31 +118,33 @@ public:
             };
 
             for (int ivar=0; ivar<nbfields; ivar++) {
+              real_t value = static_cast<real_t>(Uout.at_ivar(iCell_Uout, ivar));
               const real_t gx = get_gradient(iCell_mx, iCell_Uin, iCell_px, ldiffLx, ldiffRx, dh[IX], ivar);
               const real_t gy = get_gradient(iCell_my, iCell_Uin, iCell_py, ldiffLy, ldiffRy, dh[IY], ivar);
               
-              Uout.at_ivar(iCell_Uout, ivar) += dpos[IX]*gx + dpos[IY]*gy;
+              value += dpos[IX]*gx + dpos[IY]*gy;
 
               if (ndim == 3) {
                 const real_t gz = get_gradient(iCell_mz, iCell_Uin, iCell_pz, ldiffLz, ldiffRz, dh[IZ], ivar);
-                Uout.at_ivar(iCell_Uout, ivar) += dpos[IZ]*gz;
+                value += dpos[IZ]*gz;
               }
+              Uout.at_ivar(iCell_Uout, ivar) = static_cast<T>(value);
             }
           }
         }
         else // fine -> coarse
         {
-          for(int ivar=0; ivar<nbfields; ivar++)
-            Uout.at_ivar( iCell_Uout, ivar ) = 0;
-
           int nsubcells = (ndim-1) * 2 * 2;
+          real_t sums[20] = {};
           foreach_sibling_scattered( ndim, iCell_Uin, lmesh,
             [&](const CellIndex& iCell_Uin_n)
           {
             ghost_coarsen_count += iCell_Uin_n.iOct().isGhost ? 1 : 0;
             for(int ivar=0; ivar<nbfields; ivar++)
-              Uout.at_ivar( iCell_Uout, ivar ) += Uin.at_ivar( iCell_Uin_n, ivar ) / nsubcells;
+              sums[ivar] += static_cast<real_t>(Uin.at_ivar( iCell_Uin_n, ivar ));
           });
+          for(int ivar=0; ivar<nbfields; ivar++)
+            Uout.at_ivar( iCell_Uout, ivar ) = static_cast<T>(sums[ivar] / nsubcells);
         }
       }, ghost_coarsen_count);
       if( ghost_coarsen_count > 0 )
@@ -152,6 +155,11 @@ public:
 
     remap();
   }
+
+  void remap_aux( const UserData::FieldAccessor_t<real_t>& a, const UserData::FieldAccessor_t<real_t>& b, const CellIndexRemapper& c ) override { remap_aux_t(a,b,c); }
+  void remap_aux( const UserData::FieldAccessor_t<float>& a, const UserData::FieldAccessor_t<float>& b, const CellIndexRemapper& c ) override { remap_aux_t(a,b,c); }
+  void remap_aux( const UserData::FieldAccessor_t<int32_t>& a, const UserData::FieldAccessor_t<int32_t>& b, const CellIndexRemapper& c ) override { remap_aux_t(a,b,c); }
+  void remap_aux( const UserData::FieldAccessor_t<int64_t>& a, const UserData::FieldAccessor_t<int64_t>& b, const CellIndexRemapper& c ) override { remap_aux_t(a,b,c); }
 
 protected:
   std::unique_ptr<ForeachCell::CellMetaData> cellmetadata_old;
