@@ -107,6 +107,37 @@ int count_local_errors( ForeachCell& foreach_cell, const UserData& U, const std:
   return errors;
 }
 
+/// Number of cells where a float copy differs from `encode`
+int count_copy_errors( ForeachCell& foreach_cell, const ForeachCell::CellArray_global_t<float>& copy )
+{
+  auto cells = foreach_cell.getCellMetaData();
+  int errors = 0;
+  foreach_cell.reduce_cell( "check_copy", copy.getShape(),
+    KOKKOS_LAMBDA( const CellIndex& iCell, int& errors )
+  {
+    auto c = cells.getCellCenter( iCell );
+    if( copy.at_ivar( iCell, 0 ) != encode<float>( c[IX], c[IY], c[IZ] ) )
+      errors++;
+  }, errors);
+  return errors;
+}
+
+/// Number of cells where the float field differs from the real_t field beyond float rounding
+int count_mismatches( ForeachCell& foreach_cell, const ForeachCell::CellArray_global_t<real_t>& rho,
+                      const ForeachCell::CellArray_global_t<float>& f32 )
+{
+  int errors = 0;
+  foreach_cell.reduce_cell( "compare_remap", rho.getShape(),
+    KOKKOS_LAMBDA( const CellIndex& iCell, int& errors )
+  {
+    real_t r = rho.at_ivar( iCell, 0 );
+    real_t f = f32.at_ivar( iCell, 0 );
+    if( Kokkos::abs( f - r ) > 1e-6 * Kokkos::abs( r ) )
+      errors++;
+  }, errors);
+  return errors;
+}
+
 /// With DYABLO_USE_DOUBLE=OFF, real_t fields and float fields share the same store
 constexpr bool separate_stores = !std::is_same_v<real_t, float>;
 
@@ -169,16 +200,7 @@ TEST( Test_UserData_typed, api )
     auto copy = U.getFieldCopy<float>( "f32" );
     static_assert( std::is_same_v< std::decay_t<decltype(copy)>::View_t::value_type, float > );
     EXPECT_EQ( copy.getShape().nbOcts, s.amr_mesh->getNumOctants() );
-    auto cells = s.foreach_cell.getCellMetaData();
-    int errors = 0;
-    s.foreach_cell.reduce_cell( "check_copy", copy.getShape(),
-      KOKKOS_LAMBDA( const CellIndex& iCell, int& errors )
-    {
-      auto c = cells.getCellCenter( iCell );
-      if( copy.at_ivar( iCell, 0 ) != encode<float>( c[IX], c[IY], c[IZ] ) )
-        errors++;
-    }, errors);
-    EXPECT_EQ( errors, 0 );
+    EXPECT_EQ( count_copy_errors( s.foreach_cell, copy ), 0 );
   }
 
   // move / delete
@@ -326,16 +348,7 @@ TEST_P( Test_UserData_typed_remap, float_matches_real )
   ASSERT_EQ( f32.getShape().nbOcts, nbOcts );
 
   // float accumulates coarsening means in float : allow float rounding
-  int errors = 0;
-  s.foreach_cell.reduce_cell( "compare_remap", rho.getShape(),
-    KOKKOS_LAMBDA( const CellIndex& iCell, int& errors )
-  {
-    real_t r = rho.at_ivar( iCell, 0 );
-    real_t f = f32.at_ivar( iCell, 0 );
-    if( Kokkos::abs( f - r ) > 1e-6 * Kokkos::abs( r ) )
-      errors++;
-  }, errors);
-  EXPECT_EQ( 0, global_sum(errors) );
+  EXPECT_EQ( 0, global_sum( count_mismatches( s.foreach_cell, rho, f32 ) ) );
 
   // Next allocations follow the new mesh
   EXPECT_NO_THROW( s.U.new_fields<float>( {"g32"} ) );
