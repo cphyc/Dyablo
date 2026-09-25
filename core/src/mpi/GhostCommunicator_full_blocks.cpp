@@ -244,7 +244,7 @@ void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::Fiel
   int nbCells = fields.getShape().bx * fields.getShape().by * fields.getShape().bz;
   int nbFields = U.nbFields();
 
-  Kokkos::View<real_t***, Kokkos::LayoutLeft> Ughost_subset( "Ughost_subset", nbCells, nbFields, subset.nbGhosts() );
+  Kokkos::View<T***, Kokkos::LayoutLeft> Ughost_subset( "Ughost_subset", nbCells, nbFields, subset.nbGhosts() );
   for(int i=0; i<U.nbFields(); i++)
   {
     int iVar = U.get_index_from_ivar_host(i);
@@ -280,7 +280,7 @@ void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::Fiel
   int nbFields = U.nbFields();
   const bool isIntermediate = this->intermediates;
 
-  Kokkos::View<real_t***, Kokkos::LayoutLeft> Ughost_subset( "Ughost_subset", nbCells, nbFields, subset.nbGhosts() );
+  Kokkos::View<T***, Kokkos::LayoutLeft> Ughost_subset( "Ughost_subset", nbCells, nbFields, subset.nbGhosts() );
   for(int i=0; i<U.nbFields(); i++)
   {
     int iVar = this->intermediates?U.get_index_from_ivar_host_intermediates(i):U.get_index_from_ivar_host(i);
@@ -350,7 +350,7 @@ void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccesso
   int nbFields = U.nbFields();
   const bool isIntermediate = this->intermediates;
 
-  Kokkos::View<real_t***, Kokkos::LayoutLeft> Ughost_subset( "Ughost_subset", nbCells, nbFields, subset.nbGhosts() );
+  Kokkos::View<T***, Kokkos::LayoutLeft> Ughost_subset( "Ughost_subset", nbCells, nbFields, subset.nbGhosts() );
   auto subview_Ughost = fields.subview_Ughost();
 
   auto& subset_iOcts = subset.subset_iOcts;
@@ -385,7 +385,7 @@ void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccesso
   int nbCells = fields.getShape().bx * fields.getShape().by * fields.getShape().bz;
   int nbFields = U.nbFields();
 
-  Kokkos::View<real_t***, Kokkos::LayoutLeft> Ughost_subset( "Ughost_subset", nbCells, nbFields, subset.nbGhosts() );
+  Kokkos::View<T***, Kokkos::LayoutLeft> Ughost_subset( "Ughost_subset", nbCells, nbFields, subset.nbGhosts() );
   auto subview_Ughost = fields.subview_Ughost();
 
   auto& subset_iOcts = subset.subset_iOcts;
