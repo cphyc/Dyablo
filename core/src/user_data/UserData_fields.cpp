@@ -543,6 +543,19 @@ template void FieldAccessor_init<int64_t>( const UserData_Fields_Pdata&, const s
                                            ForeachCell::CellArray_global_ghosted_t<int64_t>&,
                                            ForeachCell::CellArray_global_ghosted_t<int64_t>& );
 
+template void FieldAccessor_FieldManager_init_static<real_t>(
+    const UserData_Fields_Pdata&, const std::vector<FieldInfo>&, int, bool,
+    int&, int*, int*);
+template void FieldAccessor_FieldManager_init_static<float>(
+    const UserData_Fields_Pdata&, const std::vector<FieldInfo>&, int, bool,
+    int&, int*, int*);
+template void FieldAccessor_FieldManager_init_static<int32_t>(
+    const UserData_Fields_Pdata&, const std::vector<FieldInfo>&, int, bool,
+    int&, int*, int*);
+template void FieldAccessor_FieldManager_init_static<int64_t>(
+    const UserData_Fields_Pdata&, const std::vector<FieldInfo>&, int, bool,
+    int&, int*, int*);
+
 template<typename T>
 FieldAccessor_FieldManager<-1, T>::FieldAccessor_FieldManager( const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates )
   : var_to_arrayindex("var_to_arrayindex", fields_info.size()),
@@ -580,6 +593,14 @@ template std::set<std::string> dyablo::UserData::getEnabledFields<real_t>() cons
 template std::set<std::string> dyablo::UserData::getEnabledFields<float>() const;
 template std::set<std::string> dyablo::UserData::getEnabledFields<int32_t>() const;
 template std::set<std::string> dyablo::UserData::getEnabledFields<int64_t>() const;
+template const dyablo::ForeachCell::CellArray_global_t<real_t>
+dyablo::UserData::getFieldCopy<real_t>( const std::string& ) const;
+template const dyablo::ForeachCell::CellArray_global_t<float>
+dyablo::UserData::getFieldCopy<float>( const std::string& ) const;
+template const dyablo::ForeachCell::CellArray_global_t<int32_t>
+dyablo::UserData::getFieldCopy<int32_t>( const std::string& ) const;
+template const dyablo::ForeachCell::CellArray_global_t<int64_t>
+dyablo::UserData::getFieldCopy<int64_t>( const std::string& ) const;
 template void dyablo::UserData::move_field<real_t>( const std::string&, const std::string& );
 template void dyablo::UserData::move_field<float>( const std::string&, const std::string& );
 template void dyablo::UserData::move_field<int32_t>( const std::string&, const std::string& );

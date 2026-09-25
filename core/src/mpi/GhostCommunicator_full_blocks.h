@@ -34,8 +34,10 @@ public:
       return ViewCommunicator::getNumGhosts();
     }
 
-    void exchange_ghosts( const UserData::FieldAccessor& U ) const;
-    void exchange_ghosts( const UserData::FieldAccessor_fulltree& U ) const;
+    template<typename T = real_t>
+    void exchange_ghosts( const UserData::FieldAccessor_t<T>& U ) const;
+    template<typename T = real_t>
+    void exchange_ghosts( const UserData::FieldAccessor_fulltree_t<T>& U ) const;
 
     void exchange_ghosts( ForeachCell::CellArray_global_ghosted& U ) const;
 
@@ -67,16 +69,22 @@ public:
       Kokkos::View<uint32_t*> subset_iOcts;
     };
 
-    void exchange_ghosts_subset( const UserData::FieldAccessor& U, const OctSubset& subset ) const;
-    void exchange_ghosts_subset( const UserData::FieldAccessor_fulltree& U, const OctSubset& subset ) const;
+    template<typename T = real_t>
+    void exchange_ghosts_subset( const UserData::FieldAccessor_t<T>& U, const OctSubset& subset ) const;
+    template<typename T = real_t>
+    void exchange_ghosts_subset( const UserData::FieldAccessor_fulltree_t<T>& U, const OctSubset& subset ) const;
 
-    void reduce_ghosts( UserData::FieldAccessor& U ) const;
-    void reduce_ghosts( UserData::FieldAccessor_fulltree& U ) const;
+    template<typename T = real_t>
+    void reduce_ghosts( UserData::FieldAccessor_t<T>& U ) const;
+    template<typename T = real_t>
+    void reduce_ghosts( UserData::FieldAccessor_fulltree_t<T>& U ) const;
 
     void reduce_ghosts( ForeachCell::CellArray_global_ghosted& U ) const; 
 
-    void reduce_ghosts_subset( UserData::FieldAccessor& U, const OctSubset& subset ) const;
-    void reduce_ghosts_subset( UserData::FieldAccessor_fulltree& U, const OctSubset& subset ) const;
+    template<typename T = real_t>
+    void reduce_ghosts_subset( UserData::FieldAccessor_t<T>& U, const OctSubset& subset ) const;
+    template<typename T = real_t>
+    void reduce_ghosts_subset( UserData::FieldAccessor_fulltree_t<T>& U, const OctSubset& subset ) const;
 };
 
 } // namespace dyablo

@@ -1046,7 +1046,7 @@ public:
   }
 
   KOKKOS_INLINE_FUNCTION
-  real_t* at( const CellIndex& iCell ) const
+  T* at( const CellIndex& iCell ) const
   {
     DYABLO_ASSERT_KOKKOS_DEBUG(shape.bx == iCell.bx(), "bx mismatch icell vs array");
     DYABLO_ASSERT_KOKKOS_DEBUG(shape.by == iCell.by(), "by mismatch icell vs array");
@@ -1073,7 +1073,7 @@ public:
   {
     real_t* origin = this->at(iCell);
 
-    auto value = [&](int ivar) -> real_t&
+    auto value = [&](int ivar) -> T&
     {
       return origin[get_offset_ivar(ivar)];
     };

@@ -9,7 +9,8 @@ Kokkos::View<uint32_t*> GhostCommunicator_full_blocks::iOcts_send() const
   return this->send_iOcts;
 }
 
-void GhostCommunicator_full_blocks::exchange_ghosts( const UserData::FieldAccessor& U ) const
+template<typename T>
+void GhostCommunicator_full_blocks::exchange_ghosts( const UserData::FieldAccessor_t<T>& U ) const
 {
   DYABLO_ASSERT_HOST_DEBUG( !this->intermediates, "Trying to echange intermediate ghosts but FieldAccessor don't have intermediates" );
   auto &fields = U.fields;
@@ -24,7 +25,8 @@ void GhostCommunicator_full_blocks::exchange_ghosts( const UserData::FieldAccess
   }
 }
 
-void GhostCommunicator_full_blocks::exchange_ghosts( const UserData::FieldAccessor_fulltree& U ) const
+template<typename T>
+void GhostCommunicator_full_blocks::exchange_ghosts( const UserData::FieldAccessor_fulltree_t<T>& U ) const
 {
   auto &fields = this->intermediates?U.fields_intermediates:U.fields;
 
@@ -233,7 +235,8 @@ GhostCommunicator_full_blocks::OctSubset::OctSubset(const GhostCommunicator_full
    );
 }
 
-void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::FieldAccessor& U, const OctSubset& subset ) const
+template<typename T>
+void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::FieldAccessor_t<T>& U, const OctSubset& subset ) const
 {
   DYABLO_ASSERT_HOST_DEBUG( !this->intermediates, "Trying to echange intermediate ghosts but FieldAccessor don't have intermediates" );
   auto &fields = U.fields;
@@ -268,7 +271,8 @@ void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::Fiel
   });      
 }
 
-void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::FieldAccessor_fulltree& U, const OctSubset& subset ) const
+template<typename T>
+void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::FieldAccessor_fulltree_t<T>& U, const OctSubset& subset ) const
 {
   auto &fields = this->intermediates?U.fields_intermediates:U.fields;
 
@@ -304,7 +308,8 @@ void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::Fiel
 }
 
 
-void GhostCommunicator_full_blocks::reduce_ghosts( UserData::FieldAccessor_fulltree& U ) const
+template<typename T>
+void GhostCommunicator_full_blocks::reduce_ghosts( UserData::FieldAccessor_fulltree_t<T>& U ) const
 {
   auto &fields = this->intermediates?U.fields_intermediates:U.fields;
 
@@ -318,7 +323,8 @@ void GhostCommunicator_full_blocks::reduce_ghosts( UserData::FieldAccessor_fullt
   }
 }
 
-void GhostCommunicator_full_blocks::reduce_ghosts( UserData::FieldAccessor& U ) const
+template<typename T>
+void GhostCommunicator_full_blocks::reduce_ghosts( UserData::FieldAccessor_t<T>& U ) const
 {
   for(int i=0; i<U.nbFields(); i++)
   {
@@ -335,7 +341,8 @@ void GhostCommunicator_full_blocks::reduce_ghosts( ForeachCell::CellArray_global
   ViewCommunicator::reduce_ghosts<2>(U.subview_U(), U.subview_Ughost());
 }  
 
-void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccessor_fulltree& U, const OctSubset& subset ) const
+template<typename T>
+void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccessor_fulltree_t<T>& U, const OctSubset& subset ) const
 {
   auto &fields = this->intermediates?U.fields_intermediates:U.fields;
 
@@ -370,7 +377,8 @@ void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccesso
   }
 }
 
-void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccessor& U, const OctSubset& subset ) const
+template<typename T>
+void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccessor_t<T>& U, const OctSubset& subset ) const
 {
   auto &fields = U.fields;
 
@@ -403,5 +411,38 @@ void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccesso
     subset.partial_comm->reduce_ghosts<2>( U_subview, Ughost_subview );
   }
 }
+
+template void GhostCommunicator_full_blocks::exchange_ghosts<real_t>(const UserData::FieldAccessor_t<real_t>&) const;
+template void GhostCommunicator_full_blocks::exchange_ghosts<float>(const UserData::FieldAccessor_t<float>&) const;
+template void GhostCommunicator_full_blocks::exchange_ghosts<int32_t>(const UserData::FieldAccessor_t<int32_t>&) const;
+template void GhostCommunicator_full_blocks::exchange_ghosts<int64_t>(const UserData::FieldAccessor_t<int64_t>&) const;
+template void GhostCommunicator_full_blocks::exchange_ghosts<real_t>(const UserData::FieldAccessor_fulltree_t<real_t>&) const;
+template void GhostCommunicator_full_blocks::exchange_ghosts<float>(const UserData::FieldAccessor_fulltree_t<float>&) const;
+template void GhostCommunicator_full_blocks::exchange_ghosts<int32_t>(const UserData::FieldAccessor_fulltree_t<int32_t>&) const;
+template void GhostCommunicator_full_blocks::exchange_ghosts<int64_t>(const UserData::FieldAccessor_fulltree_t<int64_t>&) const;
+template void GhostCommunicator_full_blocks::reduce_ghosts<real_t>(UserData::FieldAccessor_t<real_t>&) const;
+template void GhostCommunicator_full_blocks::reduce_ghosts<float>(UserData::FieldAccessor_t<float>&) const;
+template void GhostCommunicator_full_blocks::reduce_ghosts<int32_t>(UserData::FieldAccessor_t<int32_t>&) const;
+template void GhostCommunicator_full_blocks::reduce_ghosts<int64_t>(UserData::FieldAccessor_t<int64_t>&) const;
+template void GhostCommunicator_full_blocks::reduce_ghosts<real_t>(UserData::FieldAccessor_fulltree_t<real_t>&) const;
+template void GhostCommunicator_full_blocks::reduce_ghosts<float>(UserData::FieldAccessor_fulltree_t<float>&) const;
+template void GhostCommunicator_full_blocks::reduce_ghosts<int32_t>(UserData::FieldAccessor_fulltree_t<int32_t>&) const;
+template void GhostCommunicator_full_blocks::reduce_ghosts<int64_t>(UserData::FieldAccessor_fulltree_t<int64_t>&) const;
+template void GhostCommunicator_full_blocks::exchange_ghosts_subset<real_t>(const UserData::FieldAccessor_t<real_t>&, const OctSubset&) const;
+template void GhostCommunicator_full_blocks::exchange_ghosts_subset<float>(const UserData::FieldAccessor_t<float>&, const OctSubset&) const;
+template void GhostCommunicator_full_blocks::exchange_ghosts_subset<int32_t>(const UserData::FieldAccessor_t<int32_t>&, const OctSubset&) const;
+template void GhostCommunicator_full_blocks::exchange_ghosts_subset<int64_t>(const UserData::FieldAccessor_t<int64_t>&, const OctSubset&) const;
+template void GhostCommunicator_full_blocks::exchange_ghosts_subset<real_t>(const UserData::FieldAccessor_fulltree_t<real_t>&, const OctSubset&) const;
+template void GhostCommunicator_full_blocks::exchange_ghosts_subset<float>(const UserData::FieldAccessor_fulltree_t<float>&, const OctSubset&) const;
+template void GhostCommunicator_full_blocks::exchange_ghosts_subset<int32_t>(const UserData::FieldAccessor_fulltree_t<int32_t>&, const OctSubset&) const;
+template void GhostCommunicator_full_blocks::exchange_ghosts_subset<int64_t>(const UserData::FieldAccessor_fulltree_t<int64_t>&, const OctSubset&) const;
+template void GhostCommunicator_full_blocks::reduce_ghosts_subset<real_t>(UserData::FieldAccessor_t<real_t>&, const OctSubset&) const;
+template void GhostCommunicator_full_blocks::reduce_ghosts_subset<float>(UserData::FieldAccessor_t<float>&, const OctSubset&) const;
+template void GhostCommunicator_full_blocks::reduce_ghosts_subset<int32_t>(UserData::FieldAccessor_t<int32_t>&, const OctSubset&) const;
+template void GhostCommunicator_full_blocks::reduce_ghosts_subset<int64_t>(UserData::FieldAccessor_t<int64_t>&, const OctSubset&) const;
+template void GhostCommunicator_full_blocks::reduce_ghosts_subset<real_t>(UserData::FieldAccessor_fulltree_t<real_t>&, const OctSubset&) const;
+template void GhostCommunicator_full_blocks::reduce_ghosts_subset<float>(UserData::FieldAccessor_fulltree_t<float>&, const OctSubset&) const;
+template void GhostCommunicator_full_blocks::reduce_ghosts_subset<int32_t>(UserData::FieldAccessor_fulltree_t<int32_t>&, const OctSubset&) const;
+template void GhostCommunicator_full_blocks::reduce_ghosts_subset<int64_t>(UserData::FieldAccessor_fulltree_t<int64_t>&, const OctSubset&) const;
 
 } // namespace dyablo
