@@ -979,7 +979,7 @@ public:
   using View_t = Kokkos::View<T***, Kokkos::LayoutLeft>;
   static constexpr bool has_ghosts = has_ghosts_;
 
-  View_t _U;
+  View_t _U;    
   Shape_t shape;
 
 protected:
@@ -1092,12 +1092,12 @@ public:
   }
 };
 
-template<typename T = real_t>
+using CellArray_global = CellArray_base<false>;
+using CellArray_global_ghosted = CellArray_base<true>;
+template<typename T>
 using CellArray_global_t = CellArray_base<false, T>;
-template<typename T = real_t>
+template<typename T>
 using CellArray_global_ghosted_t = CellArray_base<true, T>;
-using CellArray_global = CellArray_global_t<>;
-using CellArray_global_ghosted = CellArray_global_ghosted_t<>;
 
 } // namespace AMRBlockForeachCell_CellArray_impl
 

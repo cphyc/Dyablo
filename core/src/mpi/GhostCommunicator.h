@@ -88,24 +88,6 @@ public:
     Impl::reduce_ghosts(U);
   }
 
-  template<typename T = real_t>
-  void exchange_ghosts( const UserData::FieldAccessor_fulltree_t<T>& U ) const
-  {
-    Impl::exchange_ghosts(U);
-  }
-
-  template<typename T = real_t>
-  void exchange_ghosts_subset( const UserData::FieldAccessor_fulltree_t<T>& U, const OctSubset& subset ) const
-  {
-    Impl::exchange_ghosts_subset(U, subset);
-  }
-
-  template<typename T = real_t>
-  void reduce_ghosts( UserData::FieldAccessor_fulltree_t<T>& U ) const
-  {
-    Impl::reduce_ghosts(U);
-  }
-
   void reduce_ghosts( ForeachCell::CellArray_global_ghosted& U ) const
   {
     Impl::reduce_ghosts(U);

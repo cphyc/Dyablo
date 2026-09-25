@@ -281,7 +281,8 @@ public:
   //   return CellArray_global{U, bx, by, bz, (uint32_t)U.extent(2), fm};
   // }
 
-  CellArray_global_ghosted allocate_ghosted_array( const std::string& name, uint32_t nbFields )
+  template< typename T = real_t >
+  CellArray_global_ghosted_t<T> allocate_ghosted_array( const std::string& name, uint32_t nbFields )
   {
     const CData& cdata = this->cdata;
     uint32_t bx = cdata.bx;
@@ -292,7 +293,7 @@ public:
 
     DYABLO_ASSERT_HOST_RELEASE( cdata.ndim != 2 || bz==1, "bz should be 1 in 2D" );
 
-    return CellArray_global_ghosted(name, CellArray_global_ghosted::Shape_t{bx, by, bz, (uint32_t)nbFields, (uint32_t)nbOcts, (uint32_t)nbGhosts, (uint32_t)0});
+    return CellArray_global_ghosted_t<T>(name, CellArray_global_ghosted::Shape_t{bx, by, bz, (uint32_t)nbFields, (uint32_t)nbOcts, (uint32_t)nbGhosts, (uint32_t)0});
   }
   /**
    * Reserve a new temporary ghosted cell array local to each patch. 

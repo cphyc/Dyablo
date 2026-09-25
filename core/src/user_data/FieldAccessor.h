@@ -16,14 +16,14 @@ struct UserData_FieldAccessor_FieldInfo
 };
 
 template<typename T>
-void FieldAccessor_init(const UserData_Fields_Pdata& user_data, const std::vector<UserData_FieldAccessor_FieldInfo>& fields_info,
+void FieldAccessor_init(const UserData_Fields_Pdata<T>& user_data, const std::vector<UserData_FieldAccessor_FieldInfo>& fields_info,
                         int max_field_count, bool has_intermediates,
                         ForeachCell::CellArray_global_ghosted_t<T>& fields,
                         ForeachCell::CellArray_global_ghosted_t<T>& fields_intermediates
                       );
 
 template<typename T>
-void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_data, const std::vector<UserData_FieldAccessor_FieldInfo>& fields_info,
+void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata<T>& user_data, const std::vector<UserData_FieldAccessor_FieldInfo>& fields_info,
                         int max_field_count, bool has_intermediates,
                         int& _nbFields,
                         int* var_to_arrayindex,
@@ -48,7 +48,7 @@ public:
     FieldAccessor_FieldManager& operator=(const FieldAccessor_FieldManager& ) = default;
     FieldAccessor_FieldManager& operator=(FieldAccessor_FieldManager& ) = default;
 
-    FieldAccessor_FieldManager(const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates)
+    FieldAccessor_FieldManager(const UserData_Fields_Pdata<T>& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates)
     {
         FieldAccessor_FieldManager_init_static<T>( user_data, fields_info, 
                                                 MAX_FIELD_COUNT, has_intermediates,
@@ -99,7 +99,7 @@ public:
     FieldAccessor_FieldManager& operator=(const FieldAccessor_FieldManager& ) = default;
     FieldAccessor_FieldManager& operator=(FieldAccessor_FieldManager& ) = default;
 
-    FieldAccessor_FieldManager(const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates);
+    FieldAccessor_FieldManager(const UserData_Fields_Pdata<T>& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates);
 
     KOKKOS_INLINE_FUNCTION
     int nbFields() const
@@ -129,7 +129,7 @@ template< bool has_intermediates, int _MAX_FIELD_COUNT, typename T >
 class UserData_FieldAccessor_impl
 {
 friend GhostCommunicator_full_blocks;
-friend UserData_Fields_Pdata;
+template< typename > friend struct UserData_Fields_Pdata;
 public:
     static constexpr int MAX_FIELD_COUNT = _MAX_FIELD_COUNT;
     using FieldInfo = UserData_FieldAccessor_FieldInfo;
@@ -148,7 +148,7 @@ public:
         return fm.nbFields();
     }
 
-    UserData_FieldAccessor_impl(const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info)
+    UserData_FieldAccessor_impl(const UserData_Fields_Pdata<T>& user_data, const std::vector<FieldInfo>& fields_info)
         : fm( user_data, fields_info, false )
     {
         if constexpr (has_intermediates)
@@ -178,7 +178,7 @@ public:
         };
 
         if constexpr ( sizeof...(VarIndex_s) == 0 )
-            return (value(varindex_0)); // Parenthesis are important here to keep T& reference
+            return (value(varindex_0)); // Parenthesis are important here to keep real_t& reference
         else
             return dyablo_tuple_tie( value(varindex_0), value(varindex_s)... );
     }

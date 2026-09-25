@@ -10,26 +10,15 @@ namespace dyablo {
 
 namespace UserData_Impl{
 
+template<typename T>
 struct UserData_Fields_Pdata
 {
   struct field_index_t
   {
       int index;
   };
-
-  template<typename T>
-  struct TypedFields
-  {
-    using View_t = ForeachCell::CellArray_global_ghosted_t<T>;
-    View_t fields;
-    std::map<std::string, field_index_t> field_index;
-    int max_field_count = 0;
-    View_t fields_intermediate;
-    std::map<std::string, field_index_t> field_index_intermediate;
-    int max_field_count_intermediate = 0;
-  };
 public:
-    using FieldView_t = ForeachCell::CellArray_global_ghosted;
+    using FieldView_t = ForeachCell::CellArray_global_ghosted_t<T>;
 
     UserData_Fields_Pdata( const UserData_Fields_Pdata& ) = default;
     UserData_Fields_Pdata( UserData_Fields_Pdata&& ) = default;
@@ -44,25 +33,20 @@ public:
      * UserData_fields must have at least one active field
      * WARNING : resulting shape doesn't account for intermediates
      ***/
-    template<typename T = real_t>
-    const typename ForeachCell::CellArray_global_ghosted_t<T>::Shape_t getShape() const
+    const typename FieldView_t::Shape_t getShape() const
     {
-        const auto& typed = typed_fields<T>();
-        DYABLO_ASSERT_HOST_RELEASE( typed.field_index.size() > 0, "Cannot getShape() of an empty UserData_fields" );
-        return typed.fields.getShape();
+        DYABLO_ASSERT_HOST_RELEASE( field_index.size() > 0, "Cannot getShape() of an empty UserData_fields" );
+        return fields.getShape();
     }
 
-    template<typename T = real_t>
     void extend_fields( )
     {
         int nbOcts = this->foreach_cell.get_amr_mesh().getNumOctants();
         int nbGhosts = this->foreach_cell.get_amr_mesh().getNumGhosts();
-        auto& typed = typed_fields<T>();
-        extend_fields_aux(foreach_cell, typed.fields, nbOcts, nbGhosts, typed.max_field_count);
+        extend_fields_aux(foreach_cell, fields, nbOcts, nbGhosts, max_field_count);
     }
 
-    template<typename View_t>
-    static void initialise_new_aux(View_t& fields, const int index)
+    static void initialise_new_aux(FieldView_t& fields, const int index)
     {
         const auto& U = fields._U;
         const uint32_t extent_0 = U.extent(0);
@@ -77,11 +61,10 @@ public:
         });
     }
 
-    template<typename View_t>
-    static void extend_fields_aux( ForeachCell& foreach_cell, View_t& fields, uint32_t nbOcts, uint32_t nbGhosts, uint32_t max_field_count )
+    static void extend_fields_aux( ForeachCell& foreach_cell, FieldView_t& fields, uint32_t nbOcts, uint32_t nbGhosts, uint32_t max_field_count )
     {
         int allocated_field_count = fields.nbfields();
-        FieldView_t::Shape_t shape{
+        typename FieldView_t::Shape_t shape{
           .bx = foreach_cell.blockSize()[IX],
           .by = foreach_cell.blockSize()[IY],
           .bz = foreach_cell.blockSize()[IZ],
@@ -89,7 +72,7 @@ public:
           .nbOcts = nbOcts,
           .nbGhosts = nbGhosts,
         };
-        View_t fields_new( "UserData_fields", shape );
+        FieldView_t fields_new( "UserData_fields", shape );
         
         if( allocated_field_count != 0 )
         {
@@ -101,13 +84,12 @@ public:
         fields = fields_new;
     }
 
-    template<typename View_t>
     static void new_fields_aux( const std::set<std::string>& names,
                                 const size_t nbOcts,
                                 const size_t nbGhosts,
                                 int& max_field_count,
                                 std::map<std::string, field_index_t>& field_index,
-                                View_t& fields,
+                                FieldView_t& fields,
                                 ForeachCell& foreach_cell)
     {
         if( field_index.size() != 0 )
@@ -155,53 +137,44 @@ public:
      * Add new fields with unique identifiers 
      * names should not be already present
      **/
-    template<typename T = real_t>
     void new_fields( const std::set<std::string>& names)
     {
-        // Names are unique across types
-        for( const std::string& name : names )
-            if( has_field<double>(name) || has_field<float>(name) )
-                throw std::runtime_error(std::string("UserData_fields::new_fields() - field already exists : ") + name);
-        auto& typed = typed_fields<T>();
-        const size_t nbOcts = foreach_cell.get_amr_mesh().getNumOctants();
-        const size_t nbGhosts = foreach_cell.get_amr_mesh().getNumGhosts();
-        new_fields_aux(names, nbOcts, nbGhosts, typed.max_field_count,
-                       typed.field_index, typed.fields, foreach_cell);
+        size_t nbOcts = this->foreach_cell.get_amr_mesh().getNumOctants();
+        size_t nbGhosts = this->foreach_cell.get_amr_mesh().getNumGhosts();
+        int& max_field_count = this->max_field_count;
+        std::map<std::string, field_index_t>& field_index = this->field_index;
+        FieldView_t& fields = this->fields;
+
+        new_fields_aux(names,nbOcts,nbGhosts,max_field_count,field_index,fields,this->foreach_cell);
     }
 
-    template<typename T = real_t>
     void new_intermediate_fields( const std::set<std::string>& names)
     {
         size_t nbOcts = this->foreach_cell.get_amr_mesh().getNumIntermediates();
         size_t nbGhosts = this->foreach_cell.get_amr_mesh().getNumIntermediateGhosts();
-        auto& typed = typed_fields<T>();
+        int& max_field_count = this->max_field_count_intermediate;
+        std::map<std::string, field_index_t>& field_index = this->field_index_intermediate;
+        FieldView_t& fields = this->fields_intermediate;
 
-        new_fields_aux(names, nbOcts, nbGhosts, typed.max_field_count_intermediate,
-                       typed.field_index_intermediate, typed.fields_intermediate,
-                       this->foreach_cell);
+        new_fields_aux(names,nbOcts,nbGhosts,max_field_count,field_index,fields,this->foreach_cell);
     }
 
     /// Check if field exists
-    template<typename T = real_t>
     bool has_field(const std::string& name) const
     {
-        const auto& typed = typed_fields<T>();
-        return typed.field_index.end() != typed.field_index.find(name);
+        return field_index.end() != field_index.find(name);
     }
 
     /// Check if field exists
-    template<typename T = real_t>
     bool has_intermediate_field(const std::string& name) const
     {
-        const auto& typed = typed_fields<T>();
-        return typed.field_index_intermediate.end() != typed.field_index_intermediate.find(name);
+        return field_index_intermediate.end() != field_index_intermediate.find(name);
     }
 
-    template<typename T = real_t>
     std::set<std::string> getEnabledFields() const
     {
         std::set<std::string> res;
-        for( const auto& p : typed_fields<T>().field_index )
+        for( const auto& p : field_index )
         {
             res.insert( p.first );
         }
@@ -209,90 +182,73 @@ public:
     } 
     
     // Get View associated with field name
-    template<typename T = real_t>
     const ForeachCell::CellArray_global_t<T> getFieldCopy(const std::string& name) const
     {
-        const auto& typed = typed_fields<T>();
-        if( !this->has_field<T>(name)  )
+        if( !this->has_field(name)  )
             throw std::runtime_error(std::string("UserData_fields::getFieldCopy() - field doesn't exist : ") + name);
         
-        int index = typed.field_index.at(name).index;
+        int index = field_index.at(name).index;
 
-        using GlobalView_t = ForeachCell::CellArray_global_t<T>;
-        typename GlobalView_t::Shape_t shape{typed.fields.getShape().bx, typed.fields.getShape().by,
-                                             typed.fields.getShape().bz, 1, typed.fields.getShape().nbOcts};
-        GlobalView_t res( name+"_copy", shape);
+        ForeachCell::CellArray_global::Shape_t shape{this->getShape().bx, this->getShape().by, this->getShape().bz, 1, this->getShape().nbOcts};
+        ForeachCell::CellArray_global_t<T> res( name+"_copy", shape);
 
         Kokkos::deep_copy( 
             res.subview_U(),
-            Kokkos::subview(typed.fields.subview_U(), Kokkos::ALL(), std::pair(index, index+1) , Kokkos::ALL() )
+            Kokkos::subview(fields.subview_U(), Kokkos::ALL(), std::pair(index, index+1) , Kokkos::ALL() )
         );
 
         return res;
     }
 
     /// Change field name from src to dest. If dest already exist it is replaced
-    template<typename T = real_t>
     void move_field( const std::string& dest, const std::string& src )
     {
-        auto& typed = typed_fields<T>();
-        DYABLO_ASSERT_HOST_RELEASE( this->has_field<T>(src), "UserData_fields::move_field() - field doesn't exist : " << src);
-        DYABLO_ASSERT_HOST_RELEASE( this->has_field<T>(dest) || !(this->has_field<double>(dest) || this->has_field<float>(dest)),
-                                    "UserData_fields::move_field() - field exists with another type : " << dest);
+        DYABLO_ASSERT_HOST_RELEASE( this->has_field(src), "UserData_fields::move_field() - field doesn't exist : " << src);
 
-        typed.field_index[ dest ] = typed.field_index.at( src );
-        typed.field_index.erase( src );
+        field_index[ dest ] = field_index.at( src );
+        field_index.erase( src );
     }
 
-    template<typename T = real_t>
     void delete_field( const std::string& name )
     {
-        auto& typed = typed_fields<T>();
-        typed.field_index.erase( name );
-        if( typed.field_index.empty() )
+        field_index.erase( name );
+        if( field_index.empty() ) // Release storage : types without fields are skipped when the mesh changes
         {
-            // Release storage : types without fields are skipped when the mesh changes (load balancing, remap)
-            typed.fields = typename TypedFields<T>::View_t();
-            typed.max_field_count = 0;
+            fields = FieldView_t();
+            max_field_count = 0;
         }
     }
 
-    template<typename T = real_t>
     void clear_intermediates()
     {
-        auto& typed = typed_fields<T>();
-        typed.fields_intermediate = typename TypedFields<T>::View_t();
-        typed.field_index_intermediate.clear();
+        this->fields_intermediate = FieldView_t(); // Reset intermediate fields
+        this->field_index_intermediate.clear(); // Clear the index
     }
 
     /// Get the number of active fields in UserData_fields
-    template<typename T = real_t>
     int nbFields() const
     {
-        return typed_fields<T>().field_index.size();
+        return field_index.size();
     }
 
-    template<typename T = real_t>
     int nbFields_intermediates()
     {
-      return typed_fields<T>().field_index_intermediate.size();
+      return field_index_intermediate.size();
     }
 
-    template<typename T = real_t>
     void exchange_loadbalance( const ViewCommunicator& ghost_comm )
     {
-      if( nbFields<T>() == 0 ) // No storage (see delete_field())
+      if( nbFields() == 0 ) // No storage (see delete_field())
         return;
-      auto& typed_fields_data = typed_fields<T>();
-      DYABLO_ASSERT_HOST_RELEASE( 0 == nbFields_intermediates<T>(), "UserData::exchange_loadbalance : Keeping intermediates between interations is not supported yet" );
+      DYABLO_ASSERT_HOST_RELEASE( 0 == nbFields_intermediates(), "UserData::exchange_loadbalance : Keeping intermediates between interations is not supported yet" );
       {  
-        auto fields_old = this->backup_and_realloc<T>();
-        int nb_fields = this->nbFields<T>();
+        UserData::FieldAccessor_t<T> fields_old = this->backup_and_realloc();
+        int nb_fields = this->nbFields();
         auto old_fields_View = Kokkos::subview( fields_old.fields.subview_U(), 
                                                 Kokkos::ALL(),
                                                 std::make_pair(0, nb_fields),
                                                 Kokkos::ALL()  );
-        auto new_fields_View = Kokkos::subview(typed_fields_data.fields.subview_U(), 
+        auto new_fields_View = Kokkos::subview(this->fields.subview_U(), 
                                                 Kokkos::ALL(),
                                                 std::make_pair(0, nb_fields),
                                                 Kokkos::ALL()  );
@@ -300,79 +256,70 @@ public:
         ghost_comm.exchange_ghosts<2>(old_fields_View, new_fields_View );
       }// This block is important to deallocate fields_old before extend_fields()
 
-      this->extend_fields<T>();
+      this->extend_fields();
     }
 
-    template<typename T = real_t>
+    UserData::FieldAccessor_t<T> getAccessor( const std::vector<UserData::FieldAccessor_FieldInfo>& fields_info ) const
+    {
+      return UserData::FieldAccessor_t<T>(*this, fields_info);
+    }
+
+    UserData::FieldAccessor_fulltree_t<T> getAccessor_fulltree( const std::vector<UserData::FieldAccessor_FieldInfo>& fields_info ) const
+    {
+      return UserData::FieldAccessor_fulltree_t<T>(*this, fields_info);
+    }
+
     UserData::FieldAccessor_t<T> backup_and_realloc()
     {
-      DYABLO_ASSERT_HOST_RELEASE( 0 == nbFields_intermediates<T>(), "UserData::backup_and_realloc : Keeping intermediates between interations is not supported yet" );
+      DYABLO_ASSERT_HOST_RELEASE( 0 == nbFields_intermediates(), "UserData::backup_and_realloc : Keeping intermediates between interations is not supported yet" );
 
       using FieldAccessor = UserData::FieldAccessor_t<T>;
       std::vector<typename FieldAccessor::FieldInfo> all_fields;
       int i=0;
-      for( const std::string& field : this->getEnabledFields<T>() )
+      for( const std::string& field : this->getEnabledFields() )
         all_fields.push_back({field, i++});
-      FieldAccessor fields_old( *this, all_fields );
+      FieldAccessor fields_old = this->getAccessor( all_fields );
 
-      auto& typed = typed_fields<T>();
-      const auto block_size = foreach_cell.blockSize();
-      const auto shape = typename TypedFields<T>::View_t::Shape_t{
-        .bx = block_size[IX],
-        .by = block_size[IY],
-        .bz = block_size[IZ],
-        .nbFields = static_cast<uint32_t>(typed.field_index.size()),
-        .nbOcts = foreach_cell.get_amr_mesh().getNumOctants(),
-        .nbGhosts = foreach_cell.get_amr_mesh().getNumGhosts()
-      };
-      typed.fields = typename TypedFields<T>::View_t("UserData_fields", shape);
+      this->fields = foreach_cell.allocate_ghosted_array<T>( "UserData_fields", this->field_index.size() );
       // Reorder fields to reduce fragmentation
       std::map<std::string, field_index_t> field_index_new;
       {
         int new_index = 0;
-        for( const auto& [field_name, old_index] : typed.field_index )
+        for( const auto& [field_name, old_index] : this->field_index )
         {
           field_index_new[field_name].index = new_index;
           new_index++;
         }
       }
-      typed.field_index = field_index_new;
+      this->field_index = field_index_new;
 
       return fields_old;
     }
 
 //private:
     ForeachCell& foreach_cell;
-    // real_t is one of these two, never a third store
-    TypedFields<double> fields_double;
-    TypedFields<float> fields_float;
+    FieldView_t fields;
+    std::map<std::string, field_index_t> field_index;
+    int max_field_count = 0;
 
-    template<typename T>
-    TypedFields<T>& typed_fields()
-    {
-      static_assert( std::is_same_v<T, double> || std::is_same_v<T, float>, "UserData fields are double or float" );
-      if constexpr (std::is_same_v<T, double>) return fields_double;
-      else return fields_float;
-    }
-
-    template<typename T>
-    const TypedFields<T>& typed_fields() const
-    {
-      return const_cast<UserData_Fields_Pdata*>(this)->typed_fields<T>();
-    }
+    FieldView_t fields_intermediate;
+    std::map<std::string, field_index_t> field_index_intermediate;
+    int max_field_count_intermediate = 0;
 };
 
 } //namespace UserData_Impl
 
 namespace {
 
-using Pdata = UserData_Impl::UserData_Fields_Pdata;
+template<typename T>
+using Pdata = UserData_Impl::UserData_Fields_Pdata<T>;
 using FieldView_t = UserData::FieldView_t;
 
 }
 
 UserData::Fields::Fields(ConfigMap& configMap, ForeachCell& foreach_cell)
-  : pdata( std::make_unique<Pdata>(configMap, foreach_cell) )
+  : pdata_double( std::make_unique<Pdata<double>>(configMap, foreach_cell) ),
+    pdata_float( std::make_unique<Pdata<float>>(configMap, foreach_cell) )
 {}
 
 UserData::Fields::~Fields()
@@ -380,85 +327,84 @@ UserData::Fields::~Fields()
 
 const FieldView_t::Shape_t UserData::getShape() const
 {
-  return this->fields.pdata->getShape();
-}
-
-template<typename T>
-const typename ForeachCell::CellArray_global_ghosted_t<T>::Shape_t UserData::getShape() const
-{
-  return this->fields.pdata->getShape<T>();
+  return this->fields.pdata<real_t>().getShape();
 }
 
 template<typename T>
 void UserData::new_fields( const std::set<std::string>& names)
 {
-  this->fields.pdata->new_fields<T>(names);
+  for( const std::string& name : names ) // Names are unique across types
+    if( has_field<double>(name) || has_field<float>(name) )
+      throw std::runtime_error(std::string("UserData::new_fields() - field already exists : ") + name);
+  this->fields.pdata<T>().new_fields(names);
 }
 
 template<typename T>
 void UserData::new_intermediate_fields( const std::set<std::string>& names)
 {
-  this->fields.pdata->new_intermediate_fields<T>(names);
+  this->fields.pdata<T>().new_intermediate_fields(names);
 }
 
 template<typename T>
 bool UserData::has_field(const std::string& name) const
 {
-  return this->fields.pdata->has_field<T>(name);
+  return this->fields.pdata<T>().has_field(name);
 }
 
 template<typename T>
 std::set<std::string> UserData::getEnabledFields() const
 {
-  return this->fields.pdata->getEnabledFields<T>();
+  return this->fields.pdata<T>().getEnabledFields();
 }
 
 template<typename T>
 const ForeachCell::CellArray_global_t<T> UserData::getFieldCopy(const std::string& name) const
 {
-  return this->fields.pdata->getFieldCopy<T>(name);
+  return this->fields.pdata<T>().getFieldCopy(name);
 }
 
 template<typename T>
 void UserData::move_field( const std::string& dest, const std::string& src )
 {
-  this->fields.pdata->move_field<T>(dest, src);
+  DYABLO_ASSERT_HOST_RELEASE( has_field<T>(dest) || !(has_field<double>(dest) || has_field<float>(dest)),
+                              "UserData::move_field() - field exists with another type : " << dest );
+  this->fields.pdata<T>().move_field(dest, src);
 }
 
 template<typename T>
 void UserData::delete_field( const std::string& name )
 {
-  this->fields.pdata->delete_field<T>(name);
+  this->fields.pdata<T>().delete_field(name);
 }
 
 template<typename T>
 void UserData::clear_intermediates()
 {
-  this->fields.pdata->clear_intermediates<T>();
+  this->fields.pdata<T>().clear_intermediates();
 }
 
 void UserData::exchange_loadbalance( const ViewCommunicator& ghost_comm )
 {
-  this->fields.pdata->exchange_loadbalance<double>(ghost_comm);
-  this->fields.pdata->exchange_loadbalance<float>(ghost_comm);
+  this->fields.pdata<double>().exchange_loadbalance(ghost_comm);
+  this->fields.pdata<float>().exchange_loadbalance(ghost_comm);
 }
 
 template<typename T>
 int UserData::nbFields() const
 {
-  return this->fields.pdata->nbFields<T>();
+  return this->fields.pdata<T>().nbFields();
 }
 
 template<typename T>
 UserData::FieldAccessor_t<T> UserData::backup_and_realloc()
 {
-  return this->fields.pdata->backup_and_realloc<T>();
+  return this->fields.pdata<T>().backup_and_realloc();
 }
 
 template<typename T>
 void UserData::extend_fields()
 {
-  this->fields.pdata->extend_fields<T>();
+  this->fields.pdata<T>().extend_fields();
 }
 
 [[deprecated]] UserData::FieldAccessor_fulltree UserData::getAccessor_intermediates( const std::vector<UserData::FieldAccessor_FieldInfo>& fields_info ) const
@@ -471,22 +417,22 @@ namespace UserData_Impl {
 using FieldInfo = UserData_FieldAccessor_FieldInfo;
 
 template<typename T>
-void FieldAccessor_init( const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info,
+void FieldAccessor_init( const UserData_Fields_Pdata<T>& user_data, const std::vector<FieldInfo>& fields_info,
                         int max_field_count, bool has_intermediates,
                         ForeachCell::CellArray_global_ghosted_t<T>& fields,
                         ForeachCell::CellArray_global_ghosted_t<T>& fields_intermediates
                       )
 {
-  fields = user_data.typed_fields<T>().fields;
+  fields = user_data.fields;
   if( has_intermediates )
   {
-    fields_intermediates = user_data.typed_fields<T>().fields_intermediate;
+    fields_intermediates = user_data.fields_intermediate;
   }
 }
 
 
 template<typename T>
-void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info,
+void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata<T>& user_data, const std::vector<FieldInfo>& fields_info,
                         int max_field_count, bool has_intermediates,
                         int& _nbFields,
                         int* var_to_arrayindex,
@@ -500,7 +446,7 @@ void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_d
         std::stringstream s;
         s << "Could not find field '" << field_name << "' in UserData" << std::endl;
         s << "Available fields are :" << std::endl;
-        for( auto& p : user_data.typed_fields<T>().field_index )
+        for( auto& p : user_data.field_index )
         {
             s << " - '" << p.first << "'" << std::endl;
         }
@@ -525,11 +471,11 @@ void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_d
     int i=0; 
     for( const FieldInfo& info : fields_info )
     {
-        DYABLO_ASSERT_HOST_RELEASE( has_intermediates ? user_data.has_intermediate_field<T>(info.name) : user_data.has_field<T>(info.name), 
+        DYABLO_ASSERT_HOST_RELEASE( has_intermediates ? user_data.has_intermediate_field(info.name) : user_data.has_field(info.name), 
                                     unknown_field_error(info.name) );
         int index = has_intermediates ? 
-                        user_data.typed_fields<T>().field_index_intermediate.at(info.name).index
-                      : user_data.typed_fields<T>().field_index.at(info.name).index;
+                        user_data.field_index_intermediate.at(info.name).index 
+                      : user_data.field_index.at(info.name).index;
         var_to_arrayindex[info.id] = index;
         ivar_to_arrayindex[i] = index;
         i++;
@@ -537,7 +483,7 @@ void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_d
 }
 
 template<typename T>
-FieldAccessor_FieldManager<-1, T>::FieldAccessor_FieldManager( const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates )
+FieldAccessor_FieldManager<-1, T>::FieldAccessor_FieldManager( const UserData_Fields_Pdata<T>& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates )
   : var_to_arrayindex("var_to_arrayindex", fields_info.size()),
     ivar_to_arrayindex_device("ivar_to_arrayindex", fields_info.size()),
     ivar_to_arrayindex_host( Kokkos::create_mirror_view(ivar_to_arrayindex_device) )
@@ -545,7 +491,7 @@ FieldAccessor_FieldManager<-1, T>::FieldAccessor_FieldManager( const UserData_Fi
   auto var_to_arrayindex_host = Kokkos::create_mirror_view(var_to_arrayindex);
 
   int dummy;
-  FieldAccessor_FieldManager_init_static<T>( user_data, fields_info,
+  FieldAccessor_FieldManager_init_static( user_data, fields_info,
     fields_info.size(), has_intermediates,
     dummy, ivar_to_arrayindex_host.data(), var_to_arrayindex_host.data() );
 
@@ -553,10 +499,11 @@ FieldAccessor_FieldManager<-1, T>::FieldAccessor_FieldManager( const UserData_Fi
   Kokkos::deep_copy( ivar_to_arrayindex_device, ivar_to_arrayindex_host );
 }
 
+// real_t is double or float : instantiating both covers it without duplicates
 #define DYABLO_INSTANTIATE_FIELD_TYPE(T) \
-template void FieldAccessor_init<T>( const UserData_Fields_Pdata&, const std::vector<FieldInfo>&, int, bool, \
+template void FieldAccessor_init<T>( const UserData_Fields_Pdata<T>&, const std::vector<FieldInfo>&, int, bool, \
                                      ForeachCell::CellArray_global_ghosted_t<T>&, ForeachCell::CellArray_global_ghosted_t<T>& ); \
-template void FieldAccessor_FieldManager_init_static<T>( const UserData_Fields_Pdata&, const std::vector<FieldInfo>&, int, bool, int&, int*, int* ); \
+template void FieldAccessor_FieldManager_init_static<T>( const UserData_Fields_Pdata<T>&, const std::vector<FieldInfo>&, int, bool, int&, int*, int* ); \
 template class FieldAccessor_FieldManager<-1, T>;
 DYABLO_INSTANTIATE_FIELD_TYPE(double)
 DYABLO_INSTANTIATE_FIELD_TYPE(float)
@@ -566,13 +513,11 @@ DYABLO_INSTANTIATE_FIELD_TYPE(float)
 } // namespace UserData_Impl
 } // namespace dyablo
 
-// real_t is double or float : instantiating both covers it without duplicates
 #define DYABLO_INSTANTIATE_FIELD_TYPE(T) \
 template void dyablo::UserData::new_fields<T>( const std::set<std::string>& ); \
 template void dyablo::UserData::new_intermediate_fields<T>( const std::set<std::string>& ); \
 template bool dyablo::UserData::has_field<T>( const std::string& ) const; \
 template std::set<std::string> dyablo::UserData::getEnabledFields<T>() const; \
-template const dyablo::ForeachCell::CellArray_global_ghosted_t<T>::Shape_t dyablo::UserData::getShape<T>() const; \
 template const dyablo::ForeachCell::CellArray_global_t<T> dyablo::UserData::getFieldCopy<T>( const std::string& ) const; \
 template void dyablo::UserData::move_field<T>( const std::string&, const std::string& ); \
 template void dyablo::UserData::delete_field<T>( const std::string& ); \
@@ -583,3 +528,4 @@ template void dyablo::UserData::extend_fields<T>();
 DYABLO_INSTANTIATE_FIELD_TYPE(double)
 DYABLO_INSTANTIATE_FIELD_TYPE(float)
 #undef DYABLO_INSTANTIATE_FIELD_TYPE
+

@@ -9,6 +9,7 @@
 namespace dyablo {
 
 namespace UserData_Impl{
+  template< typename T >
   struct UserData_Fields_Pdata;
   template< bool has_intermediates, int _MAX_FIELD_COUNT, typename T >
   class UserData_FieldAccessor_impl;
@@ -39,9 +40,6 @@ public:
    * UserData must have at least one active field
    ***/
   const FieldView_t::Shape_t getShape() const;
-
-  template<typename T>
-  const typename ForeachCell::CellArray_global_ghosted_t<T>::Shape_t getShape() const;
 
   /***
    * @brief Add new fields with unique identifiers 
@@ -114,14 +112,14 @@ public:
   using FieldAccessor_impl = UserData_Impl::UserData_FieldAccessor_impl<false, _MAX_FIELD_COUNT, T>;
   template<typename T = real_t>
   using FieldAccessor_t = FieldAccessor_impl<20, T>;
-  using FieldAccessor = FieldAccessor_t<>; /// FieldAccessor with only leaves
+  using FieldAccessor = FieldAccessor_impl<20>; /// FieldAccessor with only leaves
   using FieldAccessor_leaves = FieldAccessor; /// FieldAccessor with only leaves
 
   template< int _MAX_FIELD_COUNT, typename T = real_t >
   using FieldAccessor_fulltree_impl = UserData_Impl::UserData_FieldAccessor_impl<true, _MAX_FIELD_COUNT, T>;
   template< typename T = real_t >
   using FieldAccessor_fulltree_t = FieldAccessor_fulltree_impl<20, T>;
-  using FieldAccessor_fulltree = FieldAccessor_fulltree_t<>; /// FieldAccessor with leaves and intermediates
+  using FieldAccessor_fulltree = FieldAccessor_fulltree_impl<20>; /// FieldAccessor with leaves and intermediates  
   using FieldAccessor_intermediates [[deprecated]] = FieldAccessor_fulltree; /// Replaced by FieldAccessor_fulltree
 
   /***
@@ -130,18 +128,18 @@ public:
    * Do not keep invalidated accessors since live accessors may prevent Kokkos::View deallocation and create memory leaks
    ***/
   template< typename T = real_t, int MAX_FIELD_COUNT = 20 >
-  UserData_Impl::UserData_FieldAccessor_impl<false, MAX_FIELD_COUNT, T> getAccessor( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const
+  FieldAccessor_impl<MAX_FIELD_COUNT, T> getAccessor( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const
   {
-    return UserData_Impl::UserData_FieldAccessor_impl<false, MAX_FIELD_COUNT, T>( *(this->fields.pdata), fields_info );
+    return FieldAccessor_impl<MAX_FIELD_COUNT, T>( this->fields.pdata<T>(), fields_info );
   }
 
   /***
    * @brief create a FieldAccessor to access fields listed in `fields_info` and allow access to intermediate cells
    ***/
   template< typename T = real_t, int MAX_FIELD_COUNT = 20 >
-  UserData_Impl::UserData_FieldAccessor_impl<true, MAX_FIELD_COUNT, T> getAccessor_fulltree( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const
+  FieldAccessor_fulltree_impl<MAX_FIELD_COUNT, T> getAccessor_fulltree( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const
   {
-    return UserData_Impl::UserData_FieldAccessor_impl<true, MAX_FIELD_COUNT, T>( *(this->fields.pdata), fields_info );
+    return FieldAccessor_fulltree_impl<MAX_FIELD_COUNT, T>( this->fields.pdata<T>(), fields_info );
   }
 
   /***
@@ -256,7 +254,16 @@ private:
   {
     Fields(ConfigMap& configMap, ForeachCell& foreach_cell);
     ~Fields();
-    std::unique_ptr<UserData_Impl::UserData_Fields_Pdata> pdata;
+    // One store per type, real_t is one of them
+    std::unique_ptr<UserData_Impl::UserData_Fields_Pdata<double>> pdata_double;
+    std::unique_ptr<UserData_Impl::UserData_Fields_Pdata<float>> pdata_float;
+    template< typename T >
+    UserData_Impl::UserData_Fields_Pdata<T>& pdata() const
+    {
+      static_assert( std::is_same_v<T, double> || std::is_same_v<T, float>, "UserData fields are double or float" );
+      if constexpr ( std::is_same_v<T, double> ) return *pdata_double.get();
+      else return *pdata_float.get();
+    }
   };
   Fields fields;
   struct Particles

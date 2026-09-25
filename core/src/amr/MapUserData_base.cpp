@@ -9,9 +9,7 @@ namespace dyablo {
 void MapUserData_base::save_old_mesh( UserData& U )
 {
   this->lmesh_old = this->foreach_cell.get_amr_mesh().getLightOctree();
-  // Only block size and octant count are used : take them from any type that has fields
-  auto shape = U.nbFields<double>() > 0 ? U.getShape<double>() : U.getShape<float>();
-  this->ghost_comm_full = std::make_unique<GhostCommunicator_full_blocks>( this->foreach_cell.get_amr_mesh(), shape, -1 );
+  this->ghost_comm_full = std::make_unique<GhostCommunicator_full_blocks>( this->foreach_cell.get_amr_mesh(), U.getShape(), -1 );
 }
 
 void MapUserData_base::remap( UserData& user_data )

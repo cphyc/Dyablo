@@ -227,11 +227,6 @@ template<> [[maybe_unused]] std::string xmf_type_attr<uint64_t>  () { return R"x
 template<> [[maybe_unused]] std::string xmf_type_attr<float>     () { return R"xml(NumberType="Float" Precision="4")xml"; }
 template<> [[maybe_unused]] std::string xmf_type_attr<double>    () { return R"xml(NumberType="Float" Precision="8")xml"; }
 
-bool has_field( const UserData& U, const std::string& name )
-{
-  return U.has_field<double>(name) || U.has_field<float>(name);
-}
-
 /// Copy field `name` (of type T) to `out`, converted to output_real_t
 template< typename T, typename output_real_t, typename Linearize_t >
 void copy_field( ForeachCell& foreach_cell, const UserData& U, const std::string& name,
@@ -350,7 +345,7 @@ R"xml(
       {
         output_attr_xml(xmf_type_attr<int>(), var_name);       
       }
-      else if( has_field(U_, var_name) )
+      else if( U_.has_field<double>(var_name) || U_.has_field<float>(var_name) )
       {
         output_attr_xml(xmf_type_attr<output_real_t>(), var_name);
       }
@@ -499,7 +494,7 @@ R"xml(
       }
       else
       {
-        if( has_field(U_, var_name) )
+        if( U_.has_field<double>(var_name) || U_.has_field<float>(var_name) )
         { 
           Kokkos::View< output_real_t*, Kokkos::LayoutLeft > tmp_view(var_name, local_num_cells);
           
@@ -524,7 +519,7 @@ R"xml(
         
         // Checking var names are not in U
         for (auto name: var_names)
-          DYABLO_ASSERT_HOST_RELEASE(!has_field(U_, name), "ERROR ! Derived field " << name << " is already present as an active field");
+          DYABLO_ASSERT_HOST_RELEASE(!(U_.has_field<double>(name) || U_.has_field<float>(name)), "ERROR ! Derived field " << name << " is already present as an active field");
         
         uint32_t nfields = var_names.size();
         CellArray_global df_data( std::string("DerivedData_")+var_names.at(0), CellArray_global::Shape_t{bx, by, bz, nfields, nbOcts_local});
