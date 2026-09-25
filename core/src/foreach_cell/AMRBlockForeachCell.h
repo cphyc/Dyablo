@@ -179,6 +179,10 @@ public:
   using CellArray_global = AMRBlockForeachCell_CellArray_impl::CellArray_global;
   using CellArray_shape = AMRBlockForeachCell_CellArray_impl::CellArray_shape;
   using CellArray_global_ghosted = AMRBlockForeachCell_CellArray_impl::CellArray_global_ghosted;
+  template<typename T = real_t>
+  using CellArray_global_t = AMRBlockForeachCell_CellArray_impl::CellArray_global_t<T>;
+  template<typename T = real_t>
+  using CellArray_global_ghosted_t = AMRBlockForeachCell_CellArray_impl::CellArray_global_ghosted_t<T>;
   using SearchMode_local = AMRBlockForeachCell_CellArray_impl::SearchMode_local;
   using SearchMode_neighbor = AMRBlockForeachCell_CellArray_impl::SearchMode_neighbor;
   using SearchMode_intermediates = AMRBlockForeachCell_CellArray_impl::SearchMode_intermediates;

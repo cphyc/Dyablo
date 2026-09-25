@@ -10,7 +10,7 @@ namespace dyablo {
 
 namespace UserData_Impl{
   struct UserData_Fields_Pdata;
-  template< bool has_intermediates, int _MAX_FIELD_COUNT >
+  template< bool has_intermediates, int _MAX_FIELD_COUNT, typename T >
   class UserData_FieldAccessor_impl;
   struct UserData_FieldAccessor_FieldInfo;
 
@@ -97,14 +97,18 @@ public:
 
   using FieldAccessor_FieldInfo = UserData_Impl::UserData_FieldAccessor_FieldInfo;
 
-  template< int _MAX_FIELD_COUNT > 
-  using FieldAccessor_impl = UserData_Impl::UserData_FieldAccessor_impl<false, _MAX_FIELD_COUNT>;
-  using FieldAccessor = FieldAccessor_impl<20>; /// FieldAccessor with only leaves
+  template< int _MAX_FIELD_COUNT, typename T = real_t>
+  using FieldAccessor_impl = UserData_Impl::UserData_FieldAccessor_impl<false, _MAX_FIELD_COUNT, T>;
+  template<typename T = real_t>
+  using FieldAccessor_t = FieldAccessor_impl<20, T>;
+  using FieldAccessor = FieldAccessor_t<>; /// FieldAccessor with only leaves
   using FieldAccessor_leaves = FieldAccessor; /// FieldAccessor with only leaves
 
-  template< int _MAX_FIELD_COUNT >
-  using FieldAccessor_fulltree_impl = UserData_Impl::UserData_FieldAccessor_impl<true, _MAX_FIELD_COUNT>;
-  using FieldAccessor_fulltree = FieldAccessor_fulltree_impl<20>; /// FieldAccessor with leaves and intermediates  
+  template< int _MAX_FIELD_COUNT, typename T = real_t >
+  using FieldAccessor_fulltree_impl = UserData_Impl::UserData_FieldAccessor_impl<true, _MAX_FIELD_COUNT, T>;
+  template< typename T = real_t >
+  using FieldAccessor_fulltree_t = FieldAccessor_fulltree_impl<20, T>;
+  using FieldAccessor_fulltree = FieldAccessor_fulltree_t<>; /// FieldAccessor with leaves and intermediates
   using FieldAccessor_intermediates [[deprecated]] = FieldAccessor_fulltree; /// Replaced by FieldAccessor_fulltree
 
   /***
@@ -112,26 +116,27 @@ public:
    * NOTE : Accessors may be invalidated by some methods from UserData (e.g. deleting or moving a field, reallocating, ...)
    * Do not keep invalidated accessors since live accessors may prevent Kokkos::View deallocation and create memory leaks
    ***/
-  template< int MAX_FIELD_COUNT = 20 >
-  FieldAccessor_impl<MAX_FIELD_COUNT> getAccessor( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const
+  template< typename T = real_t, int MAX_FIELD_COUNT = 20 >
+  UserData_Impl::UserData_FieldAccessor_impl<false, MAX_FIELD_COUNT, T> getAccessor( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const
   {
-    return FieldAccessor_impl<MAX_FIELD_COUNT>( *(this->fields.pdata), fields_info );
+    return UserData_Impl::UserData_FieldAccessor_impl<false, MAX_FIELD_COUNT, T>( *(this->fields.pdata), fields_info );
   }
 
   /***
    * @brief create a FieldAccessor to access fields listed in `fields_info` and allow access to intermediate cells
    ***/
-  template< int MAX_FIELD_COUNT = 20 >
-  FieldAccessor_fulltree_impl<MAX_FIELD_COUNT> getAccessor_fulltree( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const
+  template< typename T = real_t, int MAX_FIELD_COUNT = 20 >
+  UserData_Impl::UserData_FieldAccessor_impl<true, MAX_FIELD_COUNT, T> getAccessor_fulltree( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const
   {
-    return FieldAccessor_fulltree_impl<MAX_FIELD_COUNT>( *(this->fields.pdata), fields_info );
+    return UserData_Impl::UserData_FieldAccessor_impl<true, MAX_FIELD_COUNT, T>( *(this->fields.pdata), fields_info );
   }
 
   /***
    * @copydoc getAccessor_fulltree
    * @note Deprecated : replaced by getAccessor_fulltree
    ***/
-   [[deprecated]] FieldAccessor_fulltree getAccessor_intermediates( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const;
+   template<typename T>
+   [[deprecated]] FieldAccessor_fulltree_t<T> getAccessor_intermediates( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const;
 
   /***
    * @brief Reallocate Userdata to fit new AMRmesh size

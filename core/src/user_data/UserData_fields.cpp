@@ -266,7 +266,7 @@ public:
       DYABLO_ASSERT_HOST_RELEASE( 0 == nbFields_intermediates(), "UserData::backup_and_realloc : Keeping intermediates between interations is not supported yet" );
 
       using FieldAccessor = UserData::FieldAccessor;
-      std::vector<FieldAccessor::FieldInfo> all_fields;
+      std::vector<typename FieldAccessor::FieldInfo> all_fields;
       int i=0;
       for( const std::string& field : this->getEnabledFields() )
         all_fields.push_back({field, i++});
@@ -380,25 +380,28 @@ void UserData::extend_fields()
   this->fields.pdata->extend_fields();
 }
 
-[[deprecated]] UserData::FieldAccessor_fulltree UserData::getAccessor_intermediates( const std::vector<UserData::FieldAccessor_FieldInfo>& fields_info ) const
+template<typename T>
+[[deprecated]] UserData::FieldAccessor_fulltree_t<T> UserData::getAccessor_intermediates( const std::vector<UserData::FieldAccessor_FieldInfo>& fields_info ) const
 {
-  return getAccessor_fulltree(fields_info);
+  return getAccessor_fulltree<T>(fields_info);
 }
 
 namespace UserData_Impl {
 
 using FieldInfo = UserData_FieldAccessor_FieldInfo;
 
+template<typename T>
 void FieldAccessor_init( const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info,
                         int max_field_count, bool has_intermediates,
-                        FieldView_t& fields,
-                        FieldView_t& fields_intermediates
+                        ForeachCell::CellArray_global_ghosted_t<T>& fields,
+                        ForeachCell::CellArray_global_ghosted_t<T>& fields_intermediates
                       )
 {
-  fields = user_data.fields;
+  using TypedFieldView = ForeachCell::CellArray_global_ghosted_t<T>;
+  fields = TypedFieldView(reinterpret_cast<T*>(user_data.fields._U.data()), user_data.fields.shape);
   if( has_intermediates )
   {
-    fields_intermediates = user_data.fields_intermediate;
+    fields_intermediates = TypedFieldView(reinterpret_cast<T*>(user_data.fields_intermediate._U.data()), user_data.fields_intermediate.shape);
   }
 }
 
@@ -472,4 +475,3 @@ FieldAccessor_FieldManager<-1>::FieldAccessor_FieldManager( const UserData_Field
 
 } // namespace UserData_Impl
 } // namespace dyablo
-

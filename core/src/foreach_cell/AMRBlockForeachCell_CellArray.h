@@ -971,15 +971,15 @@ struct CellArray_shape
  * @tparam has_ghosts_ ghost cells are present
  * @tparam has_intermediate_ intermediate cells are present
  **/
-template< bool has_ghosts_ >
+template< bool has_ghosts_, typename T = real_t >
 class CellArray_base
 {
 public:
   using Shape_t = CellArray_shape;
-  using View_t = Kokkos::View<real_t***, Kokkos::LayoutLeft>;
+  using View_t = Kokkos::View<T***, Kokkos::LayoutLeft>;
   static constexpr bool has_ghosts = has_ghosts_;
 
-  View_t _U;    
+  View_t _U;
   Shape_t shape;
 
 protected:
@@ -1000,8 +1000,8 @@ public:
    * @param shape size of the blocks and number of octants
    * Note: when has_ghosts is false, number of ghosts must be 0
    **/
-  template< typename T >
-  CellArray_base( const T& label, const Shape_t& s)
+  template< typename Label_t >
+  CellArray_base( const Label_t& label, const Shape_t& s)
   : shape(s)
   {
     DYABLO_ASSERT_HOST_RELEASE( has_ghosts || shape.nbGhosts==0, "CellArray_base : ghosts disabled but nbGhosts>0"  );
@@ -1092,8 +1092,12 @@ public:
   }
 };
 
-using CellArray_global = CellArray_base<false>;
-using CellArray_global_ghosted = CellArray_base<true>;
+template<typename T = real_t>
+using CellArray_global_t = CellArray_base<false, T>;
+template<typename T = real_t>
+using CellArray_global_ghosted_t = CellArray_base<true, T>;
+using CellArray_global = CellArray_global_t<>;
+using CellArray_global_ghosted = CellArray_global_ghosted_t<>;
 
 } // namespace AMRBlockForeachCell_CellArray_impl
 

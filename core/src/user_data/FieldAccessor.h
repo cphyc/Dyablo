@@ -15,10 +15,11 @@ struct UserData_FieldAccessor_FieldInfo
   VarIndex id; /// id to use to access with at()
 };
 
+template<typename T>
 void FieldAccessor_init(const UserData_Fields_Pdata& user_data, const std::vector<UserData_FieldAccessor_FieldInfo>& fields_info,
                         int max_field_count, bool has_intermediates,
-                        UserData::FieldView_t& fields,
-                        UserData::FieldView_t& fields_intermediates
+                        ForeachCell::CellArray_global_ghosted_t<T>& fields,
+                        ForeachCell::CellArray_global_ghosted_t<T>& fields_intermediates
                       );
 
 void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_data, const std::vector<UserData_FieldAccessor_FieldInfo>& fields_info,
@@ -123,7 +124,7 @@ public:
     }
 };
 
-template< bool has_intermediates, int _MAX_FIELD_COUNT >
+template< bool has_intermediates, int _MAX_FIELD_COUNT, typename T >
 class UserData_FieldAccessor_impl
 {
 friend GhostCommunicator_full_blocks;
@@ -131,7 +132,7 @@ friend UserData_Fields_Pdata;
 public:
     static constexpr int MAX_FIELD_COUNT = _MAX_FIELD_COUNT;
     using FieldInfo = UserData_FieldAccessor_FieldInfo;
-    using FieldView_t = UserData::FieldView_t;
+    using FieldView_t = ForeachCell::CellArray_global_ghosted_t<T>;
     using FieldManager = FieldAccessor_FieldManager<MAX_FIELD_COUNT>;
 
     UserData_FieldAccessor_impl() = default;
@@ -165,8 +166,8 @@ public:
     {
         bool is_intermediate = has_intermediates && iCell.iOct().isIntermediate;
 
-        real_t* origin = this->at( iCell );
-        auto value = [&]( VarIndex varindex ) -> real_t&
+        T* origin = this->at( iCell );
+        auto value = [&]( VarIndex varindex ) -> T&
         {
             auto offset = is_intermediate ?
                   fields_intermediates.get_offset_ivar( get_index_from_varindex_intermediates(varindex) )
@@ -176,7 +177,7 @@ public:
         };
 
         if constexpr ( sizeof...(VarIndex_s) == 0 )
-            return (value(varindex_0)); // Parenthesis are important here to keep real_t& reference
+            return (value(varindex_0)); // Parenthesis are important here to keep T& reference
         else
             return dyablo_tuple_tie( value(varindex_0), value(varindex_s)... );
     }
@@ -187,8 +188,8 @@ public:
     {
         bool is_intermediate = has_intermediates && iCell.iOct().isIntermediate;
 
-        real_t* origin = this->at( iCell );
-        auto value = [&]( int ivar ) -> real_t&
+        T* origin = this->at( iCell );
+        auto value = [&]( int ivar ) -> T&
         {
             auto offset = is_intermediate ?
                   fields_intermediates.get_offset_ivar( get_index_from_ivar_device_intermediates(ivar) )
@@ -205,12 +206,12 @@ public:
     
 
     KOKKOS_INLINE_FUNCTION
-    FieldView_t::Shape_t getShape() const
+    typename FieldView_t::Shape_t getShape() const
     {
         DYABLO_ASSERT_KOKKOS_DEBUG(nbFields() > 0, "Cannot getShape() of an empty UserData_fields" );
         auto iter_space = fields.getShape();
         auto iter_space_inter = fields_intermediates.getShape();
-        return FieldView_t::Shape_t{
+        return typename FieldView_t::Shape_t{
             .bx = iter_space.bx,
             .by = iter_space.by,
             .bz = iter_space.bz,
@@ -261,7 +262,7 @@ protected:
     FieldView_t fields_intermediates;
 
     KOKKOS_INLINE_FUNCTION
-    real_t* at( const ForeachCell::CellIndex& iCell ) const
+    T* at( const ForeachCell::CellIndex& iCell ) const
     {
         if constexpr ( has_intermediates )
         {
