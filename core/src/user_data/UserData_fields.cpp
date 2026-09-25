@@ -268,18 +268,22 @@ public:
       return typed_fields<T>().field_index_intermediate.size();
     }
 
+    template<typename T = real_t>
     void exchange_loadbalance( const ViewCommunicator& ghost_comm )
     {
       auto& typed = typed_fields<real_t>();
-      DYABLO_ASSERT_HOST_RELEASE( 0 == nbFields_intermediates<real_t>(), "UserData::exchange_loadbalance : Keeping intermediates between interations is not supported yet" );
+      if( nbFields<T>() == 0 )
+        return;
+      auto& typed_fields_data = typed_fields<T>();
+      DYABLO_ASSERT_HOST_RELEASE( 0 == nbFields_intermediates<T>(), "UserData::exchange_loadbalance : Keeping intermediates between interations is not supported yet" );
       {  
-        UserData::FieldAccessor fields_old = this->backup_and_realloc();
-        int nb_fields = this->nbFields<real_t>();
+        auto fields_old = this->backup_and_realloc<T>();
+        int nb_fields = this->nbFields<T>();
         auto old_fields_View = Kokkos::subview( fields_old.fields.subview_U(), 
                                                 Kokkos::ALL(),
                                                 std::make_pair(0, nb_fields),
                                                 Kokkos::ALL()  );
-        auto new_fields_View = Kokkos::subview(typed.fields.subview_U(), 
+        auto new_fields_View = Kokkos::subview(typed_fields_data.fields.subview_U(), 
                                                 Kokkos::ALL(),
                                                 std::make_pair(0, nb_fields),
                                                 Kokkos::ALL()  );
@@ -287,22 +291,32 @@ public:
         ghost_comm.exchange_ghosts<2>(old_fields_View, new_fields_View );
       }// This block is important to deallocate fields_old before extend_fields()
 
-      this->extend_fields<real_t>();
+      this->extend_fields<T>();
     }
 
-    UserData::FieldAccessor backup_and_realloc()
+    template<typename T = real_t>
+    UserData::FieldAccessor_t<T> backup_and_realloc()
     {
-      DYABLO_ASSERT_HOST_RELEASE( 0 == nbFields_intermediates<real_t>(), "UserData::backup_and_realloc : Keeping intermediates between interations is not supported yet" );
+      DYABLO_ASSERT_HOST_RELEASE( 0 == nbFields_intermediates<T>(), "UserData::backup_and_realloc : Keeping intermediates between interations is not supported yet" );
 
-      using FieldAccessor = UserData::FieldAccessor;
+      using FieldAccessor = UserData::FieldAccessor_t<T>;
       std::vector<typename FieldAccessor::FieldInfo> all_fields;
       int i=0;
-      for( const std::string& field : this->getEnabledFields<real_t>() )
+      for( const std::string& field : this->getEnabledFields<T>() )
         all_fields.push_back({field, i++});
       FieldAccessor fields_old( *this, all_fields );
 
-      auto& typed = typed_fields<real_t>();
-      typed.fields = foreach_cell.allocate_ghosted_array( "UserData_fields", typed.field_index.size() );
+      auto& typed = typed_fields<T>();
+      const auto block_size = foreach_cell.blockSize();
+      const auto shape = typename TypedFields<T>::View_t::Shape_t{
+        .bx = block_size[IX],
+        .by = block_size[IY],
+        .bz = block_size[IZ],
+        .nbFields = static_cast<uint32_t>(typed.field_index.size()),
+        .nbOcts = foreach_cell.get_amr_mesh().getNumOctants(),
+        .nbGhosts = foreach_cell.get_amr_mesh().getNumGhosts()
+      };
+      typed.fields = typename TypedFields<T>::View_t("UserData_fields", shape);
       // Reorder fields to reduce fragmentation
       std::map<std::string, field_index_t> field_index_new;
       {
@@ -413,9 +427,10 @@ void UserData::clear_intermediates()
   this->fields.pdata->clear_intermediates<T>();
 }
 
+template<typename T>
 void UserData::exchange_loadbalance( const ViewCommunicator& ghost_comm )
 {
-  this->fields.pdata->exchange_loadbalance(ghost_comm);
+  this->fields.pdata->exchange_loadbalance<T>(ghost_comm);
 }
 
 template<typename T>
@@ -424,9 +439,10 @@ int UserData::nbFields() const
   return this->fields.pdata->nbFields<T>();
 }
 
-UserData::FieldAccessor UserData::backup_and_realloc()
+template<typename T>
+UserData::FieldAccessor_t<T> UserData::backup_and_realloc()
 {
-  return this->fields.pdata->backup_and_realloc();
+  return this->fields.pdata->backup_and_realloc<T>();
 }
 
 void UserData::extend_fields()
@@ -581,6 +597,14 @@ template void dyablo::UserData::new_fields<real_t>( const std::set<std::string>&
 template void dyablo::UserData::new_fields<float>( const std::set<std::string>& );
 template void dyablo::UserData::new_fields<int32_t>( const std::set<std::string>& );
 template void dyablo::UserData::new_fields<int64_t>( const std::set<std::string>& );
+template void dyablo::UserData::exchange_loadbalance<real_t>( const ViewCommunicator& );
+template void dyablo::UserData::exchange_loadbalance<float>( const ViewCommunicator& );
+template void dyablo::UserData::exchange_loadbalance<int32_t>( const ViewCommunicator& );
+template void dyablo::UserData::exchange_loadbalance<int64_t>( const ViewCommunicator& );
+template dyablo::UserData::FieldAccessor_t<real_t> dyablo::UserData::backup_and_realloc<real_t>();
+template dyablo::UserData::FieldAccessor_t<float> dyablo::UserData::backup_and_realloc<float>();
+template dyablo::UserData::FieldAccessor_t<int32_t> dyablo::UserData::backup_and_realloc<int32_t>();
+template dyablo::UserData::FieldAccessor_t<int64_t> dyablo::UserData::backup_and_realloc<int64_t>();
 template void dyablo::UserData::new_intermediate_fields<real_t>( const std::set<std::string>& );
 template void dyablo::UserData::new_intermediate_fields<float>( const std::set<std::string>& );
 template void dyablo::UserData::new_intermediate_fields<int32_t>( const std::set<std::string>& );

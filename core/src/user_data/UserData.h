@@ -96,6 +96,7 @@ public:
   template<typename T = real_t>
   void clear_intermediates();
 
+  template<typename T = real_t>
   void exchange_loadbalance( const ViewCommunicator& ghost_comm );
 
   /***
@@ -153,7 +154,8 @@ public:
    * AMRmesh is contained in ForeachCell instance that was used to construct this UserData
    * Old data will be deallocated when the returned FieldAccessor is destroyed
    ***/
-  FieldAccessor backup_and_realloc();
+  template<typename T = real_t>
+  FieldAccessor_t<T> backup_and_realloc();
 
   void extend_fields();
 
