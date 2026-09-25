@@ -271,7 +271,6 @@ public:
     template<typename T = real_t>
     void exchange_loadbalance( const ViewCommunicator& ghost_comm )
     {
-      auto& typed = typed_fields<real_t>();
       if( nbFields<T>() == 0 )
         return;
       auto& typed_fields_data = typed_fields<T>();
