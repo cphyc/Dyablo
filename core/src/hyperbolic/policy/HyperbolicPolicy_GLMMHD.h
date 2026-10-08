@@ -450,6 +450,8 @@ private:
     const real_t psi  = 0.5*(qleft.psi + qright.psi) - c_h * 0.5 * (qright.Bx - qleft.Bx); 
     const real_t Bsgn = (Bx < 0.0 ? -1.0 : 1.0);
 
+    real_t inv_gamma_m_1 = 1 / (gamma0-1);
+
     // Left variables
     real_t rl = fmax(qleft.rho, smallr);
     real_t pl = fmax(qleft.p, rl*smallp);
@@ -460,7 +462,7 @@ private:
     real_t Bzl =     qleft.Bz;
     real_t B2l =     Bx*Bx+Byl*Byl+Bzl*Bzl;
     real_t pTl =     pl + 0.5 * B2l;
-    real_t El  =     pl / (gamma0-1.0) + 0.5*rl*(ul*ul+vl*vl+wl*wl) + 0.5*B2l;
+    real_t El  =     pl * inv_gamma_m_1 + 0.5*rl*(ul*ul+vl*vl+wl*wl) + 0.5*B2l;
 
 
     // Right variables
@@ -473,45 +475,45 @@ private:
     real_t Bzr =     qright.Bz;
     real_t B2r =     Bx*Bx+Byr*Byr+Bzr*Bzr;
     real_t pTr =     pr + 0.5 * B2r;
-    real_t Er  =     pr / (gamma0-1.0) + 0.5*rr*(ur*ur+vr*vr+wr*wr) + 0.5*B2r;
+    real_t Er  =     pr * inv_gamma_m_1 + 0.5*rr*(ur*ur+vr*vr+wr*wr) + 0.5*B2r;
 
-    auto computeFastMagnetoAcousticSpeed = [&](const PrimState &q) {
+    auto computeFastMagnetoAcousticSpeed_squared = [&](const PrimState &q) {
       const real_t gp = gamma0 * q.p;
       const real_t B2 = Bx*Bx + q.By*q.By + q.Bz*q.Bz;
       
-      return sqrt(0.5 * (gp + B2 + sqrt((gp + B2)*(gp + B2) - 4.0*gp*Bx*Bx)) / q.rho);
+      return 0.5 * (gp + B2 + sqrt((gp + B2)*(gp + B2) - 4.0*gp*Bx*Bx)) / q.rho;
     };
     
     
-    real_t cfl = computeFastMagnetoAcousticSpeed(qleft);
-    real_t cfr = computeFastMagnetoAcousticSpeed(qright);
-    
+    real_t cfl2 = computeFastMagnetoAcousticSpeed_squared(qleft);
+    real_t cfr2 = computeFastMagnetoAcousticSpeed_squared(qright);
+    real_t cflr = sqrt( fmax(cfl2, cfr2) );
+
     // HLL Wave speed
-    real_t Sl = fmin(ul, ur) - fmax(cfl, cfr);
-    real_t Sr = fmax(ul, ur) + fmax(cfl, cfr);
+    real_t Sl = fmin(ul, ur) - cflr;
+    real_t Sr = fmax(ul, ur) + cflr;
 
     // Lagrangian speed of sound
     const real_t rCl = rl*(ul-Sl);
     const real_t rCr = rr*(Sr-ur);
 
     // Entropy wave speed
-    const real_t uS = (rCr*ur + rCl*ul - pTr + pTl) / (rCr+rCl);
+    real_t inv_rClr = 1/(rCr+rCl);
+    const real_t uS = (rCr*ur + rCl*ul - pTr + pTl) * inv_rClr;
     
     // Single Star state
-    const real_t pTS = (rCr*pTl + rCl*pTr - rCr*rCl*(ur-ul)) / (rCr+rCl); 
-
-    // Single star densities
-    const real_t rlS = rl * (Sl-ul)/(Sl-uS);
-    const real_t rrS = rr * (Sr-ur)/(Sr-uS);
+    const real_t pTS = (rCr*pTl + rCl*pTr - rCr*rCl*(ur-ul)) * inv_rClr; 
 
     // Single star velocities
     const real_t econvl = rl*(Sl-ul)*(Sl-uS)-Bx*Bx;
     const real_t econvr = rr*(Sr-ur)*(Sr-uS)-Bx*Bx;
+    const real_t inv_econvr = 1/econvr;
+    const real_t inv_econvl = 1/econvl;
 
-    const real_t uconvl = (uS-ul) / econvl;
-    const real_t uconvr = (uS-ur) / econvr;
-    const real_t Bconvl = (rCl*rCl/rl - Bx*Bx) / econvl;
-    const real_t Bconvr = (rCr*rCr/rr - Bx*Bx) / econvr;
+    const real_t uconvl = (uS-ul) * inv_econvl;
+    const real_t uconvr = (uS-ur) * inv_econvr;
+    const real_t Bconvl = (rCl*rCl/rl - Bx*Bx) * inv_econvl;
+    const real_t Bconvr = (rCr*rCr/rr - Bx*Bx) * inv_econvr;
 
     real_t vlS, vrS, wlS, wrS, BylS, ByrS, BzlS, BzrS;
 
@@ -549,17 +551,34 @@ private:
     const real_t uSdotBSl = uS*Bx+vlS*BylS+wlS*BzlS;
     const real_t uSdotBSr = uS*Bx+vrS*ByrS+wrS*BzrS;
 
-    const real_t ElS = ((Sl-ul)*El - pTl*ul + pTS*uS + Bx*(udotBl - uSdotBSl)) / (Sl-uS);
-    const real_t ErS = ((Sr-ur)*Er - pTr*ur + pTS*uS + Bx*(udotBr - uSdotBSr)) / (Sr-uS);
+    const real_t inv_Sl_m_uS = 1/(Sl-uS);
+    const real_t inv_Sr_m_uS = 1/(Sr-uS);
+
+    const real_t ElS = ((Sl-ul)*El - pTl*ul + pTS*uS + Bx*(udotBl - uSdotBSl)) * inv_Sl_m_uS;
+    const real_t ErS = ((Sr-ur)*Er - pTr*ur + pTS*uS + Bx*(udotBr - uSdotBSr)) * inv_Sr_m_uS;
+
+    // Single star densities
+    const real_t rlS = rl * (Sl-ul)* inv_Sl_m_uS;
+    const real_t rrS = rr * (Sr-ur)* inv_Sr_m_uS;
 
     // Alfven wave speeds
-    const real_t srlS = sqrt(rlS);
-    const real_t srrS = sqrt(rrS);
-    const real_t SlS = uS - fabs(Bx) / srlS;
-    const real_t SrS = uS + fabs(Bx) / srrS;
+    
+    // Faster, less precise version
+    const real_t inv_srlS = Kokkos::rsqrt(rlS);
+    const real_t inv_srrS = Kokkos::rsqrt(rrS);
+    const real_t srlS = rlS * inv_srlS;
+    const real_t srrS = rrS * inv_srrS;
+    // More precise version :
+    // const real_t srlS = sqrt(rlS); 
+    // const real_t srrS = sqrt(rrS);
+    // const real_t inv_srlS = 1/srlS;
+    // const real_t inv_srrS = 1/srrS;
+
+    const real_t SlS = uS - fabs(Bx) * inv_srlS;
+    const real_t SrS = uS + fabs(Bx) * inv_srrS;
 
     // Double Star state
-    const real_t den_fac = 1.0 / (srlS + srrS);
+    const real_t den_fac = 1 / (srlS + srrS);
     const real_t vSS = (srlS*vlS + srrS*vrS + (ByrS-BylS)*Bsgn) * den_fac;
     const real_t wSS = (srlS*wlS + srrS*wrS + (BzrS-BzlS)*Bsgn) * den_fac;
     const real_t BySS = (srlS*ByrS + srrS*BylS + srlS*srrS*(vrS-vlS)*Bsgn) * den_fac;
@@ -833,75 +852,61 @@ public:
     }
 
     // Now defining values for boundary conditions
+    PrimState q = policy.consToPrim(res);
     if ( (offset[IX] > 0 && bcmag_max[IX] == BCMAG_NORMAL_FIELD)
       || (offset[IX] < 0 && bcmag_min[IX] == BCMAG_NORMAL_FIELD) )
     {
-      PrimState q = policy.consToPrim(res);
       q.By = 0.0;
       q.Bz = 0.0;
-      res = policy.primToCons(q); // We go through consToPrim -> primToCons to correctly repercuss the variation on the energy
     }
     else if ( (offset[IX] > 0 && bcmag_max[IX] == BCMAG_PERFECT_CONDUCTOR)
            || (offset[IX] < 0 && bcmag_min[IX] == BCMAG_PERFECT_CONDUCTOR) )
     {
-      PrimState q = policy.consToPrim(res);
       q.Bx = 0.0;
-      res = policy.primToCons(q);
     }
 
     if ( (offset[IY] > 0 && bcmag_max[IY] == BCMAG_NORMAL_FIELD)
       || (offset[IY] < 0 && bcmag_min[IY] == BCMAG_NORMAL_FIELD) )
     {
-      PrimState q = policy.consToPrim(res);
       q.Bx = 0.0;
       q.Bz = 0.0;
-      res = policy.primToCons(q); 
     }
     else if ( (offset[IY] > 0 && bcmag_max[IY] == BCMAG_PERFECT_CONDUCTOR)
            || (offset[IY] < 0 && bcmag_min[IY] == BCMAG_PERFECT_CONDUCTOR) )
     {
-      PrimState q = policy.consToPrim(res);
       q.By = 0.0;
-      res = policy.primToCons(q);
     }
 
     if ( (offset[IZ] > 0 && bcmag_max[IZ] == BCMAG_NORMAL_FIELD)
       || (offset[IZ] < 0 && bcmag_min[IZ] == BCMAG_NORMAL_FIELD) )
     {
-      PrimState q = policy.consToPrim(res);
       q.Bx = 0.0;
       q.By = 0.0;
-      res = policy.primToCons(q); 
     }
     else if ( (offset[IZ] > 0 && bcmag_max[IZ] == BCMAG_PERFECT_CONDUCTOR)
            || (offset[IZ] < 0 && bcmag_min[IZ] == BCMAG_PERFECT_CONDUCTOR) )
     {
-      PrimState q = policy.consToPrim(res);
       q.Bz = 0.0;
-      res = policy.primToCons(q);
     }
 
     if (  (offset[IX] > 0 && bcmag_max[IX] == BCMAG_FIXED_VALUE) 
        || (offset[IY] > 0 && bcmag_max[IY] == BCMAG_FIXED_VALUE)
        || (offset[IZ] > 0 && bcmag_max[IZ] == BCMAG_FIXED_VALUE)) {
-      PrimState q = policy.consToPrim(res);
       ComponentIndex3D dir = (offset[IX] > 0 ? IX : offset[IY] > 0 ? IY : IZ);
       q.Bx = bcmag_max_val[dir*3+IX];
       q.By = bcmag_max_val[dir*3+IY];
       q.Bz = bcmag_max_val[dir*3+IZ];
-      res = policy.primToCons(q);
     }
     else if (  (offset[IX] < 0 && bcmag_min[IX] == BCMAG_FIXED_VALUE) 
             || (offset[IY] < 0 && bcmag_min[IY] == BCMAG_FIXED_VALUE)
             || (offset[IZ] < 0 && bcmag_min[IZ] == BCMAG_FIXED_VALUE)) {
       ComponentIndex3D dir = (offset[IX] < 0 ? IX : offset[IY] > 0 ? IY : IZ);
-      PrimState q = policy.consToPrim(res);
       q.Bx = bcmag_min_val[dir*3+IX];
       q.By = bcmag_min_val[dir*3+IY];
       q.Bz = bcmag_min_val[dir*3+IZ];
-      res = policy.primToCons(q);
     }
 
+    res = policy.primToCons(q); // We go through consToPrim -> primToCons to correctly repercuss the variation on the energy
     res.psi = rparams.psi_out;
 
     return res;
