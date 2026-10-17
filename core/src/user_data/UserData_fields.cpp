@@ -426,7 +426,7 @@ void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_d
 
     _nbFields = fields_info.size();
 
-    DYABLO_ASSERT_HOST_RELEASE( _nbFields <= max_field_count, "Too many fields for FieldAccessor, use getAccessor<_MAX_FIELD_COUNT>() to increase number of fields." );
+    DYABLO_ASSERT_HOST_RELEASE( _nbFields <= max_field_count, "Too many fields for FieldAccessor, use getAccessor<MAX_FIELD_COUNT>() to increase number of fields." );
     for( [[maybe_unused]] const FieldInfo& info : fields_info )
     {
       DYABLO_ASSERT_HOST_RELEASE( info.id >= 0 && info.id < max_field_count, "VarIndex must be included in [0,MAX_FIELD_COUNT[. "

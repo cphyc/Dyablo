@@ -30,12 +30,12 @@ void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_d
                         int* ivar_to_arrayindex
                       );
 
-template< int _MAX_FIELD_COUNT >
+template< int MAX_FIELD_COUNT_ >
 class FieldAccessor_FieldManager
 {
     template< int > friend class FieldAccessor_FieldManager; // For conversions from/to FieldAccessor_FieldManager<DYNAMIC_FIELD_COUNT>
 private:
-    static constexpr int MAX_FIELD_COUNT = _MAX_FIELD_COUNT;
+    static constexpr int MAX_FIELD_COUNT = MAX_FIELD_COUNT_;
     using FieldInfo = UserData_FieldAccessor_FieldInfo;
 
     int _nbFields;
@@ -183,8 +183,8 @@ public:
     }
 };
 
-template< int _MAX_FIELD_COUNT >
-FieldAccessor_FieldManager<_MAX_FIELD_COUNT>::FieldAccessor_FieldManager(const FieldAccessor_FieldManager<DYNAMIC_FIELD_COUNT>& o)
+template< int MAX_FIELD_COUNT >
+FieldAccessor_FieldManager<MAX_FIELD_COUNT>::FieldAccessor_FieldManager(const FieldAccessor_FieldManager<DYNAMIC_FIELD_COUNT>& o)
   : _nbFields( o.nbFields() )
 {
     DYABLO_ASSERT_HOST_RELEASE( _nbFields <= MAX_FIELD_COUNT,
@@ -210,14 +210,13 @@ FieldAccessor_FieldManager<_MAX_FIELD_COUNT>::FieldAccessor_FieldManager(const F
     }
 }
 
-template< bool has_intermediates, int _MAX_FIELD_COUNT >
+template< bool has_intermediates, int MAX_FIELD_COUNT >
 class UserData_FieldAccessor_impl
 {
 friend GhostCommunicator_full_blocks;
 friend UserData_Fields_Pdata;
 template< bool, int > friend class UserData_FieldAccessor_impl; // For conversions between static and dynamic number of fields
 public:
-    static constexpr int MAX_FIELD_COUNT = _MAX_FIELD_COUNT;
     using FieldInfo = UserData_FieldAccessor_FieldInfo;
     using FieldView_t = UserData::FieldView_t;
     using FieldManager = FieldAccessor_FieldManager<MAX_FIELD_COUNT>;
@@ -365,8 +364,8 @@ private:
         return fm_intermediates.get_index_from_varindex(var);
     }
 protected:
-    FieldAccessor_FieldManager<_MAX_FIELD_COUNT> fm;
-    FieldAccessor_FieldManager<_MAX_FIELD_COUNT> fm_intermediates;
+    FieldAccessor_FieldManager<MAX_FIELD_COUNT> fm;
+    FieldAccessor_FieldManager<MAX_FIELD_COUNT> fm_intermediates;
 
     KOKKOS_INLINE_FUNCTION
     int get_index_from_ivar_device(int ivar) const
