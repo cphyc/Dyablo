@@ -102,7 +102,7 @@ public:
     KOKKOS_INLINE_FUNCTION
     int nbFields() const
     {
-        return var_to_arrayindex.size();
+        return ivar_to_arrayindex_device.size();
     }
 
     KOKKOS_INLINE_FUNCTION
