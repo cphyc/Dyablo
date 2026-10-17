@@ -43,8 +43,8 @@ public:
     {
       exchange_ghosts( FieldAccessor_dynamic_t<Array_t>( U ) );
     }
-    void exchange_ghosts( const UserData::FieldAccessor_impl<-1>& U ) const;
-    void exchange_ghosts( const UserData::FieldAccessor_fulltree_impl<-1>& U ) const;
+    void exchange_ghosts( const UserData::FieldAccessor_impl<DYNAMIC_FIELD_COUNT>& U ) const;
+    void exchange_ghosts( const UserData::FieldAccessor_fulltree_impl<DYNAMIC_FIELD_COUNT>& U ) const;
 
     struct OctSubset
     {
@@ -79,8 +79,8 @@ public:
     {
       exchange_ghosts_subset( FieldAccessor_dynamic_t<Array_t>( U ), subset );
     }
-    void exchange_ghosts_subset( const UserData::FieldAccessor_impl<-1>& U, const OctSubset& subset ) const;
-    void exchange_ghosts_subset( const UserData::FieldAccessor_fulltree_impl<-1>& U, const OctSubset& subset ) const;
+    void exchange_ghosts_subset( const UserData::FieldAccessor_impl<DYNAMIC_FIELD_COUNT>& U, const OctSubset& subset ) const;
+    void exchange_ghosts_subset( const UserData::FieldAccessor_fulltree_impl<DYNAMIC_FIELD_COUNT>& U, const OctSubset& subset ) const;
 
     template< FieldAccessor_dynamic_convertible Array_t >
     void reduce_ghosts( Array_t& U ) const
@@ -88,8 +88,8 @@ public:
       FieldAccessor_dynamic_t<Array_t> U_dynamic( U );
       reduce_ghosts( U_dynamic );
     }
-    void reduce_ghosts( UserData::FieldAccessor_impl<-1>& U ) const;
-    void reduce_ghosts( UserData::FieldAccessor_fulltree_impl<-1>& U ) const;
+    void reduce_ghosts( UserData::FieldAccessor_impl<DYNAMIC_FIELD_COUNT>& U ) const;
+    void reduce_ghosts( UserData::FieldAccessor_fulltree_impl<DYNAMIC_FIELD_COUNT>& U ) const;
 
     template< FieldAccessor_dynamic_convertible Array_t >
     void reduce_ghosts_subset( Array_t& U, const OctSubset& subset ) const
@@ -97,8 +97,8 @@ public:
       FieldAccessor_dynamic_t<Array_t> U_dynamic( U );
       reduce_ghosts_subset( U_dynamic, subset );
     }
-    void reduce_ghosts_subset( UserData::FieldAccessor_impl<-1>& U, const OctSubset& subset ) const;
-    void reduce_ghosts_subset( UserData::FieldAccessor_fulltree_impl<-1>& U, const OctSubset& subset ) const;
+    void reduce_ghosts_subset( UserData::FieldAccessor_impl<DYNAMIC_FIELD_COUNT>& U, const OctSubset& subset ) const;
+    void reduce_ghosts_subset( UserData::FieldAccessor_fulltree_impl<DYNAMIC_FIELD_COUNT>& U, const OctSubset& subset ) const;
 
     // -- Special optimization paths --
     // Avoid conversion to dynamic FieldAccessor 

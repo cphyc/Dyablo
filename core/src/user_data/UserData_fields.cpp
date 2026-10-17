@@ -453,7 +453,7 @@ void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_d
     }
 }
 
-FieldAccessor_FieldManager<-1>::FieldAccessor_FieldManager( const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates )
+FieldAccessor_FieldManager<DYNAMIC_FIELD_COUNT>::FieldAccessor_FieldManager( const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates )
   : var_to_arrayindex("var_to_arrayindex", fields_info.size()),
     ivar_to_arrayindex_device("ivar_to_arrayindex", fields_info.size()),
     ivar_to_arrayindex_host( Kokkos::create_mirror_view(ivar_to_arrayindex_device) )

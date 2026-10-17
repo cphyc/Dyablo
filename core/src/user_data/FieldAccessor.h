@@ -33,7 +33,7 @@ void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_d
 template< int _MAX_FIELD_COUNT >
 class FieldAccessor_FieldManager
 {
-    template< int > friend class FieldAccessor_FieldManager; // For conversions from/to FieldAccessor_FieldManager<-1>
+    template< int > friend class FieldAccessor_FieldManager; // For conversions from/to FieldAccessor_FieldManager<DYNAMIC_FIELD_COUNT>
 private:
     static constexpr int MAX_FIELD_COUNT = _MAX_FIELD_COUNT;
     using FieldInfo = UserData_FieldAccessor_FieldInfo;
@@ -61,9 +61,9 @@ public:
     /**
      * Conversion from a FieldAccessor_FieldManager with a dynamic number of fields
      * Checks (DYABLO_ASSERT_HOST_RELEASE) that the number of fields and every VarIndex fit in MAX_FIELD_COUNT
-     * Defined after FieldAccessor_FieldManager<-1>
+     * Defined after FieldAccessor_FieldManager<DYNAMIC_FIELD_COUNT>
      **/
-    explicit FieldAccessor_FieldManager(const FieldAccessor_FieldManager<-1>& o);
+    explicit FieldAccessor_FieldManager(const FieldAccessor_FieldManager<DYNAMIC_FIELD_COUNT>& o);
 
     /**
      * FieldManager for all the fields of a CellArray : VarIndex i and ivar i are field i of the array
@@ -108,7 +108,7 @@ public:
 };
 
 template<>
-class FieldAccessor_FieldManager<-1>
+class FieldAccessor_FieldManager<DYNAMIC_FIELD_COUNT>
 {
     template< int > friend class FieldAccessor_FieldManager; // For conversions from/to FieldAccessor_FieldManager<MAX_FIELD_COUNT>
 private:
@@ -184,7 +184,7 @@ public:
 };
 
 template< int _MAX_FIELD_COUNT >
-FieldAccessor_FieldManager<_MAX_FIELD_COUNT>::FieldAccessor_FieldManager(const FieldAccessor_FieldManager<-1>& o)
+FieldAccessor_FieldManager<_MAX_FIELD_COUNT>::FieldAccessor_FieldManager(const FieldAccessor_FieldManager<DYNAMIC_FIELD_COUNT>& o)
   : _nbFields( o.nbFields() )
 {
     DYABLO_ASSERT_HOST_RELEASE( _nbFields <= MAX_FIELD_COUNT,
@@ -249,11 +249,11 @@ public:
 
     /**
      * Conversion from an accessor with a static number of fields to an accessor with a dynamic
-     * number of fields (MAX_FIELD_COUNT == -1)
+     * number of fields (MAX_FIELD_COUNT == DYNAMIC_FIELD_COUNT)
      * Copies field indices to device : avoid in performance-critical loops
      **/
     template< int MAX_FIELD_COUNT_o >
-    requires ( MAX_FIELD_COUNT == -1 && MAX_FIELD_COUNT_o >= 0 )
+    requires ( MAX_FIELD_COUNT == DYNAMIC_FIELD_COUNT && MAX_FIELD_COUNT_o >= 0 )
     UserData_FieldAccessor_impl(const UserData_FieldAccessor_impl<has_intermediates, MAX_FIELD_COUNT_o>& o)
         : fm( o.fm ),
           fields( o.fields ),
@@ -264,12 +264,12 @@ public:
     }
 
     /**
-     * Conversion from an accessor with a dynamic number of fields (MAX_FIELD_COUNT_o == -1) to an accessor
+     * Conversion from an accessor with a dynamic number of fields (MAX_FIELD_COUNT_o == DYNAMIC_FIELD_COUNT) to an accessor
      * with a static number of fields
      * Undefined behavior if the number of fields or the biggest ivar is too big (usually DYABLO_ASSERT)
      **/
     template< int MAX_FIELD_COUNT_o >
-    requires ( MAX_FIELD_COUNT >= 0 && MAX_FIELD_COUNT_o == -1 )
+    requires ( MAX_FIELD_COUNT >= 0 && MAX_FIELD_COUNT_o == DYNAMIC_FIELD_COUNT )
     explicit UserData_FieldAccessor_impl(const UserData_FieldAccessor_impl<has_intermediates, MAX_FIELD_COUNT_o>& o)
         : fm( o.fm ),
           fields( o.fields ),
@@ -410,9 +410,9 @@ protected:
     }
 };
 
-/// Accessor with a dynamic number of fields : UserData::FieldAccessor_impl<-1> or UserData::FieldAccessor_fulltree_impl<-1>
+/// Accessor with a dynamic number of fields : UserData::FieldAccessor_impl<DYNAMIC_FIELD_COUNT> or UserData::FieldAccessor_fulltree_impl<DYNAMIC_FIELD_COUNT>
 template< bool has_intermediates >
-using FieldAccessor_dynamic = UserData_FieldAccessor_impl<has_intermediates, -1>;
+using FieldAccessor_dynamic = UserData_FieldAccessor_impl<has_intermediates, DYNAMIC_FIELD_COUNT>;
 
 template< typename Array_t, bool has_intermediates >
 inline constexpr bool converts_to_FieldAccessor_dynamic = std::is_constructible_v<FieldAccessor_dynamic<has_intermediates>, const Array_t&>;
@@ -421,7 +421,7 @@ inline constexpr bool converts_to_FieldAccessor_dynamic = std::is_constructible_
 
 /**
  * Arrays that can be converted (explicitly or not) to an accessor with a dynamic number of fields :
- * UserData::FieldAccessor_impl<-1> or UserData::FieldAccessor_fulltree_impl<-1>
+ * UserData::FieldAccessor_impl<DYNAMIC_FIELD_COUNT> or UserData::FieldAccessor_fulltree_impl<DYNAMIC_FIELD_COUNT>
  * (e.g. FieldAccessor_impl<N>, FieldAccessor_fulltree_impl<N>, CellArray_global_ghosted)
  **/
 template< typename Array_t >

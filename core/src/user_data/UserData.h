@@ -8,6 +8,13 @@
 
 namespace dyablo {
 
+/**
+ * MAX_FIELD_COUNT of FieldAccessors with a dynamic number of fields
+ * (e.g. UserData::FieldAccessor_impl<DYNAMIC_FIELD_COUNT>, UserData::getAccessor<DYNAMIC_FIELD_COUNT>())
+ * Any number of fields, field indices are stored in Kokkos::Views instead of Kokkos::Arrays
+ **/
+inline constexpr int DYNAMIC_FIELD_COUNT = -1;
+
 namespace UserData_Impl{
   struct UserData_Fields_Pdata;
   template< bool has_intermediates, int _MAX_FIELD_COUNT >

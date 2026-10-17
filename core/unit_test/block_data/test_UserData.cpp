@@ -161,7 +161,7 @@ int count_position_errors( ForeachCell& foreach_cell, const IterSpace_t& iter_sp
   return error_count;
 }
 
-/// Conversions to accessors with a dynamic number of fields (MAX_FIELD_COUNT == -1)
+/// Conversions to accessors with a dynamic number of fields (MAX_FIELD_COUNT == DYNAMIC_FIELD_COUNT)
 void test_accessor_conversions()
 {
   std::string configmap_str = "";
@@ -201,7 +201,7 @@ void test_accessor_conversions()
 
   // Static -> dynamic, with intermediates
   {
-    UserData::FieldAccessor_fulltree_impl<-1> U_dynamic = U_static;
+    UserData::FieldAccessor_fulltree_impl<DYNAMIC_FIELD_COUNT> U_dynamic = U_static;
     EXPECT_EQ( 3, U_dynamic.nbFields() );
     EXPECT_EQ( 0, count_position_errors( foreach_cell, iter_space_fulltree, U_dynamic, PX, PY, PZ ) );
   }
@@ -209,7 +209,7 @@ void test_accessor_conversions()
   // Static -> dynamic, leaves only
   {
     UserData::FieldAccessor U_static_leaves = U.getAccessor( { {"px",PX}, {"py",PY}, {"pz",PZ} } );
-    UserData::FieldAccessor_impl<-1> U_dynamic = U_static_leaves;
+    UserData::FieldAccessor_impl<DYNAMIC_FIELD_COUNT> U_dynamic = U_static_leaves;
     EXPECT_EQ( 3, U_dynamic.nbFields() );
     EXPECT_EQ( 0, count_position_errors( foreach_cell, U.getShape(), U_dynamic, PX, PY, PZ ) );
   }
@@ -217,7 +217,7 @@ void test_accessor_conversions()
   // Dynamic accessor from UserData, VarIndex in a different order than fields_info
   {
     VarIndex PX_d = (VarIndex)2, PY_d = (VarIndex)0, PZ_d = (VarIndex)1;
-    auto U_dynamic = U.getAccessor<-1>( { {"px",PX_d}, {"py",PY_d}, {"pz",PZ_d} } );
+    auto U_dynamic = U.getAccessor<DYNAMIC_FIELD_COUNT>( { {"px",PX_d}, {"py",PY_d}, {"pz",PZ_d} } );
     EXPECT_EQ( 3, U_dynamic.nbFields() );
     EXPECT_EQ( 0, count_position_errors( foreach_cell, U.getShape(), U_dynamic, PX_d, PY_d, PZ_d ) );
 
@@ -231,7 +231,7 @@ void test_accessor_conversions()
 
   // Static -> dynamic -> static, with intermediates (VarIndex up to 7)
   {
-    UserData::FieldAccessor_fulltree_impl<-1> U_dynamic = U_static;
+    UserData::FieldAccessor_fulltree_impl<DYNAMIC_FIELD_COUNT> U_dynamic = U_static;
     UserData::FieldAccessor_fulltree_impl<8> U_static8( U_dynamic );
     EXPECT_EQ( 3, U_static8.nbFields() );
     EXPECT_EQ( 0, count_position_errors( foreach_cell, iter_space_fulltree, U_static8, PX, PY, PZ ) );
@@ -250,7 +250,7 @@ void test_accessor_conversions()
       A.at_ivar( iCell, 1 ) = c[IY];
       A.at_ivar( iCell, 2 ) = c[IZ];
     });
-    UserData::FieldAccessor_impl<-1> U_dynamic( A );
+    UserData::FieldAccessor_impl<DYNAMIC_FIELD_COUNT> U_dynamic( A );
     EXPECT_EQ( 3, U_dynamic.nbFields() );
     EXPECT_EQ( 0, count_position_errors( foreach_cell, A.getShape(), U_dynamic, (VarIndex)0, (VarIndex)1, (VarIndex)2 ) );
 
@@ -260,7 +260,7 @@ void test_accessor_conversions()
     // 3 fields don't fit in MAX_FIELD_COUNT = 2
     EXPECT_THROW( (void)UserData::FieldAccessor_impl<2>{ A }, std::runtime_error );
 
-    static_assert( !std::is_convertible_v<ForeachCell::CellArray_global_ghosted, UserData::FieldAccessor_impl<-1>>, "CellArray -> accessor must be explicit" );
+    static_assert( !std::is_convertible_v<ForeachCell::CellArray_global_ghosted, UserData::FieldAccessor_impl<DYNAMIC_FIELD_COUNT>>, "CellArray -> accessor must be explicit" );
   }
 }
 
