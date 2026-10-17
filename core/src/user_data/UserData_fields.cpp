@@ -463,7 +463,7 @@ FieldAccessor_FieldManager<-1>::FieldAccessor_FieldManager( const UserData_Field
   int dummy;
   FieldAccessor_FieldManager_init_static( user_data, fields_info,
     fields_info.size(), has_intermediates,
-    dummy, ivar_to_arrayindex_host.data(), var_to_arrayindex_host.data() );
+    dummy, var_to_arrayindex_host.data(), ivar_to_arrayindex_host.data() );
 
   Kokkos::deep_copy( var_to_arrayindex, var_to_arrayindex_host );
   Kokkos::deep_copy( ivar_to_arrayindex_device, ivar_to_arrayindex_host );
