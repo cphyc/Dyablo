@@ -31,6 +31,7 @@ void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_d
 template< int _MAX_FIELD_COUNT >
 class FieldAccessor_FieldManager
 {
+    template< int > friend class FieldAccessor_FieldManager; // For conversions from/to FieldAccessor_FieldManager<-1>
 private:
     static constexpr int MAX_FIELD_COUNT = _MAX_FIELD_COUNT;
     using FieldInfo = UserData_FieldAccessor_FieldInfo;
@@ -53,6 +54,31 @@ public:
                                                 this->_nbFields,
                                                 this->var_to_arrayindex.data(),
                                                 this->ivar_to_arrayindex.data() );
+    }
+
+    /**
+     * Conversion from a FieldAccessor_FieldManager with a dynamic number of fields
+     * Checks (DYABLO_ASSERT_HOST_RELEASE) that the number of fields and every VarIndex fit in MAX_FIELD_COUNT
+     * Defined after FieldAccessor_FieldManager<-1>
+     **/
+    explicit FieldAccessor_FieldManager(const FieldAccessor_FieldManager<-1>& o);
+
+    /**
+     * FieldManager for all the fields of a CellArray : VarIndex i and ivar i are field i of the array
+     * Checks (DYABLO_ASSERT_HOST_RELEASE) that nbFields fits in MAX_FIELD_COUNT
+     **/
+    static FieldAccessor_FieldManager identity( int nbFields )
+    {
+        DYABLO_ASSERT_HOST_RELEASE( nbFields <= MAX_FIELD_COUNT,
+            "Too many fields to convert to FieldAccessor : " << nbFields << " fields, MAX_FIELD_COUNT is " << MAX_FIELD_COUNT );
+        FieldAccessor_FieldManager res;
+        res._nbFields = nbFields;
+        for( int i=0; i<MAX_FIELD_COUNT; i++ )
+        {
+            res.ivar_to_arrayindex[i] = ( i < nbFields ) ? i : 0;
+            res.var_to_arrayindex[i] = ( i < nbFields ) ? i : -1;
+        }
+        return res;
     }
 
     KOKKOS_INLINE_FUNCTION
@@ -82,6 +108,7 @@ public:
 template<>
 class FieldAccessor_FieldManager<-1>
 {
+    template< int > friend class FieldAccessor_FieldManager; // For conversions from/to FieldAccessor_FieldManager<MAX_FIELD_COUNT>
 private:
     static constexpr int MAX_FIELD_COUNT = 3;
     using FieldInfo = UserData_FieldAccessor_FieldInfo;
@@ -98,6 +125,37 @@ public:
     FieldAccessor_FieldManager& operator=(FieldAccessor_FieldManager& ) = default;
 
     FieldAccessor_FieldManager(const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates);
+
+    /// Conversion from a FieldAccessor_FieldManager with a static number of fields
+    template< int MAX_FIELD_COUNT_o >
+    requires ( MAX_FIELD_COUNT_o >= 0 )
+    FieldAccessor_FieldManager(const FieldAccessor_FieldManager<MAX_FIELD_COUNT_o>& o)
+      : var_to_arrayindex("var_to_arrayindex", MAX_FIELD_COUNT_o),
+        ivar_to_arrayindex_device("ivar_to_arrayindex", o.nbFields()),
+        ivar_to_arrayindex_host( Kokkos::create_mirror_view(ivar_to_arrayindex_device) )
+    {
+        auto var_to_arrayindex_host = Kokkos::create_mirror_view(var_to_arrayindex);
+        for( int i=0; i<MAX_FIELD_COUNT_o; i++ )
+            var_to_arrayindex_host(i) = o.var_to_arrayindex[i];
+        for( int i=0; i<o.nbFields(); i++ )
+            ivar_to_arrayindex_host(i) = o.ivar_to_arrayindex[i];
+        Kokkos::deep_copy( var_to_arrayindex, var_to_arrayindex_host );
+        Kokkos::deep_copy( ivar_to_arrayindex_device, ivar_to_arrayindex_host );
+    }
+
+    /// FieldManager for all the fields of a CellArray : VarIndex i and ivar i are field i of the array
+    static FieldAccessor_FieldManager identity( int nbFields )
+    {
+        FieldAccessor_FieldManager res;
+        res.var_to_arrayindex = Kokkos::View<int*>("var_to_arrayindex", nbFields);
+        res.ivar_to_arrayindex_device = Kokkos::View<int*>("ivar_to_arrayindex", nbFields);
+        res.ivar_to_arrayindex_host = Kokkos::create_mirror_view(res.ivar_to_arrayindex_device);
+        for( int i=0; i<nbFields; i++ )
+            res.ivar_to_arrayindex_host(i) = i;
+        Kokkos::deep_copy( res.ivar_to_arrayindex_device, res.ivar_to_arrayindex_host );
+        Kokkos::deep_copy( res.var_to_arrayindex, res.ivar_to_arrayindex_host );
+        return res;
+    }
 
     KOKKOS_INLINE_FUNCTION
     int nbFields() const
@@ -123,11 +181,39 @@ public:
     }
 };
 
+template< int _MAX_FIELD_COUNT >
+FieldAccessor_FieldManager<_MAX_FIELD_COUNT>::FieldAccessor_FieldManager(const FieldAccessor_FieldManager<-1>& o)
+  : _nbFields( o.nbFields() )
+{
+    DYABLO_ASSERT_HOST_RELEASE( _nbFields <= MAX_FIELD_COUNT,
+        "Too many fields to convert to FieldAccessor : " << _nbFields << " fields, MAX_FIELD_COUNT is " << MAX_FIELD_COUNT );
+
+    for( int i=0; i<MAX_FIELD_COUNT; i++ )
+    {
+        ivar_to_arrayindex[i] = 0;
+        var_to_arrayindex[i] = -1;
+    }
+
+    for( int i=0; i<_nbFields; i++ )
+        ivar_to_arrayindex[i] = o.ivar_to_arrayindex_host(i);
+
+    auto var_to_arrayindex_host = Kokkos::create_mirror_view_and_copy( Kokkos::HostSpace(), o.var_to_arrayindex );
+    for( int var=0; var<(int)var_to_arrayindex_host.size(); var++ )
+    {
+        if( var < MAX_FIELD_COUNT )
+            var_to_arrayindex[var] = var_to_arrayindex_host(var);
+        else
+            DYABLO_ASSERT_HOST_RELEASE( var_to_arrayindex_host(var) == -1,
+                "VarIndex " << var << " is used and cannot be converted to FieldAccessor : VarIndex must be in [0," << MAX_FIELD_COUNT << "[" );
+    }
+}
+
 template< bool has_intermediates, int _MAX_FIELD_COUNT >
 class UserData_FieldAccessor_impl
 {
 friend GhostCommunicator_full_blocks;
 friend UserData_Fields_Pdata;
+template< bool, int > friend class UserData_FieldAccessor_impl; // For conversions between static and dynamic number of fields
 public:
     static constexpr int MAX_FIELD_COUNT = _MAX_FIELD_COUNT;
     using FieldInfo = UserData_FieldAccessor_FieldInfo;
@@ -158,6 +244,48 @@ public:
             this->fields, this->fields_intermediates
         );
     }
+
+    /**
+     * Conversion from an accessor with a static number of fields to an accessor with a dynamic
+     * number of fields (MAX_FIELD_COUNT == -1)
+     * Copies field indices to device : avoid in performance-critical loops
+     **/
+    template< int MAX_FIELD_COUNT_o >
+    requires ( MAX_FIELD_COUNT == -1 && MAX_FIELD_COUNT_o >= 0 )
+    UserData_FieldAccessor_impl(const UserData_FieldAccessor_impl<has_intermediates, MAX_FIELD_COUNT_o>& o)
+        : fm( o.fm ),
+          fields( o.fields ),
+          fields_intermediates( o.fields_intermediates )
+    {
+        if constexpr (has_intermediates)
+            fm_intermediates = FieldManager( o.fm_intermediates );
+    }
+
+    /**
+     * Conversion from an accessor with a dynamic number of fields (MAX_FIELD_COUNT_o == -1) to an accessor
+     * with a static number of fields
+     * Undefined behavior if the number of fields or the biggest ivar is too big (usually DYABLO_ASSERT)
+     **/
+    template< int MAX_FIELD_COUNT_o >
+    requires ( MAX_FIELD_COUNT >= 0 && MAX_FIELD_COUNT_o == -1 )
+    explicit UserData_FieldAccessor_impl(const UserData_FieldAccessor_impl<has_intermediates, MAX_FIELD_COUNT_o>& o)
+        : fm( o.fm ),
+          fields( o.fields ),
+          fields_intermediates( o.fields_intermediates )
+    {
+        if constexpr (has_intermediates)
+            fm_intermediates = FieldManager( o.fm_intermediates );
+    }
+
+    /**
+     * Accessor for all the fields of a CellArray : VarIndex i and ivar i are field i of the array
+     * With a static number of fields, checks (DYABLO_ASSERT_HOST_RELEASE) that the fields fit in MAX_FIELD_COUNT
+     **/
+    explicit UserData_FieldAccessor_impl(const FieldView_t& U)
+    requires ( !has_intermediates )
+        : fm( FieldManager::identity( U.nbFields() ) ),
+          fields( U )
+    {}
 
     template< typename ... VarIndex_s >
     KOKKOS_INLINE_FUNCTION

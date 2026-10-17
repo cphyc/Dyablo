@@ -141,6 +141,129 @@ void test_fields()
   }
 }
 
+/// Count cells where Ua does not contain cell position in (PX,PY,PZ) and in ivars (0,1,2)
+template< typename Accessor_t, typename IterSpace_t >
+int count_position_errors( ForeachCell& foreach_cell, const IterSpace_t& iter_space, const Accessor_t& Ua, VarIndex PX, VarIndex PY, VarIndex PZ )
+{
+  auto cells = foreach_cell.getCellMetaData();
+  int error_count = 0;
+  foreach_cell.reduce_cell( "count_position_errors", iter_space,
+    KOKKOS_LAMBDA( const ForeachCell::CellIndex& iCell, int& error_count )
+  {
+    auto c = cells.getCellCenter(iCell);
+    if( Ua.at( iCell, PX ) != c[IX] ) error_count++;
+    if( Ua.at( iCell, PY ) != c[IY] ) error_count++;
+    if( Ua.at( iCell, PZ ) != c[IZ] ) error_count++;
+    if( Ua.at_ivar( iCell, 0 ) != c[IX] ) error_count++;
+    if( Ua.at_ivar( iCell, 1 ) != c[IY] ) error_count++;
+    if( Ua.at_ivar( iCell, 2 ) != c[IZ] ) error_count++;
+  }, error_count);
+  return error_count;
+}
+
+/// Conversions to accessors with a dynamic number of fields (MAX_FIELD_COUNT == -1)
+void test_accessor_conversions()
+{
+  std::string configmap_str = "";
+  ConfigMap configMap(configmap_str);
+
+  constexpr int ndim = 3;
+  configMap.getValue<int>("run", "ndim", ndim);
+  configMap.getValue<uint32_t>("amr", "bx", 8);
+  configMap.getValue<uint32_t>("amr", "by", 4);
+  configMap.getValue<uint32_t>("amr", "bz", 4);
+  uint32_t level_min = configMap.getValue<uint32_t>("amr", "level_min", 3);
+  uint32_t level_max = configMap.getValue<uint32_t>("amr", "level_max", 5);
+
+  AMRmesh pmesh( ndim, std::array<bool,3>{false,false,false}, level_min, level_max);
+  ForeachCell foreach_cell( pmesh, configMap );
+  auto cells = foreach_cell.getCellMetaData();
+
+  UserData U(configMap, foreach_cell);
+  U.new_fields({"px","py","pz"});
+  U.new_intermediate_fields({"px","py","pz"});
+
+  // VarIndex not ordered and not in [0, nbFields[ (only possible with a static number of fields)
+  VarIndex PX = (VarIndex)2, PY = (VarIndex)7, PZ = (VarIndex)3;
+  UserData::FieldAccessor_fulltree U_static = U.getAccessor_fulltree( { {"px",PX}, {"py",PY}, {"pz",PZ} } );
+
+  constexpr bool with_locals = true, without_ghosts = false, with_intermediates = true;
+  ForeachCell::IterationSpace_fullArray_impl<with_locals, without_ghosts, with_intermediates, without_ghosts> iter_space_fulltree( U_static.getShape() );
+  foreach_cell.foreach_cell( "Init p", iter_space_fulltree,
+    KOKKOS_LAMBDA( const ForeachCell::CellIndex& iCell )
+  {
+    auto c = cells.getCellCenter(iCell);
+    U_static.at( iCell, PX ) = c[IX];
+    U_static.at( iCell, PY ) = c[IY];
+    U_static.at( iCell, PZ ) = c[IZ];
+  });
+  ASSERT_EQ( 0, count_position_errors( foreach_cell, iter_space_fulltree, U_static, PX, PY, PZ ) );
+
+  // Static -> dynamic, with intermediates
+  {
+    UserData::FieldAccessor_fulltree_impl<-1> U_dynamic = U_static;
+    EXPECT_EQ( 3, U_dynamic.nbFields() );
+    EXPECT_EQ( 0, count_position_errors( foreach_cell, iter_space_fulltree, U_dynamic, PX, PY, PZ ) );
+  }
+
+  // Static -> dynamic, leaves only
+  {
+    UserData::FieldAccessor U_static_leaves = U.getAccessor( { {"px",PX}, {"py",PY}, {"pz",PZ} } );
+    UserData::FieldAccessor_impl<-1> U_dynamic = U_static_leaves;
+    EXPECT_EQ( 3, U_dynamic.nbFields() );
+    EXPECT_EQ( 0, count_position_errors( foreach_cell, U.getShape(), U_dynamic, PX, PY, PZ ) );
+  }
+
+  // Dynamic accessor from UserData, VarIndex in a different order than fields_info
+  {
+    VarIndex PX_d = (VarIndex)2, PY_d = (VarIndex)0, PZ_d = (VarIndex)1;
+    auto U_dynamic = U.getAccessor<-1>( { {"px",PX_d}, {"py",PY_d}, {"pz",PZ_d} } );
+    EXPECT_EQ( 3, U_dynamic.nbFields() );
+    EXPECT_EQ( 0, count_position_errors( foreach_cell, U.getShape(), U_dynamic, PX_d, PY_d, PZ_d ) );
+
+    // Dynamic -> static
+    UserData::FieldAccessor_impl<3> U_static3( U_dynamic );
+    EXPECT_EQ( 3, U_static3.nbFields() );
+    EXPECT_EQ( 0, count_position_errors( foreach_cell, U.getShape(), U_static3, PX_d, PY_d, PZ_d ) );
+    // 3 fields don't fit in MAX_FIELD_COUNT = 2
+    EXPECT_THROW( (void)UserData::FieldAccessor_impl<2>{ U_dynamic }, std::runtime_error );
+  }
+
+  // Static -> dynamic -> static, with intermediates (VarIndex up to 7)
+  {
+    UserData::FieldAccessor_fulltree_impl<-1> U_dynamic = U_static;
+    UserData::FieldAccessor_fulltree_impl<8> U_static8( U_dynamic );
+    EXPECT_EQ( 3, U_static8.nbFields() );
+    EXPECT_EQ( 0, count_position_errors( foreach_cell, iter_space_fulltree, U_static8, PX, PY, PZ ) );
+    // 3 fields fit in MAX_FIELD_COUNT = 4, but VarIndex PY = 7 doesn't
+    EXPECT_THROW( (void)UserData::FieldAccessor_fulltree_impl<4>{ U_dynamic }, std::runtime_error );
+  }
+
+  // CellArray -> accessor : VarIndex i and ivar i are field i of the array
+  {
+    ForeachCell::CellArray_global_ghosted A = foreach_cell.allocate_ghosted_array( "A", 3 );
+    foreach_cell.foreach_cell( "Init A", A.getShape(),
+      KOKKOS_LAMBDA( const ForeachCell::CellIndex& iCell )
+    {
+      auto c = cells.getCellCenter(iCell);
+      A.at_ivar( iCell, 0 ) = c[IX];
+      A.at_ivar( iCell, 1 ) = c[IY];
+      A.at_ivar( iCell, 2 ) = c[IZ];
+    });
+    UserData::FieldAccessor_impl<-1> U_dynamic( A );
+    EXPECT_EQ( 3, U_dynamic.nbFields() );
+    EXPECT_EQ( 0, count_position_errors( foreach_cell, A.getShape(), U_dynamic, (VarIndex)0, (VarIndex)1, (VarIndex)2 ) );
+
+    UserData::FieldAccessor_impl<3> U_static3( A );
+    EXPECT_EQ( 3, U_static3.nbFields() );
+    EXPECT_EQ( 0, count_position_errors( foreach_cell, A.getShape(), U_static3, (VarIndex)0, (VarIndex)1, (VarIndex)2 ) );
+    // 3 fields don't fit in MAX_FIELD_COUNT = 2
+    EXPECT_THROW( (void)UserData::FieldAccessor_impl<2>{ A }, std::runtime_error );
+
+    static_assert( !std::is_convertible_v<ForeachCell::CellArray_global_ghosted, UserData::FieldAccessor_impl<-1>>, "CellArray -> accessor must be explicit" );
+  }
+}
+
 void test_particles()
 {
   std::string configmap_str = "";
@@ -246,6 +369,11 @@ void test_particles()
 TEST(Test_UserData, fields)
 {
   dyablo::test_fields();
+}
+
+TEST(Test_UserData, accessor_conversions)
+{
+  dyablo::test_accessor_conversions();
 }
 
 TEST(Test_UserData, particles)
