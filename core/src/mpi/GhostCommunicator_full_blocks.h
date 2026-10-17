@@ -1,6 +1,7 @@
 #pragma once
 
 #include "user_data/UserData.h"
+#include "user_data/FieldAccessor.h"
 #include "mpi/ViewCommunicator.h"
 
 namespace dyablo {
@@ -34,10 +35,16 @@ public:
       return ViewCommunicator::getNumGhosts();
     }
 
-    void exchange_ghosts( const UserData::FieldAccessor& U ) const;
-    void exchange_ghosts( const UserData::FieldAccessor_fulltree& U ) const;
+    // Arrays convertible to an accessor with a dynamic number of fields (FieldAccessor_dynamic_convertible)
+    // are converted to FieldAccessor_dynamic_t and communicated by the non-template overloads
 
-    void exchange_ghosts( ForeachCell::CellArray_global_ghosted& U ) const;
+    template< FieldAccessor_dynamic_convertible Array_t >
+    void exchange_ghosts( const Array_t& U ) const
+    {
+      exchange_ghosts( FieldAccessor_dynamic_t<Array_t>( U ) );
+    }
+    void exchange_ghosts( const UserData::FieldAccessor_impl<-1>& U ) const;
+    void exchange_ghosts( const UserData::FieldAccessor_fulltree_impl<-1>& U ) const;
 
     struct OctSubset
     {
@@ -67,16 +74,37 @@ public:
       Kokkos::View<uint32_t*> subset_iOcts;
     };
 
-    void exchange_ghosts_subset( const UserData::FieldAccessor& U, const OctSubset& subset ) const;
-    void exchange_ghosts_subset( const UserData::FieldAccessor_fulltree& U, const OctSubset& subset ) const;
+    template< FieldAccessor_dynamic_convertible Array_t >
+    void exchange_ghosts_subset( const Array_t& U, const OctSubset& subset ) const
+    {
+      exchange_ghosts_subset( FieldAccessor_dynamic_t<Array_t>( U ), subset );
+    }
+    void exchange_ghosts_subset( const UserData::FieldAccessor_impl<-1>& U, const OctSubset& subset ) const;
+    void exchange_ghosts_subset( const UserData::FieldAccessor_fulltree_impl<-1>& U, const OctSubset& subset ) const;
 
-    void reduce_ghosts( UserData::FieldAccessor& U ) const;
-    void reduce_ghosts( UserData::FieldAccessor_fulltree& U ) const;
+    template< FieldAccessor_dynamic_convertible Array_t >
+    void reduce_ghosts( Array_t& U ) const
+    {
+      FieldAccessor_dynamic_t<Array_t> U_dynamic( U );
+      reduce_ghosts( U_dynamic );
+    }
+    void reduce_ghosts( UserData::FieldAccessor_impl<-1>& U ) const;
+    void reduce_ghosts( UserData::FieldAccessor_fulltree_impl<-1>& U ) const;
 
-    void reduce_ghosts( ForeachCell::CellArray_global_ghosted& U ) const; 
+    template< FieldAccessor_dynamic_convertible Array_t >
+    void reduce_ghosts_subset( Array_t& U, const OctSubset& subset ) const
+    {
+      FieldAccessor_dynamic_t<Array_t> U_dynamic( U );
+      reduce_ghosts_subset( U_dynamic, subset );
+    }
+    void reduce_ghosts_subset( UserData::FieldAccessor_impl<-1>& U, const OctSubset& subset ) const;
+    void reduce_ghosts_subset( UserData::FieldAccessor_fulltree_impl<-1>& U, const OctSubset& subset ) const;
 
-    void reduce_ghosts_subset( UserData::FieldAccessor& U, const OctSubset& subset ) const;
-    void reduce_ghosts_subset( UserData::FieldAccessor_fulltree& U, const OctSubset& subset ) const;
-};
+    // -- Special optimization paths --
+    // Avoid conversion to dynamic FieldAccessor 
+    /// Communicates all fields at once (not converted to an accessor : that would communicate fields one by one)
+    void exchange_ghosts( ForeachCell::CellArray_global_ghosted& U ) const;
+    void reduce_ghosts( ForeachCell::CellArray_global_ghosted& U ) const;
+  };
 
 } // namespace dyablo

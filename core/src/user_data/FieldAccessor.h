@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 #include "user_data/UserData.h" // IWYU pragma: export
 #include "utils/misc/dyablo_tuple.h"
 
@@ -408,5 +410,26 @@ protected:
     }
 };
 
+/// Accessor with a dynamic number of fields : UserData::FieldAccessor_impl<-1> or UserData::FieldAccessor_fulltree_impl<-1>
+template< bool has_intermediates >
+using FieldAccessor_dynamic = UserData_FieldAccessor_impl<has_intermediates, -1>;
+
+template< typename Array_t, bool has_intermediates >
+inline constexpr bool converts_to_FieldAccessor_dynamic = std::is_constructible_v<FieldAccessor_dynamic<has_intermediates>, const Array_t&>;
+
 } //namespace UserData_Impl
+
+/**
+ * Arrays that can be converted (explicitly or not) to an accessor with a dynamic number of fields :
+ * UserData::FieldAccessor_impl<-1> or UserData::FieldAccessor_fulltree_impl<-1>
+ * (e.g. FieldAccessor_impl<N>, FieldAccessor_fulltree_impl<N>, CellArray_global_ghosted)
+ **/
+template< typename Array_t >
+concept FieldAccessor_dynamic_convertible = UserData_Impl::converts_to_FieldAccessor_dynamic<Array_t, false>
+                                         || UserData_Impl::converts_to_FieldAccessor_dynamic<Array_t, true>;
+
+/// Accessor with a dynamic number of fields to convert Array_t to (with intermediates when possible)
+template< FieldAccessor_dynamic_convertible Array_t >
+using FieldAccessor_dynamic_t = UserData_Impl::FieldAccessor_dynamic< UserData_Impl::converts_to_FieldAccessor_dynamic<Array_t, true> >;
+
 } //namespace dyablo
