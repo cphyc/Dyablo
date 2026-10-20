@@ -119,6 +119,14 @@ public:
 
   /***
    * @brief create a FieldAccessor to access fields listed in `fields_info`
+   * @param fields_info is a list to map names to a VarIndex. Names must exist in UserData
+   *                /!\ must contain all VarIndex in [0,size] (no gaps) to avoid gaps, 
+   *                be sure to create a dedicated VarIndex_* enum just for your Accessor 
+   *                If possible, create an enum in the local context, right above your getAccessor call:
+   *                ``` 
+   *                enum VarIndex_Uin {Irho, Ivx};
+   *                auto Uin = U.getAccessor( {{"rho", Irho_Uin}, {"vx", Ivx}} );
+   *                ```
    * NOTE : Accessors may be invalidated by some methods from UserData (e.g. deleting or moving a field, reallocating, ...)
    * Do not keep invalidated accessors since live accessors may prevent Kokkos::View deallocation and create memory leaks
    ***/
@@ -129,7 +137,8 @@ public:
   }
 
   /***
-   * @brief create a FieldAccessor to access fields listed in `fields_info` and allow access to intermediate cells
+   * Like getAccessor, but including intermediates. 
+   * @copydoc getAccessor
    ***/
   template< int MAX_FIELD_COUNT = DEFAULT_MAX_FIELD_COUNT >
   FieldAccessor_fulltree_impl<MAX_FIELD_COUNT> getAccessor_fulltree( const std::vector<FieldAccessor_FieldInfo>& fields_info ) const

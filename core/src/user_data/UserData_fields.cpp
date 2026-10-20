@@ -406,8 +406,7 @@ void FieldAccessor_init( const UserData_Fields_Pdata& user_data, const std::vect
 void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info,
                         int max_field_count, bool has_intermediates,
                         int& _nbFields,
-                        int* var_to_arrayindex,
-                        int* ivar_to_arrayindex
+                        int* var_to_arrayindex
                       )
 {
     DYABLO_ASSERT_HOST_RELEASE( fields_info.size() > 0, "fields_info cannot be empty" );
@@ -435,11 +434,9 @@ void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_d
 
     for(int i=0; i<max_field_count; i++)
     {
-      ivar_to_arrayindex[i] = 0;
       var_to_arrayindex[i] = -1;
     }
 
-    int i=0; 
     for( const FieldInfo& info : fields_info )
     {
         DYABLO_ASSERT_HOST_RELEASE( has_intermediates ? user_data.has_intermediate_field(info.name) : user_data.has_field(info.name), 
@@ -448,25 +445,21 @@ void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_d
                         user_data.field_index_intermediate.at(info.name).index 
                       : user_data.field_index.at(info.name).index;
         var_to_arrayindex[info.id] = index;
-        ivar_to_arrayindex[i] = index;
-        i++;
     }
 }
 
 FieldAccessor_FieldManager<DYNAMIC_FIELD_COUNT>::FieldAccessor_FieldManager( const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates )
-  : var_to_arrayindex("var_to_arrayindex", fields_info.size()),
-    ivar_to_arrayindex_device("ivar_to_arrayindex", fields_info.size()),
-    ivar_to_arrayindex_host( Kokkos::create_mirror_view(ivar_to_arrayindex_device) )
+  : var_to_arrayindex_device("var_to_arrayindex", fields_info.size()),
+    var_to_arrayindex_host(Kokkos::create_mirror_view(var_to_arrayindex_device))
 {
-  auto var_to_arrayindex_host = Kokkos::create_mirror_view(var_to_arrayindex);
+  check_consecutive_varindex(fields_info);
 
   int dummy;
   FieldAccessor_FieldManager_init_static( user_data, fields_info,
     fields_info.size(), has_intermediates,
-    dummy, var_to_arrayindex_host.data(), ivar_to_arrayindex_host.data() );
+    dummy, var_to_arrayindex_host.data() );
 
-  Kokkos::deep_copy( var_to_arrayindex, var_to_arrayindex_host );
-  Kokkos::deep_copy( ivar_to_arrayindex_device, ivar_to_arrayindex_host );
+  Kokkos::deep_copy( var_to_arrayindex_device, var_to_arrayindex_host );
 }
 
 
