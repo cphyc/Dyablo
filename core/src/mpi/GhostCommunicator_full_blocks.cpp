@@ -9,7 +9,7 @@ Kokkos::View<uint32_t*> GhostCommunicator_full_blocks::iOcts_send() const
   return this->send_iOcts;
 }
 
-void GhostCommunicator_full_blocks::exchange_ghosts( const UserData::FieldAccessor& U ) const
+void GhostCommunicator_full_blocks::exchange_ghosts( const UserData::FieldAccessor_impl<DYNAMIC_FIELD_COUNT>& U ) const
 {
   DYABLO_ASSERT_HOST_DEBUG( !this->intermediates, "Trying to echange intermediate ghosts but FieldAccessor don't have intermediates" );
   auto &fields = U.fields;
@@ -24,7 +24,7 @@ void GhostCommunicator_full_blocks::exchange_ghosts( const UserData::FieldAccess
   }
 }
 
-void GhostCommunicator_full_blocks::exchange_ghosts( const UserData::FieldAccessor_fulltree& U ) const
+void GhostCommunicator_full_blocks::exchange_ghosts( const UserData::FieldAccessor_fulltree_impl<DYNAMIC_FIELD_COUNT>& U ) const
 {
   auto &fields = this->intermediates?U.fields_intermediates:U.fields;
 
@@ -233,7 +233,7 @@ GhostCommunicator_full_blocks::OctSubset::OctSubset(const GhostCommunicator_full
    );
 }
 
-void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::FieldAccessor& U, const OctSubset& subset ) const
+void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::FieldAccessor_impl<DYNAMIC_FIELD_COUNT>& U, const OctSubset& subset ) const
 {
   DYABLO_ASSERT_HOST_DEBUG( !this->intermediates, "Trying to echange intermediate ghosts but FieldAccessor don't have intermediates" );
   auto &fields = U.fields;
@@ -268,7 +268,7 @@ void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::Fiel
   });      
 }
 
-void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::FieldAccessor_fulltree& U, const OctSubset& subset ) const
+void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::FieldAccessor_fulltree_impl<DYNAMIC_FIELD_COUNT>& U, const OctSubset& subset ) const
 {
   auto &fields = this->intermediates?U.fields_intermediates:U.fields;
 
@@ -304,7 +304,7 @@ void GhostCommunicator_full_blocks::exchange_ghosts_subset( const UserData::Fiel
 }
 
 
-void GhostCommunicator_full_blocks::reduce_ghosts( UserData::FieldAccessor_fulltree& U ) const
+void GhostCommunicator_full_blocks::reduce_ghosts( UserData::FieldAccessor_fulltree_impl<DYNAMIC_FIELD_COUNT>& U ) const
 {
   auto &fields = this->intermediates?U.fields_intermediates:U.fields;
 
@@ -318,7 +318,7 @@ void GhostCommunicator_full_blocks::reduce_ghosts( UserData::FieldAccessor_fullt
   }
 }
 
-void GhostCommunicator_full_blocks::reduce_ghosts( UserData::FieldAccessor& U ) const
+void GhostCommunicator_full_blocks::reduce_ghosts( UserData::FieldAccessor_impl<DYNAMIC_FIELD_COUNT>& U ) const
 {
   for(int i=0; i<U.nbFields(); i++)
   {
@@ -335,7 +335,7 @@ void GhostCommunicator_full_blocks::reduce_ghosts( ForeachCell::CellArray_global
   ViewCommunicator::reduce_ghosts<2>(U.subview_U(), U.subview_Ughost());
 }  
 
-void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccessor_fulltree& U, const OctSubset& subset ) const
+void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccessor_fulltree_impl<DYNAMIC_FIELD_COUNT>& U, const OctSubset& subset ) const
 {
   auto &fields = this->intermediates?U.fields_intermediates:U.fields;
 
@@ -370,7 +370,7 @@ void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccesso
   }
 }
 
-void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccessor& U, const OctSubset& subset ) const
+void GhostCommunicator_full_blocks::reduce_ghosts_subset( UserData::FieldAccessor_impl<DYNAMIC_FIELD_COUNT>& U, const OctSubset& subset ) const
 {
   auto &fields = U.fields;
 
