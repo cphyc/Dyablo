@@ -35,8 +35,6 @@ struct MapDataTestParams {
   int ndim;
 };
 
-enum VarIndex {Px, Py, Pz, S};
-
 const real_t gradX = 1.0;
 const real_t gradY = 3.0;
 const real_t gradZ = 7.0;
@@ -46,6 +44,7 @@ void init_position(MapDataTestParams &test_params) {
   auto &U = test_params.U;
 
   U.new_fields({"px", "py", "pz", "size_initial"});
+  enum VarIndex {Px, Py, Pz, S};
   UserData::FieldAccessor Uin = U.getAccessor( {{"px", Px}, {"py", Py}, {"pz", Pz}, {"size_initial", S}} );
   const ForeachCell::CellMetaData& cells = test_params.foreach_cell.getCellMetaData();
   foreach_cell.foreach_cell( "Init_U", U.getShape(),
@@ -67,6 +66,7 @@ void init_linear(MapDataTestParams &test_params) {
   auto &U = test_params.U;
 
   U.new_fields({"px", "py", "pz"});
+  enum VarIndex {Px, Py, Pz};
   UserData::FieldAccessor Uin = U.getAccessor( {{"px", Px}, {"py", Py}, {"pz", Pz}} );
   const ForeachCell::CellMetaData& cells = foreach_cell.getCellMetaData();
   foreach_cell.foreach_cell( "Init_U", U.getShape(),
@@ -301,7 +301,8 @@ void run_test(int ndim, std::string mapUserData_id)
   {
     int ghost_count = 1; 
     GhostCommunicator ghost_comm(*amr_mesh, U.getShape(), ghost_count );
-    auto Uexchange = U.getAccessor( {{"px", 0},{"py", 0},{"pz", 0}} );
+    enum VarIndex {Px, Py, Pz};
+    auto Uexchange = U.getAccessor( {{"px", Px},{"py", Py},{"pz", Pz}} );
     ghost_comm.exchange_ghosts(Uexchange);
   }
 

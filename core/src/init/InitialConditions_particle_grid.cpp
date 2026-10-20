@@ -163,20 +163,21 @@ public:
     U.new_ParticleAttribute(particle_array_name, "vz");
     U.new_ParticleAttribute(particle_array_name, "mass");
     
-    enum VarIndex_particle_grid { IVX, IVY, IVZ, IMASS, IRHO };
+    enum VarIndex_Pout { IVX_p, IVY_p, IVZ_p, IMASS };
+    enum VarIndex_Uin { IRHO, IVX_f, IVY_f, IVZ_f };
       
 
     {
       UserData::ParticleArray_t P = U.getParticleArray( particle_array_name );
       auto Pout = U.getParticleAccessor( particle_array_name,
-                                        { {"vx", IVX}, 
-                                          {"vy", IVY},
-                                          {"vz", IVZ},
+                                        { {"vx", IVX_p}, 
+                                          {"vy", IVY_p},
+                                          {"vz", IVZ_p},
                                           {"mass", IMASS} });
       auto Uin = U.getAccessor( { {"rho", IRHO},
-                                  {"rho_vx", IVX}, 
-                                  {"rho_vy", IVY},
-                                  {"rho_vz", IVZ} });
+                                  {"rho_vx", IVX_f}, 
+                                  {"rho_vy", IVY_f},
+                                  {"rho_vz", IVZ_f} });
 
 
       ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
@@ -190,13 +191,13 @@ public:
         Pout.at( iPart, IMASS ) = mass;
 
         real_t rho = Uin.at(iCell, IRHO);
-        real_t u = Uin.at(iCell, IVX) / rho;
-        real_t v = Uin.at(iCell, IVY) / rho;
-        real_t w = Uin.at(iCell, IVZ) / rho;
+        real_t u = Uin.at(iCell, IVX_f) / rho;
+        real_t v = Uin.at(iCell, IVY_f) / rho;
+        real_t w = Uin.at(iCell, IVZ_f) / rho;
 
-        Pout.at( iPart, IVX ) = u;
-        Pout.at( iPart, IVY ) = v;
-        Pout.at( iPart, IVZ ) = w;
+        Pout.at( iPart, IVX_p ) = u;
+        Pout.at( iPart, IVY_p ) = v;
+        Pout.at( iPart, IVZ_p ) = w;
 
         P.pos( iPart, IX ) = P.pos( iPart, IX ) + u * dt_perturb;
         P.pos( iPart, IY ) = P.pos( iPart, IY ) + v * dt_perturb;

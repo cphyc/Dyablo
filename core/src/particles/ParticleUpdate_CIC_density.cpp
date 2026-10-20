@@ -36,8 +36,8 @@ public:
   {
     timers.get("ParticleUpdate_CIC_density").start();
 
-    enum VarIndex_g{
-      IRho, IRhoG
+    enum VarIndex_Uin{
+      IRhoG, IRho, // Order is important here : IRhoG is used also for Uout
     };
     enum VarIndex_particle{
       IMass

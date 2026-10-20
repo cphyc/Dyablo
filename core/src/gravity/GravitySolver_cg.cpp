@@ -71,10 +71,6 @@ using GlobalArray = typename ForeachCell::CellArray_global;
 using GhostedArray = typename ForeachCell::CellArray_global_ghosted;
 using CellIndex = typename ForeachCell::CellIndex;
 
-enum VarIndex_CG
-{
-  ID, IGX, IGY, IGZ, IGPHI
-};
 
 /**
  * @brief Method returning the value of a given cell.
@@ -182,6 +178,8 @@ real_t Aii(const UserData::FieldAccessor& GCdata, const CellIndex& iCell_CGdata,
   return (dx*dy*dz)*(2/(dx*dx)+2/(dy*dy)+2/(dz*dz));
 }
 
+enum VarIndex_Uin {Irho_Uin, Igphi_Uin};
+
 /**
  * @brief Right hand term of the poisson equation in the non-cosmo case
  * 
@@ -197,7 +195,7 @@ real_t Aii(const UserData::FieldAccessor& GCdata, const CellIndex& iCell_CGdata,
 KOKKOS_INLINE_FUNCTION
 real_t b(const UserData::FieldAccessor& Uin, const CellIndex& iCell_Uin, real_t rho_mean, real_t four_Pi_G, ForeachCell::CellMetaData::pos_t size)
 {
-  return -four_Pi_G*(Uin.at(iCell_Uin, ID)-rho_mean)*size[IX]*size[IY]*size[IZ];
+  return -four_Pi_G*(Uin.at(iCell_Uin, Irho_Uin)-rho_mean)*size[IX]*size[IY]*size[IZ];
 }
 
 
@@ -208,11 +206,6 @@ real_t MPI_Allreduce_scalar( real_t local_v )
   return res;
 }
 
-// Indexes for CGdata
-enum VarIndex_CG_tmp
-{
-  CG_IP, CG_IR, CG_PHI, COUNT
-};
 
 } // namespace
 
@@ -234,11 +227,12 @@ void GravitySolver_cg::update_gravity_field( UserData& U, ScalarSimulationData& 
 
   real_t eps = pdata->CG_eps;
 
-  UserData::FieldAccessor Uin = U.getAccessor( {{"rho", ID}, {"gphi", IGPHI}} );
+  UserData::FieldAccessor Uin = U.getAccessor( {{"rho", Irho_Uin}, {"gphi", Igphi_Uin}} );
 
   ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
 
   // Allocate global array
+  enum VarIndex_CG_tmp {CG_IP, CG_IR, CG_PHI, COUNT};
   GhostedArray CGdata = foreach_cell.allocate_ghosted_array( "CGdata", VarIndex_CG_tmp::COUNT );
 
   pdata->timers.get("GravitySolver_cg").start();
@@ -248,7 +242,7 @@ void GravitySolver_cg::update_gravity_field( UserData& U, ScalarSimulationData& 
     KOKKOS_LAMBDA(const CellIndex& iCell_CGdata, real_t& update_rhomean)
   {
     ForeachCell::CellMetaData::pos_t size = cells.getCellSize(iCell_CGdata);
-    real_t rhoi = Uin.at(iCell_CGdata, ID);
+    real_t rhoi = Uin.at(iCell_CGdata, Irho_Uin);
     update_rhomean += rhoi*size[IX]*size[IY]*size[IZ];
   }, Kokkos::Sum<real_t>(rho_mean) );
   real_t Vtot = (xmax-xmin)*(ymax-ymin)*(zmax-zmin);
@@ -268,11 +262,11 @@ void GravitySolver_cg::update_gravity_field( UserData& U, ScalarSimulationData& 
     ForeachCell::SearchMode_neighbor search_neighbor( cells.getLightOctree(), ForeachCell::SearchMode_neighbor::CLOSEST );
 
     // Get gravity potential from last iteration as approximate solution
-    CGdata.at(iCell_CGdata, CG_PHI) = Uin.at(iCell_CGdata, IGPHI);
+    CGdata.at(iCell_CGdata, CG_PHI) = Uin.at(iCell_CGdata, Igphi_Uin);
     auto cell_size = cells.getCellSize(iCell_CGdata);
     real_t bi = b(Uin, iCell_CGdata, rho_mean, four_Pi_G, cell_size);
 
-    real_t r = bi - matprod(Uin, search_neighbor, iCell_CGdata, IGPHI, cell_size[IX], cell_size[IY], cell_size[IZ], boundarycondition);
+    real_t r = bi - matprod(Uin, search_neighbor, iCell_CGdata, Igphi_Uin, cell_size[IX], cell_size[IY], cell_size[IZ], boundarycondition);
     CGdata.at(iCell_CGdata, CG_IR) = r; // r = b-A*x0
     real_t z = r/Aii(Uin, iCell_CGdata, cell_size[IX], cell_size[IY], cell_size[IZ], boundarycondition); // z = M^(-1)r
     //CGdata.at(iCell_CGdata, CG_IZ) = z;
@@ -355,11 +349,12 @@ void GravitySolver_cg::update_gravity_field( UserData& U, ScalarSimulationData& 
   // TODO : exchange only CG_PHI 
   ghost_comm.exchange_ghosts(CGdata);
 
+  enum VarIndex_Uout { IGX_Uout, IGY_Uout, IGZ_Uout, IGPHI_out };
   UserData::FieldAccessor Uout = U.getAccessor({ 
-    {"gx", IGX},
-    {"gy", IGY},
-    {"gz", IGZ},
-    {"gphi", IGPHI}
+    {"gx", IGX_Uout},
+    {"gy", IGY_Uout},
+    {"gz", IGZ_Uout},
+    {"gphi", IGPHI_out}
   });
 
   ForeachCell::SearchMode_local search_local( ForeachCell::SearchMode_local::ASSERT );
@@ -375,7 +370,7 @@ void GravitySolver_cg::update_gravity_field( UserData& U, ScalarSimulationData& 
     auto gradient = [&](ComponentIndex3D dir)
     {
       real_t phi_C = CGdata.at(iCell_CGdata, CG_PHI);
-      Uout.at(iCell_Uout, IGPHI) = phi_C;
+      Uout.at(iCell_Uout, IGPHI_out) = phi_C;
       CellIndex::offset_t off_L = {}; off_L[dir] = -1;
       CellIndex::offset_t off_R = {}; off_R[dir] = +1;
       CellIndex iCell_L = iCell_CGdata.getNeighbor(off_L, search_neighbor);
@@ -397,7 +392,7 @@ void GravitySolver_cg::update_gravity_field( UserData& U, ScalarSimulationData& 
       if( boundarycondition[dir] == BC_ABSORBING && iCell_L.is_boundary() ) dphi_L = 0;
       if( boundarycondition[dir] == BC_ABSORBING && iCell_R.is_boundary() ) dphi_R = 0;
 
-      Kokkos::Array< VarIndex, 3 > IG = {IGX, IGY, IGZ};
+      Kokkos::Array< VarIndex, 3 > IG = {IGX_Uout, IGY_Uout, IGZ_Uout};
 
       Uout.at(iCell_Uout, IG[dir]) = (dphi_L + dphi_R)/2; 
     };

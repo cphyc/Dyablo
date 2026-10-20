@@ -37,9 +37,10 @@ public:
 
     bool use_field = gravity_type&GRAVITY_FIELD;
 
-    enum VarIndex_gravity{ Ie_tot, Irho, Irho_vx, Irho_vy, Irho_vz, IGX, IGY, IGZ };
+    enum VarIndex_Uout{ Irho_out, Ie_tot, Irho_vx, Irho_vy, Irho_vz };
+    enum VarIndex_Uin { Irho_in, IGX, IGY, IGZ };
     
-    std::vector<FieldInfo> Uin_fields = {{"rho", Irho}};
+    std::vector<FieldInfo> Uin_fields = {{"rho", Irho_in}};
     if(use_field)
     {
       Uin_fields.push_back({"gx" , IGX});
@@ -48,8 +49,8 @@ public:
         Uin_fields.push_back({"gz" , IGZ});
     }   
     std::vector<FieldInfo> Uout_fields = {
-      {"e_tot_next"   , Ie_tot}, 
-      {"rho_next"   , Irho}, 
+      {"rho_next"   , Irho_out},
+      {"e_tot_next" , Ie_tot},  
       {"rho_vx_next", Irho_vx}, 
       {"rho_vy_next", Irho_vy}
     };
@@ -79,9 +80,9 @@ public:
           gz = Uin.at(iCell, IGZ);
       }
 
-      real_t rhoOld = Uin.at(iCell, Irho);
+      real_t rhoOld = Uin.at(iCell, Irho_in);
       
-      real_t rhoNew = Uout.at(iCell, Irho);
+      real_t rhoNew = Uout.at(iCell, Irho_out);
       real_t rhou = Uout.at(iCell, Irho_vx);
       real_t rhov = Uout.at(iCell, Irho_vy);
       real_t ekin_old = rhou*rhou + rhov*rhov;

@@ -68,7 +68,7 @@ void run_test(int ndim, std::string particle_update_density_id)
   ForeachCell foreach_cell( *amr_mesh, configMap );
   UserData U(configMap, foreach_cell);
   
-  enum VarIndex_test{IRHO, IRHOG, IMASS};
+  enum VarIndex_Uin{IRHO, IRHOG};
   U.new_fields({"rho", "rho_g"}); 
   auto Uin = U.getAccessor( {{"rho", IRHO}, {"rho_g", IRHOG}} );
   const ForeachCell::CellMetaData cells = foreach_cell.getCellMetaData();
@@ -108,6 +108,7 @@ void run_test(int ndim, std::string particle_update_density_id)
   U.new_ParticleAttribute( "particles", "mass" );
 
   UserData::ParticleArray_t Ppos = U.getParticleArray( "particles" );
+  enum VarIndex_particles {IMASS};
   UserData::ParticleAccessor Pdata = U.getParticleAccessor( "particles", {{"mass", IMASS}} );
 
   // Set particle positions to form a grid inside the domain
