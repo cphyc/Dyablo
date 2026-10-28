@@ -2,6 +2,9 @@ set +e
 set -x
 set -o pipefail
 
+# MPI process count for each run (default 1)
+nmpi=${1:-1}
+
 err_count=0
 run_count=0
 out_list=()
@@ -18,7 +21,7 @@ run_and_verify(){
     run_stdout_filename=$out/run.txt
     verification_stdout_filename=$out/verification.txt
     echo "Testing : Execution logs in artifact $run_stdout_filename"
-    .gitlab-ci/run_testcase_mpi.sh $ini_file 1 &> $run_stdout_filename
+    .gitlab-ci/run_testcase_mpi.sh $ini_file $nmpi &> $run_stdout_filename
     if [ $? -eq 0 ]
     then
 	    echo "run ${ini_file} success"

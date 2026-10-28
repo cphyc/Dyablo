@@ -161,23 +161,41 @@ run_all::cuda_4mpi:
 
 # Run verification testcases
 # -------------------------
-verify_all::openmp_1mpi:
-  extends:  
+verify_all::openmp_3mpi:
+  extends:
     - .rules_mr_always_branch_always
     - .run_template
     - .openmp_template
   stage: verify
-  script: 
-    - .gitlab-ci/run_and_verify_all.sh
+  script:
+    - .gitlab-ci/run_and_verify_all.sh 3
 
-verify_all::cuda_1mpi:
-  extends:  
+verify_all::cuda_3mpi:
+  extends:
     - .rules_mr_always_branch_always
     - .run_template
     - .cuda_template
   stage: verify
-  script: 
-    - .gitlab-ci/run_and_verify_all.sh
+  script:
+    - .gitlab-ci/run_and_verify_all.sh 3
+
+verify_all::openmp_1mpi:
+  extends:
+    - .rules_mr_manual_branch_manual
+    - .run_template
+    - .openmp_template
+  stage: verify
+  script:
+    - .gitlab-ci/run_and_verify_all.sh 1
+
+verify_all::cuda_1mpi:
+  extends:
+    - .rules_mr_manual_branch_manual
+    - .run_template
+    - .cuda_template
+  stage: verify
+  script:
+    - .gitlab-ci/run_and_verify_all.sh 1
 
 # Run separate testcases
 # -------------------------
