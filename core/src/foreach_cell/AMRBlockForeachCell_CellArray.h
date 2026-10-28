@@ -1,5 +1,7 @@
 #pragma once
 
+#include <limits>
+
 #include <Kokkos_Core.hpp>
 
 #include "amr/LightOctree.h"
@@ -1007,6 +1009,11 @@ public:
     DYABLO_ASSERT_HOST_RELEASE( has_ghosts || shape.nbGhosts==0, "CellArray_base : ghosts disabled but nbGhosts>0"  );
     
     uint32_t nbCellsPerOct = shape.bx*shape.by*shape.bz;
+    // at() computes View offsets with uint32_t indices : every offset must fit in uint32_t
+    uint64_t elt_count = (uint64_t)nbCellsPerOct * s.nbFields * ((uint64_t)s.nbOcts + s.nbGhosts);
+    DYABLO_ASSERT_HOST_RELEASE( elt_count <= (uint64_t)std::numeric_limits<uint32_t>::max() + 1,
+      "CellArray_base : too many elements (" << elt_count << " = " << nbCellsPerOct << " cells/oct * "
+      << s.nbFields << " fields * " << (uint64_t)s.nbOcts + s.nbGhosts << " octs), uint32_t View offsets would overflow" );
     _U = View_t(label, nbCellsPerOct, s.nbFields, s.nbOcts+s.nbGhosts);
   }
 
