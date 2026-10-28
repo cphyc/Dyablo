@@ -38,6 +38,7 @@ public:
       (ndim==2) ? 0 : oct_pos_new[IZ] - 0.25*oct_size_new[IZ]
     };
     OctantIndex iOct_old = lmesh_old.getiOctFromPos( first_old_pos );
+    DYABLO_ASSERT_KOKKOS_DEBUG( !LightOctree::neighbor_not_found(iOct_old), "Could not find old octant at this position" );
 
     return iOct_old;
   }

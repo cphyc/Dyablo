@@ -372,7 +372,8 @@ public:
         return oct_map.value_at(it);
     }
     /**
-     * Get octant containing position pos
+     * Get octant (local or ghost) containing position pos
+     * Returns NEIGHBOR_NOT_FOUND if this octant is not present in this LightOctree
      **/
     KOKKOS_INLINE_FUNCTION
     OctantIndex getiOctFromPos(const pos_t& pos) const
@@ -413,8 +414,7 @@ public:
             logical_coords.k = logical_coords.k >> 1;
         }
 
-        DYABLO_ASSERT_KOKKOS_DEBUG(false, "Could not find octant at this position");
-        return {};
+        return NEIGHBOR_NOT_FOUND;
     }
 
     KOKKOS_INLINE_FUNCTION
