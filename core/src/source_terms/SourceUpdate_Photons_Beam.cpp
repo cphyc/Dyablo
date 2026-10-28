@@ -54,6 +54,8 @@ public:
     Kokkos::parallel_for( "SourceUpdate_Photons_Beam::spawn", 1, KOKKOS_LAMBDA( int )
     {
       ForeachCell::CellIndex iCell_spawn = cells.getCellFromPos( source_position );
+      if( !iCell_spawn.is_valid() )
+        return;
 
       auto size = cells.getCellSize(iCell_spawn);
       real_t V = size[IX]*size[IY]*size[IZ];

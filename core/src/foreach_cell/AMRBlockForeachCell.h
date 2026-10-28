@@ -97,6 +97,11 @@ public:
     return res;
   }
 
+  /**
+   * Get cell index from position.
+   * @param pos must be inside global domain.
+   * Can return a local or ghost cell, res.is_valid() == false when cell is not in local LightOctree
+   */
   KOKKOS_INLINE_FUNCTION
   CellIndex getCellFromPos( const pos_t& pos ) const
   {
@@ -122,6 +127,9 @@ public:
     assert( z01 >= 0 && z01 < 1.0 );
 
     LightOctree::OctantIndex iOct = lmesh.getiOctFromPos( {x01,y01,z01} );
+    if(LightOctree::neighbor_not_found(iOct))
+      return CELLINDEX_INVALID;
+
     auto oct_size = lmesh.getSize( iOct );
     LightOctree::pos_t oct_corner = lmesh.getCorner( iOct );
     oct_corner[IX] = xmin + oct_corner[IX] * (xmax-xmin);
@@ -135,8 +143,6 @@ public:
     uint32_t ix = (x-oct_corner[IX])/cell_size[IX];
     uint32_t iy = (y-oct_corner[IY])/cell_size[IY];
     uint32_t iz = (z-oct_corner[IZ])/cell_size[IZ];      
-
-    assert(!iOct.isGhost);
 
     return CellIndex{
       iOct, 
