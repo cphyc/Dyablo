@@ -10,5 +10,12 @@ fi
 TESTCASE=$1
 nmpi=$2
 
+# Share half of the available cores between MPI processes (at least 1 thread each)
+nthreads=$(( `nproc` / 2 / nmpi ))
+if [ $nthreads -lt 1 ]
+then
+    nthreads=1
+fi
+
 cd build/dyablo/bin
-OMP_NUM_THREADS=4 mpirun -np $nmpi ./dyablo ${TESTCASE}
+OMP_NUM_THREADS=$nthreads mpirun --oversubscribe -np $nmpi ./dyablo ${TESTCASE}
