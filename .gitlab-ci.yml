@@ -14,6 +14,9 @@ stages:
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
+  KOKKOS_ARCH:
+    value: ""
+    description: "Kokkos GPU architecture for CUDA builds (e.g. AMPERE86). Leave empty to let Kokkos detect the GPU of the build runner"
 
 # Global before and after script to log machine info
 before_script:
