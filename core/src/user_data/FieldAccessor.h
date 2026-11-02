@@ -2,6 +2,7 @@
 
 #include <type_traits>
 
+#include "utils/misc/Dyablo_assert.h"
 #include "user_data/UserData.h" // IWYU pragma: export
 #include "utils/misc/dyablo_tuple.h"
 
@@ -26,10 +27,21 @@ void FieldAccessor_init(const UserData_Fields_Pdata& user_data, const std::vecto
 void FieldAccessor_FieldManager_init_static( const UserData_Fields_Pdata& user_data, const std::vector<UserData_FieldAccessor_FieldInfo>& fields_info,
                         int max_field_count, bool has_intermediates,
                         int& _nbFields,
-                        int* var_to_arrayindex,
-                        int* ivar_to_arrayindex
+                        int* var_to_arrayindex
                       );
 
+inline void check_consecutive_varindex( const std::vector<UserData_FieldAccessor_FieldInfo>& fields_info )
+{
+    std::vector<bool> varindexes( fields_info.size() );
+    for( const auto& [name, id] : fields_info )
+    {
+        DYABLO_ASSERT_HOST_RELEASE(id<0 || id<(int)fields_info.size(), "VarIndex out of [0,fields_info.size()] : VarIndex must not have gaps");
+        DYABLO_ASSERT_HOST_RELEASE(!varindexes[id], "Same Varindex used twice");
+        varindexes[id] = true;
+    }
+}
+
+/// Manage field ids for static FieldAccessor
 template< int MAX_FIELD_COUNT_ >
 class FieldAccessor_FieldManager
 {
@@ -40,8 +52,6 @@ private:
 
     int _nbFields;
     Kokkos::Array<int, MAX_FIELD_COUNT> var_to_arrayindex; // Index conversion for at()
-    Kokkos::Array<int, MAX_FIELD_COUNT> ivar_to_arrayindex; // Index conversion for at_ivar()
-
 public:
     FieldAccessor_FieldManager() = default;
     FieldAccessor_FieldManager(const FieldAccessor_FieldManager& ) = default;
@@ -49,13 +59,15 @@ public:
     FieldAccessor_FieldManager& operator=(const FieldAccessor_FieldManager& ) = default;
     FieldAccessor_FieldManager& operator=(FieldAccessor_FieldManager& ) = default;
 
+    /// @param fields_info must contain all VarIndex in [0,size] (no gaps)
     FieldAccessor_FieldManager(const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates)
     {
+        check_consecutive_varindex(fields_info);
+
         FieldAccessor_FieldManager_init_static( user_data, fields_info, 
                                                 MAX_FIELD_COUNT, has_intermediates,
                                                 this->_nbFields,
-                                                this->var_to_arrayindex.data(),
-                                                this->ivar_to_arrayindex.data() );
+                                                this->var_to_arrayindex.data() );
     }
 
     /**
@@ -77,7 +89,6 @@ public:
         res._nbFields = nbFields;
         for( int i=0; i<MAX_FIELD_COUNT; i++ )
         {
-            res.ivar_to_arrayindex[i] = ( i < nbFields ) ? i : 0;
             res.var_to_arrayindex[i] = ( i < nbFields ) ? i : -1;
         }
         return res;
@@ -89,24 +100,19 @@ public:
         return _nbFields;
     }
 
-    KOKKOS_INLINE_FUNCTION
-    int get_index_from_varindex(VarIndex var) const
+    int get_index_from_varindex_host(VarIndex var) const
     {
         return var_to_arrayindex[var];
     }
 
     KOKKOS_INLINE_FUNCTION
-    int get_index_from_ivar_device(int ivar) const
+    int get_index_from_varindex_device(VarIndex var) const
     {
-        return ivar_to_arrayindex[ivar];
-    }
-
-    int get_index_from_ivar_host(int ivar) const
-    {
-        return ivar_to_arrayindex[ivar];
+        return var_to_arrayindex[var];
     }
 };
 
+/// Manage field ids for dynamic FieldAccessor
 template<>
 class FieldAccessor_FieldManager<DYNAMIC_FIELD_COUNT>
 {
@@ -115,9 +121,8 @@ private:
     static constexpr int MAX_FIELD_COUNT = 3;
     using FieldInfo = UserData_FieldAccessor_FieldInfo;
 
-    Kokkos::View<int*> var_to_arrayindex; // Index conversion for at()
-    Kokkos::View<int*> ivar_to_arrayindex_device; // Index conversion for at_ivar()
-    Kokkos::View<int*>::host_mirror_type ivar_to_arrayindex_host;
+    Kokkos::View<int*> var_to_arrayindex_device; // Index conversion for at()
+    Kokkos::View<int*>::host_mirror_type var_to_arrayindex_host;
 
 public:
     FieldAccessor_FieldManager() = default;
@@ -126,60 +131,49 @@ public:
     FieldAccessor_FieldManager& operator=(const FieldAccessor_FieldManager& ) = default;
     FieldAccessor_FieldManager& operator=(FieldAccessor_FieldManager& ) = default;
 
+    /// @param fields_info must contain all VarIndex in [0,size] (no gaps)
     FieldAccessor_FieldManager(const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info, bool has_intermediates);
 
     /// Conversion from a FieldAccessor_FieldManager with a static number of fields
     template< int MAX_FIELD_COUNT_o >
     requires ( MAX_FIELD_COUNT_o >= 0 )
     FieldAccessor_FieldManager(const FieldAccessor_FieldManager<MAX_FIELD_COUNT_o>& o)
-      : var_to_arrayindex("var_to_arrayindex", MAX_FIELD_COUNT_o),
-        ivar_to_arrayindex_device("ivar_to_arrayindex", o.nbFields()),
-        ivar_to_arrayindex_host( Kokkos::create_mirror_view(ivar_to_arrayindex_device) )
+      : var_to_arrayindex_device("var_to_arrayindex", o.nbFields()),
+        var_to_arrayindex_host(Kokkos::create_mirror_view(var_to_arrayindex_device))
     {
-        auto var_to_arrayindex_host = Kokkos::create_mirror_view(var_to_arrayindex);
-        for( int i=0; i<MAX_FIELD_COUNT_o; i++ )
-            var_to_arrayindex_host(i) = o.var_to_arrayindex[i];
         for( int i=0; i<o.nbFields(); i++ )
-            ivar_to_arrayindex_host(i) = o.ivar_to_arrayindex[i];
-        Kokkos::deep_copy( var_to_arrayindex, var_to_arrayindex_host );
-        Kokkos::deep_copy( ivar_to_arrayindex_device, ivar_to_arrayindex_host );
+            var_to_arrayindex_host(i) = o.var_to_arrayindex[i];
+        Kokkos::deep_copy( var_to_arrayindex_device, var_to_arrayindex_host );
     }
 
     /// FieldManager for all the fields of a CellArray : VarIndex i and ivar i are field i of the array
     static FieldAccessor_FieldManager identity( int nbFields )
     {
         FieldAccessor_FieldManager res;
-        res.var_to_arrayindex = Kokkos::View<int*>("var_to_arrayindex", nbFields);
-        res.ivar_to_arrayindex_device = Kokkos::View<int*>("ivar_to_arrayindex", nbFields);
-        res.ivar_to_arrayindex_host = Kokkos::create_mirror_view(res.ivar_to_arrayindex_device);
+        res.var_to_arrayindex_device = Kokkos::View<int*>("var_to_arrayindex", nbFields);
+        res.var_to_arrayindex_host = Kokkos::create_mirror_view(res.var_to_arrayindex_device);
         for( int i=0; i<nbFields; i++ )
-            res.ivar_to_arrayindex_host(i) = i;
-        Kokkos::deep_copy( res.ivar_to_arrayindex_device, res.ivar_to_arrayindex_host );
-        Kokkos::deep_copy( res.var_to_arrayindex, res.ivar_to_arrayindex_host );
+            res.var_to_arrayindex_host(i) = i;
+        Kokkos::deep_copy( res.var_to_arrayindex_device, res.var_to_arrayindex_host );
         return res;
     }
 
     KOKKOS_INLINE_FUNCTION
     int nbFields() const
     {
-        return ivar_to_arrayindex_device.size();
+        return this->var_to_arrayindex_device.size();
     }
 
     KOKKOS_INLINE_FUNCTION
-    int get_index_from_varindex(VarIndex var) const
+    int get_index_from_varindex_host(VarIndex var) const
     {
-        return var_to_arrayindex(var);
+        return var_to_arrayindex_host(var);
     }
 
     KOKKOS_INLINE_FUNCTION
-    int get_index_from_ivar_device(int ivar) const
+    int get_index_from_varindex_device(VarIndex var) const
     {
-        return ivar_to_arrayindex_device(ivar);
-    }
-
-    int get_index_from_ivar_host(int ivar) const
-    {
-        return ivar_to_arrayindex_host(ivar);
+        return var_to_arrayindex_device(var);
     }
 };
 
@@ -192,21 +186,7 @@ FieldAccessor_FieldManager<MAX_FIELD_COUNT>::FieldAccessor_FieldManager(const Fi
 
     for( int i=0; i<MAX_FIELD_COUNT; i++ )
     {
-        ivar_to_arrayindex[i] = 0;
-        var_to_arrayindex[i] = -1;
-    }
-
-    for( int i=0; i<_nbFields; i++ )
-        ivar_to_arrayindex[i] = o.ivar_to_arrayindex_host(i);
-
-    auto var_to_arrayindex_host = Kokkos::create_mirror_view_and_copy( Kokkos::HostSpace(), o.var_to_arrayindex );
-    for( int var=0; var<(int)var_to_arrayindex_host.size(); var++ )
-    {
-        if( var < MAX_FIELD_COUNT )
-            var_to_arrayindex[var] = var_to_arrayindex_host(var);
-        else
-            DYABLO_ASSERT_HOST_RELEASE( var_to_arrayindex_host(var) == -1,
-                "VarIndex " << var << " is used and cannot be converted to FieldAccessor : VarIndex must be in [0," << MAX_FIELD_COUNT << "[" );
+        var_to_arrayindex[i] = i<_nbFields ?  o.var_to_arrayindex_host(i) : -1;
     }
 }
 
@@ -233,6 +213,12 @@ public:
         return fm.nbFields();
     }
 
+    /***
+     * Construct A FieldAccessor form UserData
+     * @param fields_info is a list to map names to a VarIndex. Names must exist un 
+     *                    UserData (+ intermediates if has_intermediates),
+     *                /!\ must contain all VarIndex in [0,size] (no gaps)
+     ***/
     UserData_FieldAccessor_impl(const UserData_Fields_Pdata& user_data, const std::vector<FieldInfo>& fields_info)
         : fm( user_data, fields_info, false )
     {
@@ -314,22 +300,7 @@ public:
     KOKKOS_INLINE_FUNCTION
     decltype(auto) at_ivar( const ForeachCell::CellIndex& iCell, int ivar0, Int_t... ivars) const
     {
-        bool is_intermediate = has_intermediates && iCell.iOct().isIntermediate;
-
-        real_t* origin = this->at( iCell );
-        auto value = [&]( int ivar ) -> real_t&
-        {
-            auto offset = is_intermediate ?
-                  fields_intermediates.get_offset_ivar( get_index_from_ivar_device_intermediates(ivar) )
-                : fields.get_offset_ivar( get_index_from_ivar_device(ivar) ) ;
-
-            return origin[offset];
-        };
-
-        if constexpr ( sizeof...(Int_t) == 0 )
-            return (value(ivar0));  // Parenthesis are important here to keep real_t& reference
-        else
-            return dyablo_tuple_tie( value(ivar0), value(ivars)... );
+        return at(iCell, ivar0, ivars...);
     }
     
 
@@ -355,37 +326,37 @@ private:
     KOKKOS_INLINE_FUNCTION
     int get_index_from_varindex(VarIndex var) const
     {
-        return fm.get_index_from_varindex(var);
+        return fm.get_index_from_varindex_device(var);
     }
 
     KOKKOS_INLINE_FUNCTION
     int get_index_from_varindex_intermediates(VarIndex var) const
     {
-        return fm_intermediates.get_index_from_varindex(var);
+        return fm_intermediates.get_index_from_varindex_device(var);
     }
 protected:
     FieldAccessor_FieldManager<MAX_FIELD_COUNT> fm;
     FieldAccessor_FieldManager<MAX_FIELD_COUNT> fm_intermediates;
-
+    
     KOKKOS_INLINE_FUNCTION
     int get_index_from_ivar_device(int ivar) const
     {
-        return fm.get_index_from_ivar_device(ivar);
+        return fm.get_index_from_varindex_device(ivar);
     }
     int get_index_from_ivar_host(int ivar) const
     {
-        return fm.get_index_from_ivar_host(ivar);
+        return fm.get_index_from_varindex_host(ivar);
     }
     FieldView_t fields;
 
     KOKKOS_INLINE_FUNCTION
     int get_index_from_ivar_device_intermediates(int ivar) const
     {
-        return fm_intermediates.get_index_from_ivar_device(ivar);
+        return fm_intermediates.get_index_from_varindex_device(ivar);
     }
     int get_index_from_ivar_host_intermediates(int ivar) const
     {
-        return fm_intermediates.get_index_from_ivar_host(ivar);
+        return fm_intermediates.get_index_from_varindex_host(ivar);
     }
     FieldView_t fields_intermediates;
 

@@ -93,8 +93,9 @@ void test_GhostCommunicator_partial_block()
     });
   }
 
-  enum VarIndex_test{Px,Py,Pz,Dummy};
+  enum VarIndex_test{Px,Py,Pz};
   UserData::FieldAccessor Ua = U.getAccessor( {{"px", Px}, {"py", Py}, {"pz", Pz}} );
+  enum VarIndex_dummy{Dummy};
   UserData::FieldAccessor Udummy = U.getAccessor( {{"dummy", Dummy}} );
 
   GhostCommunicator_t ghost_communicator( *amr_mesh, Ua.getShape(), 2 );
@@ -306,8 +307,9 @@ void run_test_reduce_partial_blocks()
 
   }
 
-  enum VarIndex_test{Px,Py,Pz,Dummy};
+  enum VarIndex_test{Px,Py,Pz};
   UserData::FieldAccessor Ua = U.getAccessor( {{"px", Px}, {"py", Py}, {"pz", Pz}} );
+  enum VarIndex_dummy{Dummy};
   UserData::FieldAccessor Udummy = U.getAccessor( {{"dummy", Dummy}} ); 
 
   GhostCommunicator_t ghost_communicator( *amr_mesh, Ua.getShape(), 2 );
@@ -416,8 +418,9 @@ void test_GhostCommunicator_subset()
 
   U.new_fields({"px", "level", "py", "pz"});
 
-  enum VarIndex_test{Px,Py,Pz,Level};
+  enum VarIndex_test{Px,Py,Pz};
   UserData::FieldAccessor Ua = U.getAccessor( {{"px", Px}, {"py", Py}, {"pz", Pz}} );
+  enum VarIndex_level{Level};
   UserData::FieldAccessor Ulevel = U.getAccessor( {{"level", Level}} );
 
   Subset_levels level_subsets( lmesh, amr_mesh->get_level_max() );

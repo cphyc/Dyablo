@@ -47,7 +47,7 @@ void test_fields()
 
   // Init px, py, pz
   {
-    VarIndex PX = (VarIndex)2, PY = (VarIndex)7, PZ = (VarIndex)3;
+    enum VarIndex {PX, PY, PZ};
 
     auto Uinit = U.getAccessor( { {"px",PX}, {"py",PY}, {"pz",PZ} } );
 
@@ -65,25 +65,27 @@ void test_fields()
 
   U.new_fields({"p2x","p2y","p2z"});
 
-  // Initialize p2x, p2y, p2z from px, py, pz using same Varindex in different accessors
+  // Initialize p2x, p2y, p2z from px, py, pz using different VarIndex in different accessors
   {
-    VarIndex PX = (VarIndex)1, PY = (VarIndex)3, PZ = (VarIndex)5;
+    // VarIndex in different order
+    enum VarIndex_1 {PZ_1, PY_1, PX_1};
+    enum VarIndex_2 {PY_2, PZ_2, PX_2};
 
-    auto U1 = U.getAccessor( { {"px",PX}, {"py",PY}, {"pz",PZ} } );
-    auto U2 = U.getAccessor( { {"p2x",PX}, {"p2y",PY}, {"p2z",PZ} } );
+    auto U1 = U.getAccessor( { {"px",PX_1}, {"py",PY_1}, {"pz",PZ_1} } );
+    auto U2 = U.getAccessor( { {"p2x",PX_2}, {"p2y",PY_2}, {"p2z",PZ_2} } );
 
     foreach_cell.foreach_cell( "Copy p2", U.getShape(),
       KOKKOS_LAMBDA( const ForeachCell::CellIndex& iCell )
     {
-      U2.at( iCell, PX ) = U1.at( iCell, PX ) + 1.0;
-      U2.at( iCell, PY ) = U1.at( iCell, PY ) + 1.0;
-      U2.at( iCell, PZ ) = U1.at( iCell, PZ ) + 1.0;
+      U2.at( iCell, PX_2 ) = U1.at( iCell, PX_1 ) + 1.0;
+      U2.at( iCell, PY_2 ) = U1.at( iCell, PY_1 ) + 1.0;
+      U2.at( iCell, PZ_2 ) = U1.at( iCell, PZ_1 ) + 1.0;
     });
   }
 
   // Verify that p2xyz has the right position
   {
-    VarIndex PX = (VarIndex)1, PY = (VarIndex)3, PZ = (VarIndex)5;
+    enum VarIndex {PX, PZ, PY};
 
     auto U2 = U.getAccessor( { {"p2x",PX}, {"p2y",PY}, {"p2z",PZ} } );
 
@@ -154,9 +156,6 @@ int count_position_errors( ForeachCell& foreach_cell, const IterSpace_t& iter_sp
     if( Ua.at( iCell, PX ) != c[IX] ) error_count++;
     if( Ua.at( iCell, PY ) != c[IY] ) error_count++;
     if( Ua.at( iCell, PZ ) != c[IZ] ) error_count++;
-    if( Ua.at_ivar( iCell, 0 ) != c[IX] ) error_count++;
-    if( Ua.at_ivar( iCell, 1 ) != c[IY] ) error_count++;
-    if( Ua.at_ivar( iCell, 2 ) != c[IZ] ) error_count++;
   }, error_count);
   return error_count;
 }
@@ -183,8 +182,7 @@ void test_accessor_conversions()
   U.new_fields({"px","py","pz"});
   U.new_intermediate_fields({"px","py","pz"});
 
-  // VarIndex not ordered and not in [0, nbFields[ (only possible with a static number of fields)
-  VarIndex PX = (VarIndex)2, PY = (VarIndex)7, PZ = (VarIndex)3;
+  enum VarIndex_pos {PX, PY, PZ};
   UserData::FieldAccessor_fulltree U_static = U.getAccessor_fulltree( { {"px",PX}, {"py",PY}, {"pz",PZ} } );
 
   constexpr bool with_locals = true, without_ghosts = false, with_intermediates = true;
@@ -216,7 +214,7 @@ void test_accessor_conversions()
 
   // Dynamic accessor from UserData, VarIndex in a different order than fields_info
   {
-    VarIndex PX_d = (VarIndex)2, PY_d = (VarIndex)0, PZ_d = (VarIndex)1;
+    enum Varindex_d {PZ_d, PY_d, PX_d};
     auto U_dynamic = U.getAccessor<DYNAMIC_FIELD_COUNT>( { {"px",PX_d}, {"py",PY_d}, {"pz",PZ_d} } );
     EXPECT_EQ( 3, U_dynamic.nbFields() );
     EXPECT_EQ( 0, count_position_errors( foreach_cell, U.getShape(), U_dynamic, PX_d, PY_d, PZ_d ) );
@@ -229,26 +227,24 @@ void test_accessor_conversions()
     EXPECT_THROW( (void)UserData::FieldAccessor_impl<2>{ U_dynamic }, std::runtime_error );
   }
 
-  // Static -> dynamic -> static, with intermediates (VarIndex up to 7)
+  // Static -> dynamic -> static, with intermediates
   {
     UserData::FieldAccessor_fulltree_impl<DYNAMIC_FIELD_COUNT> U_dynamic = U_static;
     UserData::FieldAccessor_fulltree_impl<8> U_static8( U_dynamic );
     EXPECT_EQ( 3, U_static8.nbFields() );
     EXPECT_EQ( 0, count_position_errors( foreach_cell, iter_space_fulltree, U_static8, PX, PY, PZ ) );
-    // 3 fields fit in MAX_FIELD_COUNT = 4, but VarIndex PY = 7 doesn't
-    EXPECT_THROW( (void)UserData::FieldAccessor_fulltree_impl<4>{ U_dynamic }, std::runtime_error );
   }
 
-  // CellArray -> accessor : VarIndex i and ivar i are field i of the array
+  // CellArray -> accessor : VarIndex i are field i of the array
   {
     ForeachCell::CellArray_global_ghosted A = foreach_cell.allocate_ghosted_array( "A", 3 );
     foreach_cell.foreach_cell( "Init A", A.getShape(),
       KOKKOS_LAMBDA( const ForeachCell::CellIndex& iCell )
     {
       auto c = cells.getCellCenter(iCell);
-      A.at_ivar( iCell, 0 ) = c[IX];
-      A.at_ivar( iCell, 1 ) = c[IY];
-      A.at_ivar( iCell, 2 ) = c[IZ];
+      A.at( iCell, 0 ) = c[IX];
+      A.at( iCell, 1 ) = c[IY];
+      A.at( iCell, 2 ) = c[IZ];
     });
     UserData::FieldAccessor_impl<DYNAMIC_FIELD_COUNT> U_dynamic( A );
     EXPECT_EQ( 3, U_dynamic.nbFields() );
