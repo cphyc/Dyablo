@@ -30,135 +30,16 @@ permissions:
   contents: read
 
 jobs:
-  openmp:
-    name: OpenMP (CPU)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 120
-    env:
-      OMPI_MCA_btl: "^vader"
-    steps:
-      - name: Check out repository and submodules
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install build and test dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes \
-            libhwloc-dev libxml2-dev libopenmpi-dev libhdf5-openmpi-dev \
-            libboost-test-dev libfftw3-dev \
-            python3-setuptools python3-pybind11 python3-h5py python3-unyt \
-            python3-paraview xvfb
-
-      - name: Build
-        run: .gitlab-ci/build-openmp.sh
-
-      - name: Run unit tests
-        run: .gitlab-ci/run_unit_tests.sh
-
-      - name: Run and render examples
-        run: .gitlab-ci/run_and_render_all.sh
-
-      - name: Verify examples (3 MPI processes)
-        run: .gitlab-ci/run_and_verify_all.sh 3
-
-      - name: Verify examples (1 MPI process)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_mpi1_verify }}
-        run: .gitlab-ci/run_and_verify_all.sh 1
-
-      - name: Run custom example
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_custom_test }}
-        env:
-          TEST_INI: ${{ inputs.ini_file }}
-          TEST_PVSM: ${{ inputs.pvsm_file }}
-          MPI_COUNT: ${{ inputs.mpi_count }}
-        run: |
-          .gitlab-ci/run_testcase_mpi.sh "$TEST_INI" "$MPI_COUNT"
-          .gitlab-ci/render.sh "$TEST_PVSM"
-
-      - name: Upload test reports and outputs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: openmp-test-results
-          path: |
-            build/dyablo/unit_test/gtest_reports/*.xml
-            run_*.txt
-            **/run.txt
-            **/verification.txt
-            *.png
-            */*.png
-            report.xml
-          if-no-files-found: ignore
-          retention-days: 7
-
-  cuda:
-    name: CUDA (GPU)
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-    runs-on: [self-hosted, linux, x64, gpu]
-    timeout-minutes: 120
-    env:
-      OMPI_MCA_btl: "^vader"
-      KOKKOS_ARCH: ${{ vars.KOKKOS_ARCH }}
-    steps:
-      - name: Check out repository and submodules
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Check GPU runner
-        run: |
-          nvcc --version
-          nvidia-smi
-
-      - name: Install build and test dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes \
-            libhwloc-dev libxml2-dev libopenmpi-dev libhdf5-openmpi-dev \
-            libboost-test-dev libfftw3-dev \
-            python3-setuptools python3-pybind11 python3-h5py python3-unyt \
-            python3-paraview xvfb
-
-      - name: Build
-        run: .gitlab-ci/build-cuda.sh
-
-      - name: Run unit tests
-        run: .gitlab-ci/run_unit_tests.sh
-
-      - name: Run and render examples
-        run: .gitlab-ci/run_and_render_all.sh
-
-      - name: Verify examples (3 MPI processes)
-        run: .gitlab-ci/run_and_verify_all.sh 3
-
-      - name: Verify examples (1 MPI process)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_mpi1_verify }}
-        run: .gitlab-ci/run_and_verify_all.sh 1
-
-      - name: Run custom example
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_custom_test }}
-        env:
-          TEST_INI: ${{ inputs.ini_file }}
-          TEST_PVSM: ${{ inputs.pvsm_file }}
-          MPI_COUNT: ${{ inputs.mpi_count }}
-        run: |
-          .gitlab-ci/run_testcase_mpi.sh "$TEST_INI" "$MPI_COUNT"
-          .gitlab-ci/render.sh "$TEST_PVSM"
-
-      - name: Upload test reports and outputs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cuda-test-results
-          path: |
-            build/dyablo/unit_test/gtest_reports/*.xml
-            run_*.txt
-            **/run.txt
-            **/verification.txt
-            *.png
-            */*.png
-            report.xml
-          if-no-files-found: ignore
-          retention-days: 7
+  backend:
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [openmp, cuda]
+    uses: ./.github/workflows/ci-backend.yml
+    with:
+      backend: ${{ matrix.backend }}
+      run_mpi1_verify: ${{ inputs.run_mpi1_verify || false }}
+      run_custom_test: ${{ inputs.run_custom_test || false }}
+      ini_file: ${{ inputs.ini_file || 'test_gravity_spheres_3D.ini' }}
+      pvsm_file: ${{ inputs.pvsm_file || 'visu_gravity_spheres_3D.pvsm' }}
+      mpi_count: ${{ inputs.mpi_count || 4 }}

@@ -1,0 +1,175 @@
+name: CI backend
+
+on:
+  workflow_call:
+    inputs:
+      backend:
+        description: Build and test backend
+        type: string
+        required: true
+      run_mpi1_verify:
+        description: Run verification cases with one MPI process
+        type: boolean
+        default: false
+      run_custom_test:
+        description: Run a custom input file and render its output
+        type: boolean
+        default: false
+      ini_file:
+        description: Input file in build/dyablo/bin
+        type: string
+        default: test_gravity_spheres_3D.ini
+      pvsm_file:
+        description: ParaView state file in build/dyablo/bin
+        type: string
+        default: visu_gravity_spheres_3D.pvsm
+      mpi_count:
+        description: MPI process count for the custom test
+        type: number
+        default: 4
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ inputs.backend }}
+    if: ${{ inputs.backend != 'cuda' || github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ${{ inputs.backend == 'cuda' && fromJSON('["self-hosted", "linux", "x64", "gpu"]') || 'ubuntu-24.04' }}
+    timeout-minutes: 120
+    env:
+      SCCACHE_GHA_ENABLED: ${{ inputs.backend == 'cuda' && 'true' || 'false' }}
+    steps:
+      - name: Check out repository and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Check GPU runner
+        if: ${{ inputs.backend == 'cuda' }}
+        run: |
+          nvcc --version
+          nvidia-smi
+          gpu_names="$(nvidia-smi --query-gpu=name --format=csv,noheader)"
+          test "$(printf '%s\n' "$gpu_names" | wc -l)" -eq 1
+          grep -q H100 <<< "$gpu_names"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            libhwloc-dev libxml2-dev libopenmpi-dev libhdf5-openmpi-dev \
+            libboost-test-dev libfftw3-dev \
+            python3-setuptools python3-pybind11 python3-h5py python3-unyt
+
+      - name: Install ccache
+        run: sudo apt-get install --yes ccache
+
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.11
+
+      - name: Build OpenMP
+        if: ${{ inputs.backend == 'openmp' }}
+        run: .gitlab-ci/build-openmp.sh
+
+      - name: Build CUDA for H100
+        if: ${{ inputs.backend == 'cuda' }}
+        env:
+          CXX: ${{ github.workspace }}/external/kokkos/bin/nvcc_wrapper
+          DYABLO_CMAKE_ARGS: "-DCMAKE_C_COMPILER_LAUNCHER=ccache;-DCMAKE_CXX_COMPILER_LAUNCHER=sccache"
+          KOKKOS_ARCH: HOPPER90
+          CCACHE_MAXSIZE: 2G
+        run: .gitlab-ci/build-cuda.sh
+
+      - name: Show compiler cache statistics
+        run: |
+          ${SCCACHE_PATH} --show-stats
+          ccache --show-stats
+
+      - name: Package build tree
+        run: tar --exclude='*/CMakeFiles' --exclude='*/CMakeFiles/*' -cf "${{ inputs.backend }}-build.tar" build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.backend }}-build
+          path: ${{ inputs.backend }}-build.tar
+          retention-days: 1
+
+  test:
+    name: Test ${{ inputs.backend }}
+    if: ${{ inputs.backend != 'cuda' || github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    needs: build
+    runs-on: ${{ inputs.backend == 'cuda' && fromJSON('["self-hosted", "linux", "x64", "gpu"]') || 'ubuntu-24.04' }}
+    timeout-minutes: 120
+    env:
+      OMPI_MCA_btl: "^vader"
+    steps:
+      - name: Check out repository and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Check GPU runner
+        if: ${{ inputs.backend == 'cuda' }}
+        run: |
+          nvidia-smi
+          gpu_names="$(nvidia-smi --query-gpu=name --format=csv,noheader)"
+          test "$(printf '%s\n' "$gpu_names" | wc -l)" -eq 1
+          grep -q H100 <<< "$gpu_names"
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.backend }}-build
+
+      - name: Restore build tree
+        run: tar -xf "${{ inputs.backend }}-build.tar"
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            libhwloc-dev libxml2-dev libopenmpi-dev libhdf5-openmpi-dev \
+            libboost-test-dev libfftw3-dev \
+            python3-setuptools python3-pybind11 python3-h5py python3-unyt \
+            python3-paraview xvfb
+
+      - name: Run unit tests
+        run: .gitlab-ci/run_unit_tests.sh
+
+      - name: Run and render examples
+        run: .gitlab-ci/run_and_render_all.sh
+
+      - name: Verify examples (3 MPI processes)
+        run: .gitlab-ci/run_and_verify_all.sh 3
+
+      - name: Verify examples (1 MPI process)
+        if: ${{ inputs.run_mpi1_verify }}
+        run: .gitlab-ci/run_and_verify_all.sh 1
+
+      - name: Run custom example
+        if: ${{ inputs.run_custom_test }}
+        env:
+          TEST_INI: ${{ inputs.ini_file }}
+          TEST_PVSM: ${{ inputs.pvsm_file }}
+          MPI_COUNT: ${{ inputs.mpi_count }}
+        run: |
+          .gitlab-ci/run_testcase_mpi.sh "$TEST_INI" "$MPI_COUNT"
+          .gitlab-ci/render.sh "$TEST_PVSM"
+
+      - name: Upload test reports and outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.backend }}-test-results
+          path: |
+            build/dyablo/unit_test/gtest_reports/*.xml
+            run_*.txt
+            **/run.txt
+            **/verification.txt
+            *.png
+            */*.png
+            report.xml
+          if-no-files-found: ignore
+          retention-days: 7
