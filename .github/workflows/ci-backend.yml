@@ -38,7 +38,9 @@ jobs:
     timeout-minutes: 120
     env:
       SCCACHE_GHA_ENABLED: "true"
-      DYABLO_CMAKE_ARGS: "-DCMAKE_C_COMPILER_LAUNCHER=ccache;-DCMAKE_CXX_COMPILER_LAUNCHER=sccache"
+      C_COMPILER_LAUNCHER: ${{ inputs.backend == 'cuda' && 'sccache' || 'ccache' }}
+      CXX_COMPILER_LAUNCHER: ${{ inputs.backend == 'cuda' && 'ccache' || 'sccache' }}
+      DYABLO_CMAKE_ARGS: "-DCMAKE_C_COMPILER_LAUNCHER=${{ inputs.backend == 'cuda' && 'sccache' || 'ccache' }};-DCMAKE_CXX_COMPILER_LAUNCHER=${{ inputs.backend == 'cuda' && 'ccache' || 'sccache' }}"
       CCACHE_MAXSIZE: 2G
     steps:
       - name: Check out repository and submodules
@@ -82,13 +84,14 @@ jobs:
         env:
           CXX: ${{ github.workspace }}/external/kokkos/bin/nvcc_wrapper
           KOKKOS_ARCH: HOPPER90
+          CCACHE_COMPILERTYPE: nvcc
         run: .gitlab-ci/build-cuda.sh
 
       - name: Verify compiler launchers
         run: |
           grep -E '^CMAKE_(C|CXX)_COMPILER_LAUNCHER:' build/dyablo/CMakeCache.txt
-          grep -Eq '^CMAKE_C_COMPILER_LAUNCHER:[^=]+=ccache$' build/dyablo/CMakeCache.txt
-          grep -Eq '^CMAKE_CXX_COMPILER_LAUNCHER:[^=]+=sccache$' build/dyablo/CMakeCache.txt
+          grep -Eq "^CMAKE_C_COMPILER_LAUNCHER:[^=]+=${C_COMPILER_LAUNCHER}$" build/dyablo/CMakeCache.txt
+          grep -Eq "^CMAKE_CXX_COMPILER_LAUNCHER:[^=]+=${CXX_COMPILER_LAUNCHER}$" build/dyablo/CMakeCache.txt
 
       - name: Show compiler cache statistics
         run: |
