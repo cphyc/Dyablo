@@ -38,7 +38,9 @@ jobs:
     runs-on: ${{ inputs.backend == 'cuda' && fromJSON('["self-hosted", "linux", "x64", "gpu"]') || 'ubuntu-24.04' }}
     timeout-minutes: 120
     env:
-      SCCACHE_GHA_ENABLED: ${{ inputs.backend == 'cuda' && 'true' || 'false' }}
+      SCCACHE_GHA_ENABLED: "true"
+      DYABLO_CMAKE_ARGS: "-DCMAKE_C_COMPILER_LAUNCHER=ccache;-DCMAKE_CXX_COMPILER_LAUNCHER=sccache"
+      CCACHE_MAXSIZE: 2G
     steps:
       - name: Check out repository and submodules
         uses: actions/checkout@v4
@@ -76,9 +78,7 @@ jobs:
         if: ${{ inputs.backend == 'cuda' }}
         env:
           CXX: ${{ github.workspace }}/external/kokkos/bin/nvcc_wrapper
-          DYABLO_CMAKE_ARGS: "-DCMAKE_C_COMPILER_LAUNCHER=ccache;-DCMAKE_CXX_COMPILER_LAUNCHER=sccache"
           KOKKOS_ARCH: HOPPER90
-          CCACHE_MAXSIZE: 2G
         run: .gitlab-ci/build-cuda.sh
 
       - name: Show compiler cache statistics
@@ -104,6 +104,7 @@ jobs:
     timeout-minutes: 120
     env:
       OMPI_MCA_btl: "^vader"
+      OMPI_MCA_rmaps_base_oversubscribe: "1"
     steps:
       - name: Check out repository and submodules
         uses: actions/checkout@v4
