@@ -131,7 +131,7 @@ jobs:
         with:
           gpu: nvidia/h100
           count: 1
-          cuda-toolkit: "12.6"
+          cuda-toolkit: "13.3"
 
       - name: Check simulated GPU
         if: ${{ inputs.backend == 'cuda' }}
