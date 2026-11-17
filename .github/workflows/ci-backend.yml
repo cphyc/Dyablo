@@ -52,9 +52,10 @@ jobs:
         if: ${{ inputs.backend == 'cuda' }}
         uses: Jimver/cuda-toolkit@v0.2.36
         with:
-          cuda: "12.6.2"
-          method: local
+          cuda: "13.3.1"
+          method: network
           linux-local-args: '["--toolkit"]'
+          sub-packages: '["nvcc"]'
           log-file-suffix: cuda-toolkit.log
 
       - name: Verify CUDA compiler
@@ -84,6 +85,7 @@ jobs:
         env:
           CXX: ${{ github.workspace }}/external/kokkos/bin/nvcc_wrapper
           KOKKOS_ARCH: HOPPER90
+          NVCC_WRAPPER_DEFAULT_COMPILER: /usr/bin/g++
           CCACHE_COMPILERTYPE: nvcc
         run: .gitlab-ci/build-cuda.sh
 
