@@ -13,6 +13,10 @@ add_subdirectory(
      "${PROJECT_SOURCE_DIR}/../external/units" "${PROJECT_BINARY_DIR}/../external/units"
 )
 
+if(Kokkos_ENABLE_CUDA)
+  set_target_properties(units PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+endif()
+
 ### Dyablo units ###
 
 add_library(dyablo_units "")
