@@ -84,6 +84,12 @@ jobs:
           KOKKOS_ARCH: HOPPER90
         run: .gitlab-ci/build-cuda.sh
 
+      - name: Verify compiler launchers
+        run: |
+          grep -E '^CMAKE_(C|CXX)_COMPILER_LAUNCHER:' build/dyablo/CMakeCache.txt
+          grep -Eq '^CMAKE_C_COMPILER_LAUNCHER:[^=]+=ccache$' build/dyablo/CMakeCache.txt
+          grep -Eq '^CMAKE_CXX_COMPILER_LAUNCHER:[^=]+=sccache$' build/dyablo/CMakeCache.txt
+
       - name: Show compiler cache statistics
         run: |
           ${SCCACHE_PATH} --show-stats
@@ -103,7 +109,7 @@ jobs:
     name: Test ${{ inputs.backend }}
     if: ${{ inputs.backend != 'cuda' || github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     needs: build
-    runs-on: ${{ inputs.backend == 'cuda' && fromJSON('["self-hosted", "linux", "x64", "gpu"]') || 'ubuntu-24.04' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
       OMPI_MCA_btl: "^vader"
@@ -114,7 +120,15 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Check GPU runner
+      - name: Set up simulated H100
+        if: ${{ inputs.backend == 'cuda' }}
+        uses: pantheongpu/setup-pantheonsim@v0.1.10
+        with:
+          gpu: nvidia/h100
+          count: 1
+          cuda-toolkit: "12.6"
+
+      - name: Check simulated GPU
         if: ${{ inputs.backend == 'cuda' }}
         run: |
           nvidia-smi
