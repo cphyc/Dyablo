@@ -34,8 +34,7 @@ permissions:
 jobs:
   build:
     name: Build ${{ inputs.backend }}
-    if: ${{ inputs.backend != 'cuda' || github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-    runs-on: ${{ inputs.backend == 'cuda' && fromJSON('["self-hosted", "linux", "x64", "gpu"]') || 'ubuntu-24.04' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
       SCCACHE_GHA_ENABLED: "true"
@@ -47,14 +46,18 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Check GPU runner
+      - name: Install CUDA toolkit
         if: ${{ inputs.backend == 'cuda' }}
-        run: |
-          nvcc --version
-          nvidia-smi
-          gpu_names="$(nvidia-smi --query-gpu=name --format=csv,noheader)"
-          test "$(printf '%s\n' "$gpu_names" | wc -l)" -eq 1
-          grep -q H100 <<< "$gpu_names"
+        uses: Jimver/cuda-toolkit@v0.2.36
+        with:
+          cuda: "12.6.2"
+          method: local
+          linux-local-args: '["--toolkit"]'
+          log-file-suffix: cuda-toolkit.log
+
+      - name: Verify CUDA compiler
+        if: ${{ inputs.backend == 'cuda' }}
+        run: nvcc --version
 
       - name: Install build dependencies
         run: |
