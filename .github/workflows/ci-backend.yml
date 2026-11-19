@@ -158,6 +158,18 @@ jobs:
             python3-setuptools python3-pybind11 python3-h5py python3-unyt \
             python3-paraview xvfb
 
+      - name: Install and build pyablo
+        run: |
+          git clone https://github.com/cphyc/pyablo.git
+          cd pyablo
+          git submodule init
+          git submodule update
+          mkdir build
+          cd build
+          cmake -DMAKE_BUILD_TYPE=Release
+          make -j
+          export PYTHONPATH=${PYTHONPATH}:$(pwd)
+
       - name: Run unit tests
         run: .gitlab-ci/run_unit_tests.sh
 
