@@ -41,6 +41,10 @@ jobs:
       C_COMPILER_LAUNCHER: ${{ inputs.backend == 'cuda' && 'sccache' || 'ccache' }}
       CXX_COMPILER_LAUNCHER: ${{ inputs.backend == 'cuda' && 'ccache' || 'sccache' }}
       DYABLO_CMAKE_ARGS: "-DCMAKE_C_COMPILER_LAUNCHER=${{ inputs.backend == 'cuda' && 'sccache' || 'ccache' }};-DCMAKE_CXX_COMPILER_LAUNCHER=${{ inputs.backend == 'cuda' && 'ccache' || 'sccache' }}"
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      # Checkout timestamps change between runners, even for the same wrapper.
+      CCACHE_COMPILERCHECK: content
       CCACHE_MAXSIZE: 2G
     steps:
       - name: Check out repository and submodules
@@ -60,7 +64,11 @@ jobs:
 
       - name: Verify CUDA compiler
         if: ${{ inputs.backend == 'cuda' }}
-        run: nvcc --version
+        run: |
+          nvcc --version
+          cuda_root="$(dirname "$(dirname "$(readlink -f "$(command -v nvcc)")")")"
+          test -d "$cuda_root/include"
+          echo "CUDA_INCLUDE_DIR=$cuda_root/include" >> "$GITHUB_ENV"
 
       - name: Install build dependencies
         run: |
@@ -76,6 +84,37 @@ jobs:
       - name: Set up sccache
         uses: mozilla-actions/sccache-action@v0.0.11
 
+      - name: Identify ccache toolchain
+        id: ccache-toolchain
+        env:
+          BACKEND: ${{ inputs.backend }}
+        run: |
+          {
+            /usr/bin/gcc --version
+            /usr/bin/g++ --version
+            ccache --version
+            if [[ "$BACKEND" == cuda ]]; then
+              nvcc --version
+              sha256sum external/kokkos/bin/nvcc_wrapper
+            fi
+          } > "$RUNNER_TEMP/ccache-toolchain.txt"
+          echo "hash=$(sha256sum "$RUNNER_TEMP/ccache-toolchain.txt" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          # A new key lets each run save its additions after restoring a prior
+          # cache. Never restore CUDA entries across toolchain changes.
+          key: ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.backend }}-${{ steps.ccache-toolchain.outputs.hash }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ inputs.backend }}-${{ steps.ccache-toolchain.outputs.hash }}-
+
+      - name: Reset compiler cache statistics
+        run: |
+          "${SCCACHE_PATH}" --zero-stats
+          ccache --zero-stats
+
       - name: Build OpenMP
         if: ${{ inputs.backend == 'openmp' }}
         run: .gitlab-ci/build-openmp.sh
@@ -87,18 +126,29 @@ jobs:
           KOKKOS_ARCH: HOPPER90
           NVCC_WRAPPER_DEFAULT_COMPILER: /usr/bin/g++
           CCACHE_COMPILERTYPE: nvcc
-        run: .gitlab-ci/build-cuda.sh
+        run: |
+          # Match the system CUDA includes supplied by Kokkos when using a
+          # regular host C++ compiler locally. With CXX=nvcc_wrapper these
+          # otherwise implicit includes produce different NVCC diagnostics.
+          export DYABLO_CMAKE_ARGS="${DYABLO_CMAKE_ARGS};-DCMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES=${CUDA_INCLUDE_DIR}"
+          .gitlab-ci/build-cuda.sh
 
-      - name: Verify compiler launchers
+      - name: Verify compiler settings
+        env:
+          BACKEND: ${{ inputs.backend }}
         run: |
           grep -E '^CMAKE_(C|CXX)_COMPILER_LAUNCHER:' build/dyablo/CMakeCache.txt
           grep -Eq "^CMAKE_C_COMPILER_LAUNCHER:[^=]+=${C_COMPILER_LAUNCHER}$" build/dyablo/CMakeCache.txt
           grep -Eq "^CMAKE_CXX_COMPILER_LAUNCHER:[^=]+=${CXX_COMPILER_LAUNCHER}$" build/dyablo/CMakeCache.txt
+          if [[ "$BACKEND" == cuda ]]; then
+            grep -Fq -- "-isystem ${CUDA_INCLUDE_DIR}" build/dyablo/compile_commands.json
+          fi
 
       - name: Show compiler cache statistics
+        if: always()
         run: |
-          ${SCCACHE_PATH} --show-stats
-          ccache --show-stats
+          "${SCCACHE_PATH}" --show-stats
+          ccache --show-stats --verbose
 
       - name: Package build tree
         run: tar --exclude='*/CMakeFiles' --exclude='*/CMakeFiles/*' -cf "${{ inputs.backend }}-build.tar" build
