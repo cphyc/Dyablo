@@ -216,7 +216,7 @@ jobs:
           git submodule update
           mkdir build
           cd build
-          cmake -DMAKE_BUILD_TYPE=Release
+          cmake .. -DMAKE_BUILD_TYPE=Release
           make -j
           export PYTHONPATH=${PYTHONPATH}:$(pwd)
 
