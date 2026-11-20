@@ -218,7 +218,7 @@ jobs:
           cd build
           cmake .. -DMAKE_BUILD_TYPE=Release
           make -j
-          export PYTHONPATH=${PYTHONPATH}:$(pwd)
+          echo "PYTHONPATH=${PYTHONPATH}:$(pwd)" >> $GITHUB_ENV
 
       - name: Run unit tests
         run: .gitlab-ci/run_unit_tests.sh
